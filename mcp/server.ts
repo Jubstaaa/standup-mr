@@ -51,5 +51,16 @@ export async function main(): Promise<void> {
 
 const entry = process.argv[1]
 if (entry && import.meta.url === pathToFileURL(entry).href) {
-    main()
+    main().catch((error: unknown) => {
+        if (error instanceof Error && (error as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND') {
+            process.stderr.write(
+                'standup-mr MCP server requires the optional dependency ' +
+                    '@modelcontextprotocol/sdk. Install it with: ' +
+                    'npm install @modelcontextprotocol/sdk\n'
+            )
+            process.exitCode = 1
+            return
+        }
+        throw error
+    })
 }
