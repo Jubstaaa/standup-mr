@@ -39,7 +39,14 @@ function mr(overrides: Partial<MergeRequest> = {}): MergeRequest {
 
 describe('getBlockers', () => {
     it('ignores merge requests whose pipeline is not failed', async () => {
-        const gl = new GitLabProvider('h', 't', blockerFetch({}))
+        const gl = new GitLabProvider(
+            'h',
+            't',
+            blockerFetch({
+                '/pipelines/': [{ id: 2, name: 'quality', stage: 'test', status: 'failed' }],
+                '/trace': 'error: this must not be reported\n',
+            })
+        )
 
         const rows = await gl.getBlockers([
             mr({ pipeline: 'success' }),
