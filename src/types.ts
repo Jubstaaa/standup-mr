@@ -1,5 +1,3 @@
-/** Shared shapes. The JSON contract is camelCase throughout. */
-
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
 export type Bucket = 'ready' | 'blocked' | 'draft' | 'stale'

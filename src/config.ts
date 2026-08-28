@@ -1,12 +1,3 @@
-/**
- * Resolve which GitLab instance to talk to, and with what credentials.
- *
- * Host and token resolve independently through the same precedence: explicit
- * argument, then environment, then the local `glab` CLI config. The glab step
- * is best-effort on purpose — MCP servers routinely run in containers where
- * glab is not installed.
- */
-
 import { execFileSync } from 'node:child_process'
 
 const GLAB_TIMEOUT_MS = 15_000
@@ -70,7 +61,6 @@ function glab(args: string[]): string {
     }
 }
 
-/** Hosts glab is authenticated against. Empty list if glab is absent. */
 export function glabHosts(): string[] {
     const raw = glab(['auth', 'status', '--json'])
     if (raw) {
@@ -79,15 +69,12 @@ export function glabHosts(): string[] {
             if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
                 return Object.keys(parsed as Record<string, unknown>).sort()
             }
-        } catch {
-            // Older glab builds have no --json; fall through.
-        }
+        } catch {}
     }
     const single = glab(['config', 'get', 'host'])
     return single ? [single] : []
 }
 
-/** Token glab holds for `host`. Empty string if glab is absent. */
 export function glabToken(host: string): string {
     return glab(['config', 'get', 'token', '--host', host])
 }

@@ -1,5 +1,3 @@
-/** Sort open merge requests into the four states a standup cares about. */
-
 import type { Bucket } from './types'
 
 export const STALE_DAYS = 14
@@ -19,7 +17,6 @@ export interface PipelineInput {
     pipelineMissing?: boolean
 }
 
-/** Return the bucket one merge request belongs in. */
 export function classify(mr: BucketInput, today: Date, staleDays = STALE_DAYS): Bucket {
     if (mr.draft) return 'draft'
     if (mr.pipeline === 'failed' || mr.unresolved > 0) return 'blocked'
@@ -32,14 +29,6 @@ export function classify(mr: BucketInput, today: Date, staleDays = STALE_DAYS): 
     return age >= staleDays ? 'stale' : 'ready'
 }
 
-/**
- * Set `pipelineMissing` on each merge request, in place.
- *
- * True only when this merge request has no pipeline *and* another merge request
- * in the same project does — that combination means CI exists but never ran
- * here, which must not be read as "green". A project with no CI at all is never
- * flagged.
- */
 export function markMissingPipelines(mrs: PipelineInput[]): void {
     const withCi = new Set(mrs.filter((mr) => mr.pipeline).map((mr) => mr.project))
     for (const mr of mrs) {

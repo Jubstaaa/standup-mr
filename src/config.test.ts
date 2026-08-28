@@ -40,7 +40,6 @@ describe('resolveToken', () => {
     })
 
     it('works without glab installed', () => {
-        // MCP servers commonly run where glab does not exist.
         expect(resolveToken('h', undefined, 'env-token', undefined)).toBe('env-token')
     })
 })

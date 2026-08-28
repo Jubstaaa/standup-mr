@@ -5,7 +5,6 @@ import { GitLabProvider } from './gitlab'
 
 const TODAY = new Date('2026-08-28T00:00:00Z')
 
-/** Serve canned JSON by substring match on the request url, in insertion order. */
 function routedFetch(routes: Record<string, unknown>): FetchLike {
     return async (url: string) => {
         for (const [needle, payload] of Object.entries(routes)) {
@@ -132,7 +131,6 @@ describe('getMyMrs', () => {
         expect(byIid[6]!.bucket).toBe('draft')
         expect(byIid[7]!.bucket).toBe('ready')
         expect(byIid[7]!.pipeline).toBeNull()
-        // MR 6 in the same project has a pipeline, so MR 7 having none is notable.
         expect(byIid[7]!.pipelineMissing).toBe(true)
     })
 
@@ -212,10 +210,6 @@ describe('getReviews', () => {
     })
 
     it('measures freshness against the given today, not the wall clock', async () => {
-        // `today` sits years away from the real clock and the merge request is one day
-        // older than it. A wall-clock implementation would call this stale, so the
-        // assertion can only pass when the passed-in date governs. Anchoring near the
-        // real date instead would let a buggy implementation agree by coincidence.
         const longAgo = new Date('2020-01-15T00:00:00Z')
         const gl = new GitLabProvider(
             'h',

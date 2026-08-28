@@ -38,7 +38,6 @@ describe('previousActiveDay', () => {
     })
 
     it('skips the weekend', () => {
-        // Monday 31 August; last activity was Friday 28 August.
         expect(previousActiveDay(new Set(['2026-08-28']), day('2026-08-31'))).toEqual({
             date: '2026-08-28',
             gapDays: 3,

@@ -1,5 +1,3 @@
-/** GitLab provider: HTTP plumbing plus the queries the standup needs. */
-
 import { classify, markMissingPipelines } from '../buckets'
 import { isoDay } from '../dates'
 import type {
@@ -31,8 +29,6 @@ export class GitLabProvider implements Provider {
         this.fetchImpl = fetchImpl
     }
 
-    // -- transport ---------------------------------------------------
-
     private url(path: string, params?: Params): string {
         const base = `${this.api}/${path}`
         if (!params || Object.keys(params).length === 0) return base
@@ -43,7 +39,6 @@ export class GitLabProvider implements Provider {
         return `${base}?${query.toString()}`
     }
 
-    /** Parsed JSON for one request, or null if anything goes wrong. */
     async getJson<T>(path: string, params?: Params): Promise<T | null> {
         try {
             const response = await this.fetchImpl(this.url(path, params), {
@@ -56,7 +51,6 @@ export class GitLabProvider implements Provider {
         }
     }
 
-    /** Raw body for one request, or '' if anything goes wrong. */
     async getText(path: string): Promise<string> {
         try {
             const response = await this.fetchImpl(this.url(path), {
@@ -69,7 +63,6 @@ export class GitLabProvider implements Provider {
         }
     }
 
-    /** Follow pagination up to `cap` pages, stopping on a short page. */
     async getPaged<T>(path: string, params: Params = {}, cap = 5): Promise<T[]> {
         const rows: T[] = []
         for (let page = 1; page <= cap; page += 1) {
@@ -84,8 +77,6 @@ export class GitLabProvider implements Provider {
         }
         return rows
     }
-
-    // -- queries -------------------------------------------------------
 
     async getIdentity(): Promise<Identity> {
         const me = await this.getJson<{ id: number; username: string }>('user')
