@@ -1,6 +1,25 @@
+import { execFileSync } from 'node:child_process'
+import { existsSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, spyOn } from 'bun:test'
 
 import { main } from './cli'
+
+const repoRoot = join(import.meta.dir, '..', '..')
+const distCli = join(repoRoot, 'dist', 'cli.js')
+
+function ensureBuilt(): boolean {
+    if (existsSync(distCli)) return true
+    try {
+        execFileSync('bun', ['run', 'build'], { cwd: repoRoot, stdio: 'ignore' })
+    } catch {
+        return false
+    }
+    return existsSync(distCli)
+}
+
+const canRunSymlinkTest = ensureBuilt()
 
 function spyOutputs() {
     const stdout = spyOn(process.stdout, 'write').mockImplementation(() => true)
@@ -135,4 +154,23 @@ describe('main', () => {
         stdout.mockRestore()
         stderr.mockRestore()
     })
+})
+
+describe('symlinked entry point', () => {
+    if (!canRunSymlinkTest) {
+        it.skip('runs through a symlink like node_modules/.bin does (dist/cli.js missing and `bun run build` failed)', () => {})
+    } else {
+        it('prints usage and exits 0 when invoked through a symlink, like node_modules/.bin does', () => {
+            const dir = mkdtempSync(join(tmpdir(), 'standup-mr-symlink-'))
+            const link = join(dir, 'standup')
+            symlinkSync(distCli, link)
+
+            try {
+                const output = execFileSync('node', [link, '--help'], { encoding: 'utf8' })
+                expect(output).toContain('standup')
+            } finally {
+                rmSync(dir, { recursive: true, force: true })
+            }
+        })
+    }
 })
