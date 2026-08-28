@@ -66,3 +66,36 @@ describe('extractErrors', () => {
         expect(extractErrors(long)[0]).toHaveLength(200)
     })
 })
+
+describe('extractErrors on github actions logs', () => {
+    it('strips the per-line timestamp prefix', () => {
+        const log = '2026-08-28T09:12:03.1234567Z npm ERR! code E404\n'
+        expect(extractErrors(log)).toEqual(['npm ERR! code E404'])
+    })
+
+    it('strips the error marker from the line it keeps', () => {
+        const log = '2026-08-28T09:12:04.0000000Z ##[error]Process completed with exit code 1.\n'
+        expect(extractErrors(log)).toEqual(['Process completed with exit code 1.'])
+    })
+
+    it('drops group markers even when they mention an error', () => {
+        const log = '2026-08-28T09:12:01.0000000Z ##[group]Run error check\n'
+        expect(extractErrors(log)).toEqual([])
+    })
+
+    it('keeps the real failure out of a full actions log', () => {
+        const log = [
+            '2026-08-28T09:12:01.0000000Z ##[group]Run npm ci',
+            '2026-08-28T09:12:02.0000000Z npm ERR! code E404',
+            "2026-08-28T09:12:02.0000000Z npm ERR! 404 Not Found - GET https://npm.pkg.github.com/@acme%2fui",
+            '2026-08-28T09:12:03.0000000Z ##[endgroup]',
+            '2026-08-28T09:12:04.0000000Z ##[error]Process completed with exit code 1.',
+        ].join('\n')
+
+        const errors = extractErrors(log)
+        expect(errors).toHaveLength(3)
+        expect(errors[0]).toBe('npm ERR! code E404')
+        expect(errors.some((line) => line.startsWith('##['))).toBe(false)
+        expect(errors.some((line) => line.startsWith('2026-'))).toBe(false)
+    })
+})
