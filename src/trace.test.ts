@@ -60,4 +60,9 @@ describe('extractErrors', () => {
     it('returns an empty list when nothing failed', () => {
         expect(extractErrors('$ npm ci\nadded 400 packages\n')).toEqual([])
     })
+
+    it('truncates a very long line', () => {
+        const long = `error: ${'x'.repeat(300)}`
+        expect(extractErrors(long)[0]).toHaveLength(200)
+    })
 })
