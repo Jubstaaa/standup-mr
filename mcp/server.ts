@@ -1,10 +1,10 @@
 import { pathToFileURL } from 'node:url'
 
-import { glabHosts, glabToken, resolveHost, resolveToken } from '../src/config'
-import type { Provider } from '../src/providers/base.types'
-import { GitLabProvider } from '../src/providers/gitlab'
-import { buildReport } from '../src/report'
-import type { StandupReport } from '../src/standup.types'
+import { glabHosts, glabToken, resolveHost, resolveToken } from '../src/config/config'
+import type { Provider } from '../src/providers/base/base.types'
+import { GitLabProvider } from '../src/providers/gitlab/gitlab'
+import { buildReport } from '../src/report/report'
+import type { StandupReport } from '../src/types/standup.types'
 
 export interface CollectOptions {
     host?: string

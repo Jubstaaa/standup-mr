@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 
 import { toMarkdown } from './render'
-import type { StandupReport } from './standup.types'
+import type { StandupReport } from '../types/standup.types'
 
 const REPORT = {
     user: 'dev',

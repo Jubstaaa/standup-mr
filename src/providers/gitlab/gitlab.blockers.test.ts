@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import type { FetchLike, MergeRequest } from '../standup.types'
+import type { FetchLike, MergeRequest } from '../../types/standup.types'
 import { GitLabProvider } from './gitlab'
 
 function blockerFetch(routes: Record<string, unknown>): FetchLike {

@@ -1,6 +1,6 @@
-import { classify, markMissingPipelines } from '../buckets'
-import { isoDay } from '../dates'
-import { MS_PER_DAY } from '../dates.constants'
+import { classify, markMissingPipelines } from '../../buckets/buckets'
+import { isoDay } from '../../dates/dates'
+import { MS_PER_DAY } from '../../dates/dates.constants'
 import type {
     ActivityEvent,
     Blocker,
@@ -8,9 +8,9 @@ import type {
     Identity,
     MergeRequest,
     Review,
-} from '../standup.types'
-import { extractErrors } from '../trace'
-import type { Provider } from './base.types'
+} from '../../types/standup.types'
+import { extractErrors } from '../../trace/trace'
+import type { Provider } from '../base/base.types'
 import { FRESH_REVIEW_DAYS, PAGE_SIZE } from './gitlab.constants'
 
 type Params = Record<string, string | number>

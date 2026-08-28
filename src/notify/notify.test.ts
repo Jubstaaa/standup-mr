@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 
 import { postWebhook } from './notify'
-import type { FetchLike } from './standup.types'
+import type { FetchLike } from '../types/standup.types'
 
 function recordingFetch() {
     const sent: Array<{ url: string; body: unknown; contentType: string | null }> = []

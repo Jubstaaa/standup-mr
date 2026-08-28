@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import type { Provider } from '../src/providers/base.types'
+import type { Provider } from '../src/providers/base/base.types'
 import { collect } from './server'
 
 const fakeProvider: Provider = {

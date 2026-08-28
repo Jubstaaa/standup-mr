@@ -1,8 +1,8 @@
-import { isoDay, label, previousActiveDay } from './dates'
-import { MS_PER_DAY } from './dates.constants'
-import type { Provider } from './providers/base.types'
+import { isoDay, label, previousActiveDay } from '../dates/dates'
+import { MS_PER_DAY } from '../dates/dates.constants'
+import type { Provider } from '../providers/base/base.types'
 import { LOOKBACK_DAYS } from './report.constants'
-import type { StandupReport } from './standup.types'
+import type { StandupReport } from '../types/standup.types'
 
 export async function buildReport(
     provider: Provider,

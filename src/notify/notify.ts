@@ -1,6 +1,6 @@
 import { PAYLOAD_FIELD } from './notify.constants'
 import type { WebhookKind } from './notify.types'
-import type { FetchLike } from './standup.types'
+import type { FetchLike } from '../types/standup.types'
 
 export async function postWebhook(
     url: string,

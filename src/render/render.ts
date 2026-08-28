@@ -1,5 +1,5 @@
 import { BUCKET_ORDER, STRINGS } from './render.constants'
-import type { ActivityEvent, StandupReport } from './standup.types'
+import type { ActivityEvent, StandupReport } from '../types/standup.types'
 
 function eventLine(event: ActivityEvent): string {
     const detail = event.commits

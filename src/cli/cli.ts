@@ -2,11 +2,11 @@ import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 
 import { USAGE } from './cli.constants'
-import { ConfigError, glabHosts, glabToken, resolveHost, resolveToken } from './config'
-import { postWebhook } from './notify'
-import { GitLabProvider } from './providers/gitlab'
-import { toMarkdown } from './render'
-import { buildReport } from './report'
+import { ConfigError, glabHosts, glabToken, resolveHost, resolveToken } from '../config/config'
+import { postWebhook } from '../notify/notify'
+import { GitLabProvider } from '../providers/gitlab/gitlab'
+import { toMarkdown } from '../render/render'
+import { buildReport } from '../report/report'
 
 async function readStdin(): Promise<string> {
     const chunks: Buffer[] = []

@@ -1,7 +1,7 @@
 import { STALE_DAYS } from './buckets.constants'
 import type { BucketInput, PipelineInput } from './buckets.types'
-import { MS_PER_DAY } from './dates.constants'
-import type { Bucket } from './standup.types'
+import { MS_PER_DAY } from '../dates/dates.constants'
+import type { Bucket } from '../types/standup.types'
 
 export function classify(mr: BucketInput, today: Date, staleDays = STALE_DAYS): Bucket {
     if (mr.draft) return 'draft'

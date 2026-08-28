@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import type { FetchLike } from '../standup.types'
+import type { FetchLike } from '../../types/standup.types'
 import { GitLabProvider } from './gitlab'
 
 const TODAY = new Date('2026-08-28T00:00:00Z')

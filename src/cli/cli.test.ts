@@ -12,6 +12,7 @@ describe('main', () => {
     afterEach(() => {
         spyOn(process.stdout, 'write').mockRestore()
         spyOn(process.stderr, 'write').mockRestore()
+        spyOn(globalThis, 'fetch').mockRestore()
     })
 
     it('prints usage and returns 1 for a bare invocation', async () => {
@@ -60,7 +61,6 @@ describe('main', () => {
         expect(fetchSpy).not.toHaveBeenCalled()
         stdout.mockRestore()
         stderr.mockRestore()
-        fetchSpy.mockRestore()
     })
 
     it('returns 1 for post with whitespace-only text', async () => {
@@ -75,6 +75,5 @@ describe('main', () => {
         expect(fetchSpy).not.toHaveBeenCalled()
         stdout.mockRestore()
         stderr.mockRestore()
-        fetchSpy.mockRestore()
     })
 })
