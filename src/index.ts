@@ -1,6 +1,19 @@
 export { classify, markMissingPipelines } from './buckets/buckets'
 export { STALE_DAYS } from './buckets/buckets.constants'
-export { ConfigError, glabHosts, glabToken, resolveHost, resolveToken } from './config/config'
+export {
+    ConfigError,
+    GITHUB_LABELS,
+    GITLAB_LABELS,
+    ghHosts,
+    ghToken,
+    glabHosts,
+    glabToken,
+    parseGlabHosts,
+    parseLoggedInHosts,
+    resolveHost,
+    resolveToken,
+} from './config/config'
+export type { ProviderLabels } from './config/config'
 export { isoDay, label, previousActiveDay } from './dates/dates'
 export { postWebhook } from './notify/notify'
 export type { Provider } from './providers/base/base.types'
