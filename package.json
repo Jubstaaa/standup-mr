@@ -4,6 +4,28 @@
     "description": "Standup notes from merge request state, not commit logs.",
     "keywords": ["standup", "gitlab", "merge-request", "cli", "mcp"],
     "license": "MIT",
+    "author": {
+        "name": "İlker Balcılar",
+        "email": "ilkerbalcilartr@gmail.com"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Jubstaaa/standup-mr.git"
+    },
+    "bugs": {
+        "url": "https://github.com/Jubstaaa/standup-mr/issues"
+    },
+    "homepage": "https://github.com/Jubstaaa/standup-mr#readme",
+    "funding": [
+        {
+            "type": "github",
+            "url": "https://github.com/sponsors/Jubstaaa"
+        },
+        {
+            "type": "buy_me_a_coffee",
+            "url": "https://buymeacoffee.com/jubstaa"
+        }
+    ],
     "type": "module",
     "engines": { "node": ">=20" },
     "bin": { "standup": "./dist/cli.js" },
