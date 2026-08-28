@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 import { glabHosts, glabToken, resolveHost, resolveToken } from '../src/config/config'
@@ -50,7 +51,13 @@ export async function main(): Promise<void> {
 }
 
 const entry = process.argv[1]
-if (entry && import.meta.url === pathToFileURL(entry).href) {
+let entryUrl: string | undefined
+try {
+    entryUrl = entry ? pathToFileURL(realpathSync(entry)).href : undefined
+} catch {
+    entryUrl = undefined
+}
+if (entryUrl && import.meta.url === entryUrl) {
     main().catch((error: unknown) => {
         if (error instanceof Error && (error as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND') {
             process.stderr.write(

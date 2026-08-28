@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 
@@ -87,7 +88,13 @@ export async function main(argv: string[]): Promise<number> {
 }
 
 const entry = process.argv[1]
-if (entry && import.meta.url === pathToFileURL(entry).href) {
+let entryUrl: string | undefined
+try {
+    entryUrl = entry ? pathToFileURL(realpathSync(entry)).href : undefined
+} catch {
+    entryUrl = undefined
+}
+if (entryUrl && import.meta.url === entryUrl) {
     main(process.argv.slice(2)).then((code) => {
         process.exitCode = code
     })
