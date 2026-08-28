@@ -4,6 +4,7 @@ export { ConfigError, glabHosts, glabToken, resolveHost, resolveToken } from './
 export { isoDay, label, previousActiveDay } from './dates/dates'
 export { postWebhook } from './notify/notify'
 export type { Provider } from './providers/base/base.types'
+export { ApiError, assertUsable, unreachable } from './providers/base/http'
 export { GitLabProvider } from './providers/gitlab/gitlab'
 export { toMarkdown } from './render/render'
 export { buildReport } from './report/report'

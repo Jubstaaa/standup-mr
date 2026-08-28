@@ -92,10 +92,10 @@ describe('getBlockers', () => {
         expect(await gl.getBlockers([mr()])).toEqual([])
     })
 
-    it('survives a jobs endpoint that returns nothing usable', async () => {
+    it('throws when the jobs endpoint is not usable, instead of hiding the blocker', async () => {
         const gl = new GitLabProvider('h', 't', async () => new Response('nope', { status: 500 }))
 
-        expect(await gl.getBlockers([mr()])).toEqual([])
+        await expect(gl.getBlockers([mr()])).rejects.toThrow(/500/)
     })
 
     it('diagnoses several failed merge requests independently', async () => {

@@ -39,13 +39,13 @@ describe('GitLabProvider transport', () => {
         expect(fetchImpl.calls[0]).toContain('per_page=100')
     })
 
-    it('returns null when the transport throws', async () => {
+    it('throws when the transport fails, instead of reporting an empty day', async () => {
         const boom: FetchLike = async () => {
             throw new Error('boom')
         }
         const gl = new GitLabProvider('gitlab.example.com', 'tok', boom)
 
-        await expect(gl.getJson('user')).resolves.toBeNull()
+        await expect(gl.getJson('user')).rejects.toThrow(/gitlab\.example\.com.*boom/)
     })
 
     it('returns null on a non-ok status', async () => {
@@ -56,13 +56,20 @@ describe('GitLabProvider transport', () => {
         await expect(gl.getJson('user')).resolves.toBeNull()
     })
 
-    it('returns an empty string from getText when the transport throws', async () => {
+    it('throws from getText when the transport fails', async () => {
         const boom: FetchLike = async () => {
             throw new Error('boom')
         }
         const gl = new GitLabProvider('gitlab.example.com', 'tok', boom)
 
-        await expect(gl.getText('jobs/1/trace')).resolves.toBe('')
+        await expect(gl.getText('jobs/1/trace')).rejects.toThrow(/boom/)
+    })
+
+    it('surfaces an invalid token instead of returning null', async () => {
+        const denied: FetchLike = async () => new Response('', { status: 401 })
+        const gl = new GitLabProvider('gitlab.example.com', 'tok', denied)
+
+        await expect(gl.getJson('user')).rejects.toThrow(/token/i)
     })
 
     it('stops paging on a short page', async () => {

@@ -11,6 +11,7 @@ import type {
 } from '../../types/standup.types'
 import { extractErrors } from '../../trace/trace'
 import type { Provider } from '../base/base.types'
+import { assertUsable, unreachable } from '../base/http'
 import { FRESH_REVIEW_DAYS, PAGE_SIZE } from './gitlab.constants'
 
 type Params = Record<string, string | number>
@@ -40,27 +41,35 @@ export class GitLabProvider implements Provider {
     }
 
     async getJson<T>(path: string, params?: Params): Promise<T | null> {
+        let response: Response
         try {
-            const response = await this.fetchImpl(this.url(path, params), {
+            response = await this.fetchImpl(this.url(path, params), {
                 headers: { 'PRIVATE-TOKEN': this.token },
             })
-            if (!response.ok) return null
+        } catch (cause) {
+            throw unreachable(this.host, cause)
+        }
+        assertUsable(response, this.host)
+        if (!response.ok) return null
+        try {
             return (await response.json()) as T
-        } catch {
-            return null
+        } catch (cause) {
+            throw unreachable(this.host, cause)
         }
     }
 
     async getText(path: string): Promise<string> {
+        let response: Response
         try {
-            const response = await this.fetchImpl(this.url(path), {
+            response = await this.fetchImpl(this.url(path), {
                 headers: { 'PRIVATE-TOKEN': this.token },
             })
-            if (!response.ok) return ''
-            return await response.text()
-        } catch {
-            return ''
+        } catch (cause) {
+            throw unreachable(this.host, cause)
         }
+        assertUsable(response, this.host)
+        if (!response.ok) return ''
+        return await response.text()
     }
 
     async getPaged<T>(path: string, params: Params = {}, cap = 5): Promise<T[]> {
