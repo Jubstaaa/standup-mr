@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import { ConfigError, resolveHost, resolveToken } from './config'
+import { ConfigError, parseGlabHosts, resolveHost, resolveToken } from './config'
 
 describe('resolveHost', () => {
     it('prefers the explicit argument over env and glab', () => {
@@ -41,5 +41,32 @@ describe('resolveToken', () => {
 
     it('works without glab installed', () => {
         expect(resolveToken('h', undefined, 'env-token', undefined)).toBe('env-token')
+    })
+})
+
+describe('parseGlabHosts', () => {
+    it('returns only hosts that are actually logged in', () => {
+        const status = [
+            'gitlab.com',
+            '  x gitlab.com: API call failed: 401',
+            'gitlab.example.com',
+            '  ✓ Logged in to gitlab.example.com as dev (/path/config.yml)',
+        ].join('\n')
+
+        expect(parseGlabHosts(status)).toEqual(['gitlab.example.com'])
+    })
+
+    it('returns several hosts sorted and de-duplicated', () => {
+        const status = [
+            '  ✓ Logged in to b.example.com as dev',
+            '  ✓ Logged in to a.example.com as dev',
+            '  ✓ Logged in to b.example.com as dev',
+        ].join('\n')
+
+        expect(parseGlabHosts(status)).toEqual(['a.example.com', 'b.example.com'])
+    })
+
+    it('returns nothing when no host is logged in', () => {
+        expect(parseGlabHosts('gitlab.com\n  x gitlab.com: API call failed: 401\n')).toEqual([])
     })
 })

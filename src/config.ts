@@ -61,18 +61,26 @@ function glab(args: string[]): string {
     }
 }
 
-export function glabHosts(): string[] {
-    const raw = glab(['auth', 'status', '--json'])
-    if (raw) {
-        try {
-            const parsed: unknown = JSON.parse(raw)
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                return Object.keys(parsed as Record<string, unknown>).sort()
-            }
-        } catch {}
+export function parseGlabHosts(statusOutput: string): string[] {
+    const hosts = [...statusOutput.matchAll(/Logged in to (\S+)/g)].map((match) => match[1]!)
+    return [...new Set(hosts)].sort()
+}
+
+function glabStatus(): string {
+    try {
+        return execFileSync('glab', ['auth', 'status'], {
+            encoding: 'utf8',
+            timeout: GLAB_TIMEOUT_MS,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        })
+    } catch (error) {
+        const result = error as { stdout?: string; stderr?: string }
+        return `${result.stdout ?? ''}${result.stderr ?? ''}`
     }
-    const single = glab(['config', 'get', 'host'])
-    return single ? [single] : []
+}
+
+export function glabHosts(): string[] {
+    return parseGlabHosts(glabStatus())
 }
 
 export function glabToken(host: string): string {
