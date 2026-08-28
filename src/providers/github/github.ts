@@ -145,12 +145,14 @@ export class GitHubProvider {
             .sort((a, b) => a.at.localeCompare(b.at))
     }
 
-    private async shapePr(item: SearchItem): Promise<MergeRequest> {
+    private async shapePr(item: SearchItem): Promise<MergeRequest | null> {
         const project = repoFromUrl(item.repository_url)
         const iid = item.number
 
         const pull = await this.getJson<PullDetail>(`repos/${project}/pulls/${iid}`)
-        const sha = pull?.head?.sha ?? ''
+        if (!pull) return null
+
+        const sha = pull.head?.sha ?? ''
 
         const [checks, reviews] = await Promise.all([
             sha
@@ -167,15 +169,15 @@ export class GitHubProvider {
         return {
             provider: 'github',
             project,
-            projectId: pull?.base?.repo?.id ?? 0,
+            projectId: pull.base?.repo?.id ?? 0,
             iid,
-            title: pull?.title ?? item.title,
-            draft: pull?.draft ?? item.draft ?? false,
-            branch: pull?.head?.ref ?? '',
-            target: pull?.base?.ref ?? '',
-            updated: localAt(pull?.updated_at ?? item.updated_at).slice(0, 10),
-            url: pull?.html_url ?? item.html_url,
-            mergeStatus: pull?.mergeable_state ?? null,
+            title: pull.title,
+            draft: pull.draft,
+            branch: pull.head?.ref ?? '',
+            target: pull.base?.ref ?? '',
+            updated: localAt(pull.updated_at).slice(0, 10),
+            url: pull.html_url,
+            mergeStatus: pull.mergeable_state ?? null,
             pipeline,
             pipelineId,
             unresolved: countChangesRequested(reviews),
@@ -190,7 +192,8 @@ export class GitHubProvider {
             `is:pr is:open author:${login} archived:false`,
             SEARCH_CAP
         )
-        const rows = await Promise.all(items.map((item) => this.shapePr(item)))
+        const shaped = await Promise.all(items.map((item) => this.shapePr(item)))
+        const rows = shaped.filter((row): row is MergeRequest => row !== null)
 
         markMissingPipelines(rows)
         for (const row of rows) {

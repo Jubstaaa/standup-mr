@@ -220,4 +220,67 @@ describe('getMyMrs', () => {
         expect(rows.find((row) => row.iid === 1)!.pipelineMissing).toBe(false)
         expect(rows.find((row) => row.iid === 2)!.pipelineMissing).toBe(true)
     })
+
+    it('drops a pull request whose detail fetch 404s, keeping the rest', async () => {
+        const fetchImpl: FetchLike = async (url: string) => {
+            if (url.includes('/user')) {
+                return new Response(JSON.stringify({ id: 1, login: 'dev' }), { status: 200 })
+            }
+            if (url.includes('search/issues')) {
+                return new Response(
+                    JSON.stringify({
+                        items: [
+                            {
+                                number: 3,
+                                title: 'gone',
+                                html_url: 'u3',
+                                updated_at: '2026-08-27T09:00:00Z',
+                                repository_url: 'https://api.github.com/repos/acme/web',
+                            },
+                            {
+                                number: 4,
+                                title: 'still open',
+                                html_url: 'u4',
+                                updated_at: '2026-08-27T09:00:00Z',
+                                repository_url: 'https://api.github.com/repos/acme/web',
+                            },
+                        ],
+                    }),
+                    { status: 200 }
+                )
+            }
+            if (url.includes('/repos/acme/web/pulls/3/reviews')) {
+                return new Response('[]', { status: 200 })
+            }
+            if (url.includes('/repos/acme/web/pulls/3')) {
+                return new Response(null, { status: 404 })
+            }
+            if (url.includes('/repos/acme/web/pulls/4/reviews')) {
+                return new Response('[]', { status: 200 })
+            }
+            if (url.includes('/repos/acme/web/pulls/4')) {
+                return new Response(
+                    JSON.stringify({
+                        number: 4,
+                        title: 'still open',
+                        draft: false,
+                        html_url: 'u4',
+                        updated_at: '2026-08-27T09:00:00Z',
+                        head: { ref: 'b', sha: 'sha4' },
+                        base: { ref: 'main', repo: { id: 1 } },
+                    }),
+                    { status: 200 }
+                )
+            }
+            if (url.includes('/commits/sha4/check-runs')) {
+                return new Response(JSON.stringify({ check_runs: [] }), { status: 200 })
+            }
+            return new Response('[]', { status: 200 })
+        }
+        const gh = new GitHubProvider('github.com', 't', fetchImpl)
+
+        const rows = await gh.getMyMrs(TODAY)
+        expect(rows).toHaveLength(1)
+        expect(rows[0]!.iid).toBe(4)
+    })
 })
