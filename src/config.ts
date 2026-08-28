@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 
-const GLAB_TIMEOUT_MS = 15_000
+import { GLAB_TIMEOUT_MS } from './config.constants'
 
 export class ConfigError extends Error {
     constructor(message: string) {

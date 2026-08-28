@@ -1,21 +1,7 @@
-import type { Bucket } from './types'
-
-export const STALE_DAYS = 14
-
-const MS_PER_DAY = 86_400_000
-
-export interface BucketInput {
-    draft: boolean
-    pipeline: string | null
-    unresolved: number
-    updated: string
-}
-
-export interface PipelineInput {
-    project: string
-    pipeline: string | null
-    pipelineMissing?: boolean
-}
+import { STALE_DAYS } from './buckets.constants'
+import type { BucketInput, PipelineInput } from './buckets.types'
+import { MS_PER_DAY } from './dates.constants'
+import type { Bucket } from './standup.types'
 
 export function classify(mr: BucketInput, today: Date, staleDays = STALE_DAYS): Bucket {
     if (mr.draft) return 'draft'

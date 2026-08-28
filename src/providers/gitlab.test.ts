@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test'
 
-import type { FetchLike } from '../types'
+import type { FetchLike } from '../standup.types'
 import { GitLabProvider } from './gitlab'
 
 function jsonResponse(body: unknown): Response {

@@ -1,4 +1,4 @@
-import type { ActivityEvent, Blocker, Identity, MergeRequest, Review } from '../types'
+import type { ActivityEvent, Blocker, Identity, MergeRequest, Review } from '../standup.types'
 
 export interface Provider {
     getIdentity(): Promise<Identity>
