@@ -9,6 +9,7 @@ import type {
     MergeRequest,
     Review,
 } from '../standup.types'
+import { extractErrors } from '../trace'
 import type { Provider } from './base.types'
 import { FRESH_REVIEW_DAYS, PAGE_SIZE } from './gitlab.constants'
 
@@ -218,7 +219,34 @@ export class GitLabProvider implements Provider {
         return rows.sort((a, b) => b.updated.localeCompare(a.updated))
     }
 
-    getBlockers(_mrs: MergeRequest[]): Promise<Blocker[]> {
-        throw new Error('Not implemented')
+    async getBlockers(mrs: MergeRequest[]): Promise<Blocker[]> {
+        const red = mrs.filter((mr) => mr.pipeline === 'failed')
+
+        const diagnosed = await Promise.all(
+            red.map(async (mr): Promise<Blocker | null> => {
+                const jobs =
+                    (await this.getJson<Array<Record<string, any>>>(
+                        `projects/${mr.projectId}/pipelines/${mr.pipelineId}/jobs`,
+                        { per_page: PAGE_SIZE }
+                    )) ?? []
+                const job = jobs.find((j) => j.status === 'failed')
+                if (!job) return null
+
+                const trace = await this.getText(
+                    `projects/${mr.projectId}/jobs/${job.id}/trace`
+                )
+                return {
+                    project: mr.project,
+                    mr: mr.iid,
+                    title: mr.title,
+                    job: job.name,
+                    stage: job.stage,
+                    url: mr.url,
+                    errors: extractErrors(trace),
+                }
+            })
+        )
+
+        return diagnosed.filter((row): row is Blocker => row !== null)
     }
 }
