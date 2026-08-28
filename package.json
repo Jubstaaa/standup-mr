@@ -39,6 +39,7 @@
         "prepublishOnly": "tsup"
     },
     "devDependencies": {
+        "@modelcontextprotocol/sdk": "^1.0.0",
         "@types/bun": "^1.0.0",
         "@types/node": "^22.0.0",
         "tsup": "^8.0.0",
