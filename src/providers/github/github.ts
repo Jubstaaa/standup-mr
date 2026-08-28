@@ -1,9 +1,11 @@
-import { isoDay } from '../../dates/dates'
+import { classify, markMissingPipelines } from '../../buckets/buckets'
+import { isoDay, localAt } from '../../dates/dates'
 import { ApiError, assertUsable, unreachable } from '../base/http'
-import { API_VERSION, DOT_COM, PAGE_SIZE } from './github.constants'
-import { mapEvent } from './github.map'
-import type { ActivityEvent, Identity, FetchLike } from '../../types/standup.types'
-import type { RawEvent } from './github.types'
+import { API_VERSION, DOT_COM, PAGE_SIZE, SEARCH_CAP } from './github.constants'
+import { mapEvent, repoFromUrl } from './github.map'
+import { countChangesRequested, normalizeChecks } from './github.state'
+import type { ActivityEvent, Identity, FetchLike, MergeRequest } from '../../types/standup.types'
+import type { CheckRun, PullDetail, PullReview, RawEvent, SearchItem } from './github.types'
 
 type Params = Record<string, string | number>
 
@@ -141,5 +143,59 @@ export class GitHubProvider {
             .map(mapEvent)
             .filter((event) => event.at.slice(0, 10) >= floor)
             .sort((a, b) => a.at.localeCompare(b.at))
+    }
+
+    private async shapePr(item: SearchItem): Promise<MergeRequest> {
+        const project = repoFromUrl(item.repository_url)
+        const iid = item.number
+
+        const pull = await this.getJson<PullDetail>(`repos/${project}/pulls/${iid}`)
+        const sha = pull?.head?.sha ?? ''
+
+        const [checks, reviews] = await Promise.all([
+            sha
+                ? this.getJson<{ check_runs?: CheckRun[] }>(
+                      `repos/${project}/commits/${sha}/check-runs`,
+                      { per_page: PAGE_SIZE }
+                  )
+                : Promise.resolve(null),
+            this.getPaged<PullReview>(`repos/${project}/pulls/${iid}/reviews`, {}, 2),
+        ])
+
+        const { pipeline, pipelineId } = normalizeChecks(checks?.check_runs ?? [])
+
+        return {
+            provider: 'github',
+            project,
+            projectId: pull?.base?.repo?.id ?? 0,
+            iid,
+            title: pull?.title ?? item.title,
+            draft: pull?.draft ?? item.draft ?? false,
+            branch: pull?.head?.ref ?? '',
+            target: pull?.base?.ref ?? '',
+            updated: localAt(pull?.updated_at ?? item.updated_at).slice(0, 10),
+            url: pull?.html_url ?? item.html_url,
+            mergeStatus: pull?.mergeable_state ?? null,
+            pipeline,
+            pipelineId,
+            unresolved: countChangesRequested(reviews),
+            pipelineMissing: false,
+            bucket: 'ready',
+        }
+    }
+
+    async getMyMrs(today: Date): Promise<MergeRequest[]> {
+        const login = (await this.getIdentity()).username
+        const items = await this.getSearch<SearchItem>(
+            `is:pr is:open author:${login} archived:false`,
+            SEARCH_CAP
+        )
+        const rows = await Promise.all(items.map((item) => this.shapePr(item)))
+
+        markMissingPipelines(rows)
+        for (const row of rows) {
+            row.bucket = classify(row, today)
+        }
+        return rows
     }
 }

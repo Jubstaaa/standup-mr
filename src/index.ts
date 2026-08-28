@@ -20,6 +20,12 @@ export type { Provider } from './providers/base/base.types'
 export { ApiError, assertUsable, unreachable } from './providers/base/http'
 export { GitHubProvider } from './providers/github/github'
 export { mapEvent, repoFromUrl } from './providers/github/github.map'
+export {
+    approvedBy,
+    countChangesRequested,
+    latestStateByReviewer,
+    normalizeChecks,
+} from './providers/github/github.state'
 export { GitLabProvider } from './providers/gitlab/gitlab'
 export { toMarkdown } from './render/render'
 export { buildReport } from './report/report'

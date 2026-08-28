@@ -4,6 +4,13 @@ export const API_VERSION = '2022-11-28'
 export const DOT_COM = 'github.com'
 export const SEARCH_CAP = 3
 
+export const FAILED_CONCLUSIONS = new Set([
+    'failure',
+    'timed_out',
+    'startup_failure',
+    'action_required',
+])
+
 export const EVENT_ACTIONS: Record<string, string> = {
     PushEvent: 'pushed to',
     PullRequestReviewEvent: 'reviewed',
