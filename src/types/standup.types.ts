@@ -1,3 +1,5 @@
+export type ProviderKind = 'gitlab' | 'github'
+
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>
 
 export type Bucket = 'ready' | 'blocked' | 'draft' | 'stale'
@@ -19,6 +21,7 @@ export interface ActivityEvent {
 }
 
 export interface MergeRequest {
+    provider: ProviderKind
     project: string
     projectId: number
     iid: number
@@ -37,6 +40,7 @@ export interface MergeRequest {
 }
 
 export interface Review {
+    provider: ProviderKind
     project: string
     iid: number
     title: string
@@ -49,6 +53,7 @@ export interface Review {
 }
 
 export interface Blocker {
+    provider: ProviderKind
     project: string
     mr: number
     title: string
@@ -59,6 +64,7 @@ export interface Blocker {
 }
 
 export interface StandupReport {
+    provider: ProviderKind
     user: string
     today: { date: string; label: string }
     previous: {

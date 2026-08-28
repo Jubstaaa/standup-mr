@@ -4,6 +4,7 @@ import { toMarkdown } from './render'
 import type { StandupReport } from '../types/standup.types'
 
 const REPORT = {
+    provider: 'gitlab' as const,
     user: 'dev',
     today: { date: '2026-08-28', label: 'Friday, 28 August' },
     previous: {
@@ -27,12 +28,14 @@ const REPORT = {
     todayEvents: [],
     myMrs: [
         {
+            provider: 'gitlab' as const,
             project: 'acme/web', projectId: 1, iid: 7, title: 'refactor: loading state',
             draft: false, branch: 'x', target: 'main', updated: '2026-08-26',
             url: 'u', mergeStatus: 'mergeable', pipeline: null, pipelineId: null,
             unresolved: 0, pipelineMissing: true, bucket: 'ready' as const,
         },
         {
+            provider: 'gitlab' as const,
             project: 'acme/web', projectId: 1, iid: 49, title: 'fix: drop chips',
             draft: false, branch: 'y', target: 'main', updated: '2026-08-27',
             url: 'u', mergeStatus: 'unchecked', pipeline: 'success', pipelineId: 5,
@@ -41,11 +44,13 @@ const REPORT = {
     ],
     reviews: [
         {
+            provider: 'gitlab' as const,
             project: 'acme/web', iid: 54, title: 'feat: balance inquiry',
             author: 'Teammate', updated: '2026-08-28', draft: false, url: 'u',
             fresh: true, approvedByMe: false,
         },
         {
+            provider: 'gitlab' as const,
             project: 'acme/web', iid: 53, title: 'feat: refund limits',
             author: 'Teammate', updated: '2026-08-27', draft: false, url: 'u',
             fresh: true, approvedByMe: true,
@@ -54,6 +59,7 @@ const REPORT = {
     reviewPendingCount: 1,
     blockers: [
         {
+            provider: 'gitlab' as const,
             project: 'acme/mobile', mr: 6, title: 'ci: release pipeline',
             job: 'quality', stage: 'quality', url: 'https://h/x',
             errors: ['error: GET .../@acme/ui-1.2.0.tgz - 404'],

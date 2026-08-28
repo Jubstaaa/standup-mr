@@ -4,6 +4,7 @@ import type { Provider } from '../src/providers/base/base.types'
 import { collect } from './server'
 
 const fakeProvider: Provider = {
+    kind: 'gitlab',
     getIdentity: async () => ({ id: 1, username: 'dev' }),
     getEvents: async () => [],
     getMyMrs: async () => [],

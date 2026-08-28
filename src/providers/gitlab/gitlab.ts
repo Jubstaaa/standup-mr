@@ -16,6 +16,7 @@ import { FRESH_REVIEW_DAYS, PAGE_SIZE } from './gitlab.constants'
 type Params = Record<string, string | number>
 
 export class GitLabProvider implements Provider {
+    readonly kind = 'gitlab' as const
     readonly host: string
     readonly api: string
     private readonly token: string
@@ -150,6 +151,7 @@ export class GitLabProvider implements Provider {
         const latest = pipelines?.[0]
 
         return {
+            provider: 'gitlab',
             project: String(mr.references.full).split('!')[0]!,
             projectId,
             iid,
@@ -194,16 +196,17 @@ export class GitLabProvider implements Provider {
         return (approvals.approved_by ?? []).some((entry) => entry.user?.id === uid)
     }
 
-    async getReviews(uid: number, today: Date): Promise<Review[]> {
+    async getReviews(identity: Identity, today: Date): Promise<Review[]> {
         const raw = await this.getPaged<Record<string, any>>('merge_requests', {
             scope: 'all',
             state: 'opened',
-            reviewer_id: uid,
+            reviewer_id: identity.id,
         })
         const cutoff = isoDay(new Date(today.getTime() - FRESH_REVIEW_DAYS * MS_PER_DAY))
 
         const rows = await Promise.all(
             raw.map(async (mr) => ({
+                provider: 'gitlab' as const,
                 project: String(mr.references.full).split('!')[0]!,
                 iid: mr.iid as number,
                 title: mr.title as string,
@@ -212,7 +215,7 @@ export class GitLabProvider implements Provider {
                 draft: mr.draft as boolean,
                 url: mr.web_url as string,
                 fresh: String(mr.updated_at).slice(0, 10) >= cutoff,
-                approvedByMe: await this.approvedByMe(mr.project_id, mr.iid, uid),
+                approvedByMe: await this.approvedByMe(mr.project_id, mr.iid, identity.id),
             }))
         )
 
@@ -236,6 +239,7 @@ export class GitLabProvider implements Provider {
                     `projects/${mr.projectId}/jobs/${job.id}/trace`
                 )
                 return {
+                    provider: 'gitlab',
                     project: mr.project,
                     mr: mr.iid,
                     title: mr.title,

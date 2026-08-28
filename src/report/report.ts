@@ -27,11 +27,12 @@ export async function buildReport(
 
     const myMrs = await provider.getMyMrs(today)
     const [reviews, blockers] = await Promise.all([
-        provider.getReviews(identity.id, today),
+        provider.getReviews(identity, today),
         provider.getBlockers(myMrs),
     ])
 
     return {
+        provider: provider.kind,
         user: identity.username,
         today: { date: isoDay(today), label: label(today, lang) },
         previous: {

@@ -162,6 +162,32 @@ describe('getMyMrs', () => {
         expect(row!.unresolved).toBe(1)
         expect(row!.bucket).toBe('blocked')
     })
+
+    it('stamps the provider on every merge request', async () => {
+        const gl = new GitLabProvider(
+            'h',
+            't',
+            routedFetch({
+                '/merge_requests': [
+                    {
+                        project_id: 3,
+                        iid: 11,
+                        title: 'feat: add stories endpoint',
+                        draft: false,
+                        source_branch: 'feat/stories',
+                        target_branch: 'main',
+                        updated_at: '2026-08-27T09:00:00.000+03:00',
+                        web_url: 'https://h/acme/api/-/merge_requests/11',
+                        detailed_merge_status: 'mergeable',
+                        references: { full: 'acme/api!11' },
+                    },
+                ],
+            })
+        )
+
+        const [row] = await gl.getMyMrs(TODAY)
+        expect(row).toMatchObject({ provider: 'gitlab', iid: 11 })
+    })
 })
 
 describe('getReviews', () => {
@@ -183,7 +209,7 @@ describe('getReviews', () => {
             })
         )
 
-        const [row] = await gl.getReviews(285, TODAY)
+        const [row] = await gl.getReviews({ id: 285, username: 'dev' }, TODAY)
         expect(row).toMatchObject({ approvedByMe: true, author: 'Teammate', fresh: true })
     })
 
@@ -205,7 +231,7 @@ describe('getReviews', () => {
             })
         )
 
-        const [row] = await gl.getReviews(285, TODAY)
+        const [row] = await gl.getReviews({ id: 285, username: 'dev' }, TODAY)
         expect(row!.approvedByMe).toBe(false)
     })
 
@@ -228,7 +254,7 @@ describe('getReviews', () => {
             })
         )
 
-        const [row] = await gl.getReviews(285, longAgo)
+        const [row] = await gl.getReviews({ id: 285, username: 'dev' }, longAgo)
         expect(row!.fresh).toBe(true)
     })
 })

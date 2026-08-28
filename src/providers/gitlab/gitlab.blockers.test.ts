@@ -18,6 +18,7 @@ function blockerFetch(routes: Record<string, unknown>): FetchLike {
 
 function mr(overrides: Partial<MergeRequest> = {}): MergeRequest {
     return {
+        provider: 'gitlab',
         project: 'acme/web',
         projectId: 1,
         iid: 6,

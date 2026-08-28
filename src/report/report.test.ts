@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 
 import type { Provider } from '../providers/base/base.types'
 import { buildReport } from './report'
-import type { ActivityEvent, Blocker, MergeRequest, Review } from '../types/standup.types'
+import type { ActivityEvent, Blocker, Identity, MergeRequest, Review } from '../types/standup.types'
 
 const TODAY = new Date(2026, 7, 28)
 
@@ -15,6 +15,7 @@ interface Overrides {
 
 function fakeProvider(overrides: Overrides = {}): Provider {
     return {
+        kind: 'gitlab',
         getIdentity: async () => ({ id: 1, username: 'dev' }),
         getEvents: async () => overrides.events ?? [],
         getMyMrs: async () => overrides.mrs ?? [],
@@ -82,5 +83,24 @@ describe('buildReport', () => {
         const report = await buildReport(fakeProvider(), TODAY)
         expect(report.user).toBe('dev')
         expect(report.today).toEqual({ date: '2026-08-28', label: 'Friday, 28 August' })
+    })
+
+    it('carries the provider kind into the report', async () => {
+        const report = await buildReport(fakeProvider(), TODAY)
+        expect(report.provider).toBe('gitlab')
+    })
+
+    it('hands the whole identity to getReviews', async () => {
+        let seen: Identity | undefined
+        const provider: Provider = {
+            ...fakeProvider(),
+            getReviews: async (identity: Identity) => {
+                seen = identity
+                return []
+            },
+        }
+
+        await buildReport(provider, TODAY)
+        expect(seen).toEqual({ id: 1, username: 'dev' })
     })
 })
