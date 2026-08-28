@@ -212,14 +212,19 @@ describe('getReviews', () => {
     })
 
     it('measures freshness against the given today, not the wall clock', async () => {
+        // `today` sits years away from the real clock and the merge request is one day
+        // older than it. A wall-clock implementation would call this stale, so the
+        // assertion can only pass when the passed-in date governs. Anchoring near the
+        // real date instead would let a buggy implementation agree by coincidence.
+        const longAgo = new Date('2020-01-15T00:00:00Z')
         const gl = new GitLabProvider(
             'h',
             't',
             routedFetch({
                 reviewer_id: [
                     {
-                        project_id: 1, iid: 12, title: 'chore: old one',
-                        draft: false, updated_at: '2026-08-01T00:00:00Z',
+                        project_id: 1, iid: 12, title: 'chore: recent back then',
+                        draft: false, updated_at: '2020-01-14T00:00:00Z',
                         author: { name: 'Teammate' },
                         web_url: 'https://h/acme/web/-/merge_requests/12',
                         references: { full: 'acme/web!12' },
@@ -229,7 +234,7 @@ describe('getReviews', () => {
             })
         )
 
-        const [row] = await gl.getReviews(285, TODAY)
-        expect(row!.fresh).toBe(false)
+        const [row] = await gl.getReviews(285, longAgo)
+        expect(row!.fresh).toBe(true)
     })
 })
