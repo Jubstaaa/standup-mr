@@ -29,6 +29,20 @@ describe('isoDay', () => {
     it('renders a local calendar date', () => {
         expect(isoDay(day('2026-08-28'))).toBe('2026-08-28')
     })
+
+    it('uses the local calendar day late in the evening behind UTC', () => {
+        const lateEvening = new Date(2026, 7, 28, 20, 0)
+
+        expect(isoDay(lateEvening)).toBe('2026-08-28')
+        expect(label(lateEvening, 'en')).toBe('Friday, 28 August')
+    })
+
+    it('uses the local calendar day early in the morning ahead of UTC', () => {
+        const earlyMorning = new Date(2026, 7, 28, 2, 0)
+
+        expect(isoDay(earlyMorning)).toBe('2026-08-28')
+        expect(label(earlyMorning, 'en')).toBe('Friday, 28 August')
+    })
 })
 
 describe('previousActiveDay', () => {
