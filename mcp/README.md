@@ -30,4 +30,4 @@ npm install standup-mr @modelcontextprotocol/sdk
 not rely on that inside a container.
 
 The tool returns data only. Ask your client to write the note, or use the Claude
-Code skill in `skill/`, which carries the note-writing rules.
+Code skill in `skills/standup/`, which carries the note-writing rules.

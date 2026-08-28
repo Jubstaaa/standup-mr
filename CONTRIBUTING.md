@@ -41,7 +41,7 @@ Documentation improvements are always welcome!
 
 - Fix typos or unclear explanations
 - Add examples or clarifications
-- Improve the README, `mcp/README.md`, or `skill/SKILL.md`
+- Improve the README, `mcp/README.md`, or `skills/standup/SKILL.md`
 - Submit a pull request with your improvements
 
 ### Contributing Code
@@ -144,7 +144,7 @@ src/
 └── types/                 # Shared TypeScript types
 
 mcp/                       # MCP server wrapper (get_standup_data tool)
-skill/                      # Claude Code skill (note-writing playbook)
+skills/standup/             # Claude Code skill (note-writing playbook)
 ```
 
 #### Key Concepts
@@ -168,14 +168,14 @@ either way isn't covering anything.
 
 - Update `README.md` for user-facing changes to the CLI
 - Update `mcp/README.md` for MCP server changes
-- Update `skill/SKILL.md` for changes to what data is returned or how it
+- Update `skills/standup/SKILL.md` for changes to what data is returned or how it
   should be written up
 - Add JSDoc-style comments only where the "why" genuinely isn't obvious from
   the code
 
 ## Pull Request Process
 
-1. Update `README.md` / `mcp/README.md` / `skill/SKILL.md` if needed
+1. Update `README.md` / `mcp/README.md` / `skills/standup/SKILL.md` if needed
 2. Ensure all tests pass: `bun test`
 3. Ensure typecheck passes: `bun run typecheck`
 4. Ensure the build succeeds: `bun run build`

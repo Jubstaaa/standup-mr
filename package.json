@@ -31,7 +31,7 @@
     "bin": { "standup": "./dist/cli.js" },
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
-    "files": ["dist", "skill", "mcp/README.md", "README.md", "LICENSE"],
+    "files": ["dist", "skills", "mcp/README.md", "README.md", "LICENSE"],
     "scripts": {
         "build": "tsup",
         "test": "bun test",

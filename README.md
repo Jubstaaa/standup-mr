@@ -46,13 +46,21 @@ npx standup-mr fetch --markdown | npx standup-mr post --slack "$SLACK_WEBHOOK_UR
 **MCP server** (`mcp/`) — one tool, `get_standup_data`, for Claude Desktop,
 Cursor, or any MCP client. See [`mcp/README.md`](mcp/README.md).
 
-**Claude Code skill** (`skill/`) — the note-writing playbook. Copy it in:
+**Claude Code skill** (`skills/standup/`) — the note-writing playbook. Install
+it as a plugin from inside Claude Code:
 
-```bash
-cp -r skill ~/.claude/skills/standup
+```
+/plugin marketplace add Jubstaaa/standup-mr
+/plugin install standup@standup-mr
 ```
 
 Then type `/standup`.
+
+Or, without the plugin marketplace, copy it in manually:
+
+```bash
+cp -r skills/standup ~/.claude/skills/standup
+```
 
 ## `--markdown` is a digest, not a written note
 
