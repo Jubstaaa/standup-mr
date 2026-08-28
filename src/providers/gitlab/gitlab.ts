@@ -40,16 +40,21 @@ export class GitLabProvider implements Provider {
         return `${base}?${query.toString()}`
     }
 
-    async getJson<T>(path: string, params?: Params): Promise<T | null> {
+    private async send(url: string): Promise<Response> {
         let response: Response
         try {
-            response = await this.fetchImpl(this.url(path, params), {
+            response = await this.fetchImpl(url, {
                 headers: { 'PRIVATE-TOKEN': this.token },
             })
         } catch (cause) {
             throw unreachable(this.host, cause)
         }
         assertUsable(response, this.host)
+        return response
+    }
+
+    async getJson<T>(path: string, params?: Params): Promise<T | null> {
+        const response = await this.send(this.url(path, params))
         if (!response.ok) return null
         try {
             return (await response.json()) as T
@@ -59,15 +64,7 @@ export class GitLabProvider implements Provider {
     }
 
     async getText(path: string): Promise<string> {
-        let response: Response
-        try {
-            response = await this.fetchImpl(this.url(path), {
-                headers: { 'PRIVATE-TOKEN': this.token },
-            })
-        } catch (cause) {
-            throw unreachable(this.host, cause)
-        }
-        assertUsable(response, this.host)
+        const response = await this.send(this.url(path))
         if (!response.ok) return ''
         return await response.text()
     }
