@@ -50,12 +50,17 @@ describe('main', () => {
 
     it('returns 1 for post without --slack or --discord', async () => {
         const { stdout, stderr } = spyOutputs()
+        const fetchSpy = spyOn(globalThis, 'fetch').mockRejectedValue(
+            new Error('fetch must not be called without --slack or --discord')
+        )
 
         const code = await main(['post', '--text', 'hello'])
 
         expect(code).toBe(1)
+        expect(fetchSpy).not.toHaveBeenCalled()
         stdout.mockRestore()
         stderr.mockRestore()
+        fetchSpy.mockRestore()
     })
 
     it('returns 1 for post with whitespace-only text', async () => {
