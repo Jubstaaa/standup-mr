@@ -7,6 +7,13 @@ export function isoDay(day: Date): string {
     return `${year}-${month}-${date}`
 }
 
+export function localAt(iso: string): string {
+    const at = new Date(iso)
+    const hours = String(at.getHours()).padStart(2, '0')
+    const minutes = String(at.getMinutes()).padStart(2, '0')
+    return `${isoDay(at)}T${hours}:${minutes}`
+}
+
 export function label(day: Date, lang = 'en'): string {
     const key = DAYS[lang] ? lang : 'en'
     const weekday = DAYS[key]![day.getDay()]!

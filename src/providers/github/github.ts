@@ -1,6 +1,9 @@
+import { isoDay } from '../../dates/dates'
 import { ApiError, assertUsable, unreachable } from '../base/http'
 import { API_VERSION, DOT_COM, PAGE_SIZE } from './github.constants'
-import type { Identity, FetchLike } from '../../types/standup.types'
+import { mapEvent } from './github.map'
+import type { ActivityEvent, Identity, FetchLike } from '../../types/standup.types'
+import type { RawEvent } from './github.types'
 
 type Params = Record<string, string | number>
 
@@ -118,5 +121,25 @@ export class GitHubProvider {
         }
         this.identity = { id: me.id, username: me.login }
         return this.identity
+    }
+
+    async getEvents(since: Date): Promise<ActivityEvent[]> {
+        const login = (await this.getIdentity()).username
+        const raw = await this.getPaged<RawEvent>(
+            `users/${encodeURIComponent(login)}/events`
+        )
+
+        if (raw.length === 0) {
+            process.stderr.write(
+                `Warning: the ${this.host} events feed returned nothing. Private activity ` +
+                    'is only visible to a token that belongs to the same account.\n'
+            )
+        }
+
+        const floor = isoDay(since)
+        return raw
+            .map(mapEvent)
+            .filter((event) => event.at.slice(0, 10) >= floor)
+            .sort((a, b) => a.at.localeCompare(b.at))
     }
 }

@@ -34,7 +34,8 @@
     "files": ["dist", "skills", "mcp/README.md", "README.md", "LICENSE"],
     "scripts": {
         "build": "tsup",
-        "test": "bun test",
+        "test": "bun test --path-ignore-patterns='**/*.tz.test.ts'",
+        "test:tz": "TZ=Europe/Istanbul bun test src/dates/dates.tz.test.ts",
         "typecheck": "tsc --noEmit",
         "prepublishOnly": "tsup"
     },

@@ -14,11 +14,12 @@ export {
     resolveToken,
 } from './config/config'
 export type { ProviderLabels } from './config/config'
-export { isoDay, label, previousActiveDay } from './dates/dates'
+export { isoDay, label, localAt, previousActiveDay } from './dates/dates'
 export { postWebhook } from './notify/notify'
 export type { Provider } from './providers/base/base.types'
 export { ApiError, assertUsable, unreachable } from './providers/base/http'
 export { GitHubProvider } from './providers/github/github'
+export { mapEvent, repoFromUrl } from './providers/github/github.map'
 export { GitLabProvider } from './providers/gitlab/gitlab'
 export { toMarkdown } from './render/render'
 export { buildReport } from './report/report'
