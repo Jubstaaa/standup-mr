@@ -28,6 +28,9 @@ jobs:
       - name: Run tests
         run: bun test
 
+      - name: Run timezone-sensitive tests
+        run: bun run test:tz
+
       - name: Build
         run: bun run build
 
