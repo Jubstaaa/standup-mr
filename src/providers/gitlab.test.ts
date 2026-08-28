@@ -49,7 +49,10 @@ describe('GitLabProvider transport', () => {
     })
 
     it('returns null on a non-ok status', async () => {
-        const notFound: FetchLike = async () => new Response('nope', { status: 404 })
+        // A real GitLab 404 body is valid JSON, so the fixture must be too — otherwise
+        // the parse failure alone would satisfy the test and the ok-check would go untested.
+        const notFound: FetchLike = async () =>
+            new Response(JSON.stringify({ message: '404 Not Found' }), { status: 404 })
         const gl = new GitLabProvider('gitlab.example.com', 'tok', notFound)
 
         await expect(gl.getJson('user')).resolves.toBeNull()
