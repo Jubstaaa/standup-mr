@@ -284,3 +284,110 @@ describe('getMyMrs', () => {
         expect(rows[0]!.iid).toBe(4)
     })
 })
+
+describe('getReviews', () => {
+    const me = { id: 1, username: 'dev' }
+
+    it('shapes a review request', async () => {
+        const gh = new GitHubProvider(
+            'github.com',
+            't',
+            routedFetch({
+                'search/issues': {
+                    items: [
+                        {
+                            number: 54,
+                            title: 'feat: balance inquiry',
+                            html_url: 'https://github.com/acme/web/pull/54',
+                            updated_at: '2026-08-28T08:00:00Z',
+                            repository_url: 'https://api.github.com/repos/acme/web',
+                            user: { login: 'teammate' },
+                        },
+                    ],
+                },
+                '/reviews': [{ state: 'APPROVED', user: { login: 'dev' } }],
+            })
+        )
+
+        const [row] = await gh.getReviews(me, TODAY)
+        expect(row).toMatchObject({
+            provider: 'github',
+            project: 'acme/web',
+            iid: 54,
+            author: 'teammate',
+            fresh: true,
+            approvedByMe: true,
+        })
+    })
+
+    it('searches for pull requests that requested my review', async () => {
+        const urls: string[] = []
+        const fetchImpl: FetchLike = async (url: string) => {
+            urls.push(url)
+            return new Response(JSON.stringify({ items: [] }), { status: 200 })
+        }
+        const gh = new GitHubProvider('github.com', 't', fetchImpl)
+
+        await gh.getReviews(me, TODAY)
+        const query = decodeURIComponent(urls[0]!).replace(/\+/g, ' ')
+        expect(query).toContain('is:pr is:open review-requested:dev')
+    })
+
+    it('marks a review older than a week as not fresh', async () => {
+        const gh = new GitHubProvider(
+            'github.com',
+            't',
+            routedFetch({
+                'search/issues': {
+                    items: [
+                        {
+                            number: 12,
+                            title: 'chore: bump deps',
+                            html_url: 'u',
+                            updated_at: '2026-08-01T08:00:00Z',
+                            repository_url: 'https://api.github.com/repos/acme/web',
+                            user: { login: 'teammate' },
+                        },
+                    ],
+                },
+                '/reviews': [],
+            })
+        )
+
+        const [row] = await gh.getReviews(me, TODAY)
+        expect(row).toMatchObject({ fresh: false, approvedByMe: false })
+    })
+
+    it('sorts the newest review request first', async () => {
+        const gh = new GitHubProvider(
+            'github.com',
+            't',
+            routedFetch({
+                'search/issues': {
+                    items: [
+                        {
+                            number: 1,
+                            title: 'older',
+                            html_url: 'u',
+                            updated_at: '2026-08-25T08:00:00Z',
+                            repository_url: 'https://api.github.com/repos/acme/web',
+                            user: { login: 'teammate' },
+                        },
+                        {
+                            number: 2,
+                            title: 'newer',
+                            html_url: 'u',
+                            updated_at: '2026-08-27T08:00:00Z',
+                            repository_url: 'https://api.github.com/repos/acme/web',
+                            user: { login: 'teammate' },
+                        },
+                    ],
+                },
+                '/reviews': [],
+            })
+        )
+
+        const rows = await gh.getReviews(me, TODAY)
+        expect(rows.map((row) => row.iid)).toEqual([2, 1])
+    })
+})

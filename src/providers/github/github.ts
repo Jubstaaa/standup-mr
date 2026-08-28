@@ -1,10 +1,11 @@
 import { classify, markMissingPipelines } from '../../buckets/buckets'
+import { MS_PER_DAY } from '../../dates/dates.constants'
 import { isoDay, localAt } from '../../dates/dates'
 import { ApiError, assertUsable, unreachable } from '../base/http'
-import { API_VERSION, DOT_COM, PAGE_SIZE, SEARCH_CAP } from './github.constants'
+import { API_VERSION, DOT_COM, FRESH_REVIEW_DAYS, PAGE_SIZE, SEARCH_CAP } from './github.constants'
 import { mapEvent, repoFromUrl } from './github.map'
-import { countChangesRequested, normalizeChecks } from './github.state'
-import type { ActivityEvent, Identity, FetchLike, MergeRequest } from '../../types/standup.types'
+import { approvedBy, countChangesRequested, normalizeChecks } from './github.state'
+import type { ActivityEvent, Identity, FetchLike, MergeRequest, Review } from '../../types/standup.types'
 import type { CheckRun, PullDetail, PullReview, RawEvent, SearchItem } from './github.types'
 
 type Params = Record<string, string | number>
@@ -200,5 +201,40 @@ export class GitHubProvider {
             row.bucket = classify(row, today)
         }
         return rows
+    }
+
+    async getReviews(identity: Identity, today: Date): Promise<Review[]> {
+        const items = await this.getSearch<SearchItem>(
+            `is:pr is:open review-requested:${identity.username}`,
+            SEARCH_CAP
+        )
+        const cutoff = isoDay(new Date(today.getTime() - FRESH_REVIEW_DAYS * MS_PER_DAY))
+
+        const rows = await Promise.all(
+            items.map(async (item) => {
+                const project = repoFromUrl(item.repository_url)
+                const reviews = await this.getPaged<PullReview>(
+                    `repos/${project}/pulls/${item.number}/reviews`,
+                    {},
+                    2
+                )
+                const updated = localAt(item.updated_at).slice(0, 10)
+
+                return {
+                    provider: 'github' as const,
+                    project,
+                    iid: item.number,
+                    title: item.title,
+                    author: item.user?.login ?? '',
+                    updated,
+                    draft: item.draft ?? false,
+                    url: item.html_url,
+                    fresh: updated >= cutoff,
+                    approvedByMe: approvedBy(reviews, identity.username),
+                }
+            })
+        )
+
+        return rows.sort((a, b) => b.updated.localeCompare(a.updated))
     }
 }
