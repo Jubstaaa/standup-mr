@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 
 import { classify, markMissingPipelines } from './buckets'
 
-const TODAY = new Date('2026-08-28T00:00:00Z')
+const TODAY = new Date(2026, 7, 28)
 
 function mr(overrides: Record<string, unknown> = {}) {
     return {

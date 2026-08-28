@@ -2,7 +2,10 @@ import { describe, expect, it } from 'bun:test'
 
 import { isoDay, label, previousActiveDay } from './dates'
 
-const day = (iso: string) => new Date(`${iso}T00:00:00Z`)
+const day = (iso: string) => {
+    const [year, month, date] = iso.split('-').map(Number)
+    return new Date(year!, month! - 1, date!)
+}
 
 describe('label', () => {
     it('formats English as weekday, day month', () => {
@@ -23,7 +26,7 @@ describe('label', () => {
 })
 
 describe('isoDay', () => {
-    it('renders a UTC calendar date', () => {
+    it('renders a local calendar date', () => {
         expect(isoDay(day('2026-08-28'))).toBe('2026-08-28')
     })
 })

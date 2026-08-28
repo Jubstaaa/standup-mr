@@ -4,7 +4,7 @@ import type { Provider } from '../providers/base/base.types'
 import { buildReport } from './report'
 import type { ActivityEvent, Blocker, MergeRequest, Review } from '../types/standup.types'
 
-const TODAY = new Date('2026-08-28T00:00:00Z')
+const TODAY = new Date(2026, 7, 28)
 
 interface Overrides {
     events?: ActivityEvent[]

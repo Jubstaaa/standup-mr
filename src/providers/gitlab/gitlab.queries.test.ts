@@ -3,7 +3,7 @@ import { describe, expect, it } from 'bun:test'
 import type { FetchLike } from '../../types/standup.types'
 import { GitLabProvider } from './gitlab'
 
-const TODAY = new Date('2026-08-28T00:00:00Z')
+const TODAY = new Date(2026, 7, 28)
 
 function routedFetch(routes: Record<string, unknown>): FetchLike {
     return async (url: string) => {

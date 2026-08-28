@@ -36,7 +36,7 @@ export async function buildReport(
         today: { date: isoDay(today), label: label(today, lang) },
         previous: {
             date: previousDate,
-            label: previousDate ? label(new Date(`${previousDate}T00:00:00Z`), lang) : null,
+            label: previousDate ? label(new Date(`${previousDate}T00:00:00`), lang) : null,
             gapDays,
             eventCount: previousEvents.length,
         },

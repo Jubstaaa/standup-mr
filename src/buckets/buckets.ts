@@ -1,5 +1,6 @@
 import { STALE_DAYS } from './buckets.constants'
 import type { BucketInput, PipelineInput } from './buckets.types'
+import { isoDay } from '../dates/dates'
 import { MS_PER_DAY } from '../dates/dates.constants'
 import type { Bucket } from '../types/standup.types'
 
@@ -8,8 +9,7 @@ export function classify(mr: BucketInput, today: Date, staleDays = STALE_DAYS): 
     if (mr.pipeline === 'failed' || mr.unresolved > 0) return 'blocked'
 
     const age = Math.round(
-        (Date.parse(`${today.toISOString().slice(0, 10)}T00:00:00Z`) -
-            Date.parse(`${mr.updated}T00:00:00Z`)) /
+        (Date.parse(`${isoDay(today)}T00:00:00Z`) - Date.parse(`${mr.updated}T00:00:00Z`)) /
             MS_PER_DAY
     )
     return age >= staleDays ? 'stale' : 'ready'
