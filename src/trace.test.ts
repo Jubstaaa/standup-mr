@@ -15,10 +15,16 @@ const SAMPLE =
     'ERROR: Job failed: exit status 1\n'
 
 describe('extractErrors', () => {
-    it('strips ansi codes and section markers', () => {
-        const errors = extractErrors(SAMPLE)
-        expect(errors.some((line) => line.includes(ESC))).toBe(false)
-        expect(errors.some((line) => line.includes('section_'))).toBe(false)
+    it('strips ansi codes from the lines it keeps', () => {
+        const coloured = `${ESC}[31merror: GET /packages/npm/@acme/ui-1.2.0.tgz - 404${ESC}[0m`
+        expect(extractErrors(coloured)).toEqual([
+            'error: GET /packages/npm/@acme/ui-1.2.0.tgz - 404',
+        ])
+    })
+
+    it('strips section markers glued to the lines it keeps', () => {
+        const marked = 'section_start:1787644042:step_scripterror: npm ci failed'
+        expect(extractErrors(marked)).toEqual(['npm ci failed'])
     })
 
     it('keeps the real error lines', () => {
