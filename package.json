@@ -1,6 +1,6 @@
 {
     "name": "standup-mr",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "description": "Standup notes from merge request state, not commit logs.",
     "keywords": ["standup", "gitlab", "merge-request", "cli", "mcp"],
     "license": "MIT",
