@@ -94,4 +94,26 @@ describe('toMarkdown', () => {
     it('renders Turkish headings', () => {
         expect(toMarkdown(REPORT, 'tr')).toContain('Önceki')
     })
+
+    it('renders every populated bucket, in order', () => {
+        const ready = REPORT.myMrs[0]!
+        const blocked = REPORT.myMrs[1]!
+        const all = {
+            ...REPORT,
+            myMrs: [
+                { ...ready, iid: 1, bucket: 'stale' as const, pipelineMissing: false },
+                { ...ready, iid: 2, bucket: 'draft' as const, pipelineMissing: false },
+                { ...blocked, iid: 3, bucket: 'blocked' as const },
+                { ...ready, iid: 4, bucket: 'ready' as const, pipelineMissing: false },
+            ],
+        }
+
+        const out = toMarkdown(all)
+        const positions = ['## Ready to merge', '## Blocked', '## Drafts', '## Stale'].map((h) =>
+            out.indexOf(h)
+        )
+
+        expect(positions.every((i) => i >= 0)).toBe(true)
+        expect(positions).toEqual([...positions].sort((a, b) => a - b))
+    })
 })
