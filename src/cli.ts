@@ -1,3 +1,4 @@
+import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 
 import { USAGE } from './cli.constants'
@@ -85,6 +86,9 @@ export async function main(argv: string[]): Promise<number> {
     }
 }
 
-main(process.argv.slice(2)).then((code) => {
-    process.exitCode = code
-})
+const entry = process.argv[1]
+if (entry && import.meta.url === pathToFileURL(entry).href) {
+    main(process.argv.slice(2)).then((code) => {
+        process.exitCode = code
+    })
+}
