@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, mock } from 'bun:test'
 
 import type { FetchLike } from '../types'
 import { GitLabProvider } from './gitlab'
@@ -12,7 +12,7 @@ function jsonResponse(body: unknown): Response {
 
 function recordingFetch(pages: unknown[]): FetchLike & { calls: string[] } {
     const calls: string[] = []
-    const impl = vi.fn(async (url: string, init?: RequestInit) => {
+    const impl = mock(async (url: string, init?: RequestInit) => {
         calls.push(url)
         const headers = new Headers(init?.headers)
         expect(headers.get('private-token')).toBe('tok')
