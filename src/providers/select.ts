@@ -1,0 +1,100 @@
+import {
+    ConfigError,
+    GITHUB_LABELS,
+    GITLAB_LABELS,
+    ghHosts,
+    ghToken,
+    glabHosts,
+    glabToken,
+    resolveHost,
+    resolveToken,
+} from '../config/config'
+import { GitHubProvider } from './github/github'
+import { DOT_COM } from './github/github.constants'
+import { GitLabProvider } from './gitlab/gitlab'
+import type { Provider, ProviderKind } from './base/base.types'
+
+export interface SelectOptions {
+    provider?: string
+    host?: string
+    token?: string
+    env?: Record<string, string | undefined>
+    probe?: { gitlab: () => string[]; github: () => string[] }
+}
+
+const DEFAULT_PROBE = { gitlab: glabHosts, github: ghHosts }
+
+export function chooseKind(options: SelectOptions = {}): ProviderKind {
+    const env = options.env ?? process.env
+    const probe = options.probe ?? DEFAULT_PROBE
+
+    const explicit = options.provider ?? env.STANDUP_PROVIDER
+    if (explicit) {
+        if (explicit === 'github' || explicit === 'gitlab') return explicit
+        throw new ConfigError(`Unknown provider "${explicit}". Use github or gitlab.`)
+    }
+
+    if (options.host) {
+        const host = options.host.toLowerCase()
+        if (host === DOT_COM || host.includes('github')) return 'github'
+        if (host === 'gitlab.com' || host.includes('gitlab')) return 'gitlab'
+    }
+
+    const hasGitHubEnv = Boolean(env.GITHUB_HOST || env.GITHUB_TOKEN)
+    const hasGitLabEnv = Boolean(env.GITLAB_HOST || env.GITLAB_TOKEN)
+    if (hasGitHubEnv !== hasGitLabEnv) return hasGitHubEnv ? 'github' : 'gitlab'
+    if (hasGitHubEnv && hasGitLabEnv) {
+        throw new ConfigError(
+            'Both GITHUB_* and GITLAB_* are configured. ' +
+                'Pass --provider github or --provider gitlab.'
+        )
+    }
+
+    const ghLoggedIn = probe.github().length > 0
+    const glabLoggedIn = probe.gitlab().length > 0
+    if (ghLoggedIn !== glabLoggedIn) return ghLoggedIn ? 'github' : 'gitlab'
+    if (ghLoggedIn && glabLoggedIn) {
+        throw new ConfigError(
+            'Both gh and glab are authenticated. ' +
+                'Pass --provider github or --provider gitlab.'
+        )
+    }
+
+    throw new ConfigError(
+        'No provider configured. Pass --provider with --host and --token, set ' +
+            'GITHUB_* or GITLAB_* environment variables, or log in with gh or glab.'
+    )
+}
+
+export function connect(options: SelectOptions = {}): Provider {
+    const env = options.env ?? process.env
+    const probe = options.probe ?? DEFAULT_PROBE
+
+    if (chooseKind(options) === 'github') {
+        const found = probe.github()
+        const host = resolveHost(
+            options.host,
+            env.GITHUB_HOST,
+            found.length > 0 ? found : [DOT_COM],
+            GITHUB_LABELS
+        )
+        const token = resolveToken(
+            host,
+            options.token,
+            env.GITHUB_TOKEN,
+            ghToken,
+            GITHUB_LABELS
+        )
+        return new GitHubProvider(host, token)
+    }
+
+    const host = resolveHost(options.host, env.GITLAB_HOST, probe.gitlab(), GITLAB_LABELS)
+    const token = resolveToken(
+        host,
+        options.token,
+        env.GITLAB_TOKEN,
+        glabToken,
+        GITLAB_LABELS
+    )
+    return new GitLabProvider(host, token)
+}

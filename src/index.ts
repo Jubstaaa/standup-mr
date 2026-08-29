@@ -27,6 +27,8 @@ export {
     normalizeChecks,
 } from './providers/github/github.state'
 export { GitLabProvider } from './providers/gitlab/gitlab'
+export { chooseKind, connect } from './providers/select'
+export type { SelectOptions } from './providers/select'
 export { toMarkdown } from './render/render'
 export { buildReport } from './report/report'
 export { extractErrors } from './trace/trace'
