@@ -1,16 +1,18 @@
 import { classify, markMissingPipelines } from '../../buckets/buckets'
 import { MS_PER_DAY } from '../../dates/dates.constants'
 import { isoDay, localAt } from '../../dates/dates'
+import { extractErrors } from '../../trace/trace'
 import { ApiError, assertUsable, unreachable } from '../base/http'
-import { API_VERSION, DOT_COM, FRESH_REVIEW_DAYS, PAGE_SIZE, SEARCH_CAP } from './github.constants'
+import { API_VERSION, DOT_COM, FAILED_CONCLUSIONS, FRESH_REVIEW_DAYS, PAGE_SIZE, SEARCH_CAP } from './github.constants'
 import { mapEvent, repoFromUrl } from './github.map'
 import { approvedBy, countChangesRequested, normalizeChecks } from './github.state'
-import type { ActivityEvent, Identity, FetchLike, MergeRequest, Review } from '../../types/standup.types'
-import type { CheckRun, PullDetail, PullReview, RawEvent, SearchItem } from './github.types'
+import type { Provider } from '../base/base.types'
+import type { ActivityEvent, Blocker, Identity, FetchLike, MergeRequest, Review } from '../../types/standup.types'
+import type { CheckRun, PullDetail, PullReview, RawEvent, SearchItem, WorkflowJob, WorkflowRun } from './github.types'
 
 type Params = Record<string, string | number>
 
-export class GitHubProvider {
+export class GitHubProvider implements Provider {
     readonly kind = 'github' as const
     readonly host: string
     readonly api: string
@@ -236,5 +238,87 @@ export class GitHubProvider {
         )
 
         return rows.sort((a, b) => b.updated.localeCompare(a.updated))
+    }
+
+    private async actionsBlocker(
+        mr: MergeRequest,
+        sha: string
+    ): Promise<Blocker | null> {
+        const runs = await this.getJson<{ workflow_runs?: WorkflowRun[] }>(
+            `repos/${mr.project}/actions/runs`,
+            { head_sha: sha, per_page: 10 }
+        )
+        const run = (runs?.workflow_runs ?? []).find((row) => row.conclusion === 'failure')
+        if (!run) return null
+
+        const jobs = await this.getJson<{ jobs?: WorkflowJob[] }>(
+            `repos/${mr.project}/actions/runs/${run.id}/jobs`,
+            { per_page: PAGE_SIZE }
+        )
+        const job = (jobs?.jobs ?? []).find((row) => row.conclusion === 'failure')
+        if (!job) return null
+
+        const log = await this.getLogText(
+            `repos/${mr.project}/actions/jobs/${job.id}/logs`
+        )
+        return {
+            provider: 'github',
+            project: mr.project,
+            mr: mr.iid,
+            title: mr.title,
+            job: job.name,
+            stage: run.name ?? '',
+            url: mr.url,
+            errors: extractErrors(log),
+        }
+    }
+
+    private async checkRunBlocker(
+        mr: MergeRequest,
+        sha: string
+    ): Promise<Blocker | null> {
+        const checks = await this.getJson<{ check_runs?: CheckRun[] }>(
+            `repos/${mr.project}/commits/${sha}/check-runs`,
+            { per_page: PAGE_SIZE }
+        )
+        const failed = (checks?.check_runs ?? []).find(
+            (run) => run.conclusion !== null && FAILED_CONCLUSIONS.has(run.conclusion)
+        )
+        if (!failed) return null
+
+        const summary = [failed.output?.summary ?? '', failed.output?.text ?? '']
+            .filter(Boolean)
+            .join('\n')
+        const errors = extractErrors(summary)
+        if (errors.length === 0) return null
+
+        return {
+            provider: 'github',
+            project: mr.project,
+            mr: mr.iid,
+            title: mr.title,
+            job: failed.name,
+            stage: failed.app?.slug ?? 'check',
+            url: mr.url,
+            errors,
+        }
+    }
+
+    private async diagnose(mr: MergeRequest): Promise<Blocker | null> {
+        const pull = await this.getJson<PullDetail>(
+            `repos/${mr.project}/pulls/${mr.iid}`
+        )
+        const sha = pull?.head?.sha
+        if (!sha) return null
+
+        return (
+            (await this.actionsBlocker(mr, sha)) ?? (await this.checkRunBlocker(mr, sha))
+        )
+    }
+
+    async getBlockers(mrs: MergeRequest[]): Promise<Blocker[]> {
+        const red = mrs.filter((mr) => mr.pipeline === 'failed')
+        const diagnosed = await Promise.all(red.map((mr) => this.diagnose(mr)))
+        return diagnosed.filter((row): row is Blocker => row !== null)
     }
 }
