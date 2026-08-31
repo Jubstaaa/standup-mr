@@ -28,16 +28,28 @@ export function chooseKind(options: SelectOptions = {}): ProviderKind {
     const env = options.env ?? process.env
     const probe = options.probe ?? DEFAULT_PROBE
 
-    const explicit = options.provider ?? env.STANDUP_PROVIDER
-    if (explicit) {
-        if (explicit === 'github' || explicit === 'gitlab') return explicit
-        throw new ConfigError(`Unknown provider "${explicit}". Use github or gitlab.`)
+    if (options.provider) {
+        if (options.provider === 'github' || options.provider === 'gitlab') {
+            return options.provider
+        }
+        throw new ConfigError(
+            `Unknown provider "${options.provider}" for --provider. Use github or gitlab.`
+        )
     }
 
     if (options.host) {
         const host = options.host.toLowerCase()
         if (host === DOT_COM || host.includes('github')) return 'github'
         if (host === 'gitlab.com' || host.includes('gitlab')) return 'gitlab'
+    }
+
+    if (env.STANDUP_PROVIDER) {
+        if (env.STANDUP_PROVIDER === 'github' || env.STANDUP_PROVIDER === 'gitlab') {
+            return env.STANDUP_PROVIDER
+        }
+        throw new ConfigError(
+            `Unknown provider "${env.STANDUP_PROVIDER}" for STANDUP_PROVIDER. Use github or gitlab.`
+        )
     }
 
     const hasGitHubEnv = Boolean(env.GITHUB_HOST || env.GITHUB_TOKEN)

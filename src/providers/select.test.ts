@@ -36,6 +36,11 @@ describe('chooseKind', () => {
         expect(chooseKind({ host: 'github.com', env, probe: NONE })).toBe('github')
     })
 
+    it('lets an explicit host win over STANDUP_PROVIDER', () => {
+        const env = { STANDUP_PROVIDER: 'gitlab' }
+        expect(chooseKind({ host: 'github.com', env, probe: NONE })).toBe('github')
+    })
+
     it('asks for --provider when the host name says nothing', () => {
         expect(() => chooseKind({ host: 'git.acme.com', env: {}, probe: NONE })).toThrow(
             /--provider/
@@ -55,7 +60,7 @@ describe('chooseKind', () => {
 
     it('refuses to guess when both environment pairs are configured', () => {
         const env = { GITHUB_TOKEN: 'ghp', GITLAB_TOKEN: 'glpat' }
-        expect(() => chooseKind({ env, probe: NONE })).toThrow(ConfigError)
+        expect(() => chooseKind({ env, probe: NONE })).toThrow(/Both GITHUB_\* and GITLAB_\*/)
     })
 
     it('falls back to whichever cli is authenticated', () => {
@@ -68,11 +73,19 @@ describe('chooseKind', () => {
 
     it('refuses to guess when both clis are authenticated', () => {
         const both = { gitlab: () => ['gitlab.com'], github: () => ['github.com'] }
-        expect(() => chooseKind({ env: {}, probe: both })).toThrow(/--provider/)
+        expect(() => chooseKind({ env: {}, probe: both })).toThrow(
+            /Both gh and glab are authenticated/
+        )
     })
 
     it('explains itself when nothing at all is configured', () => {
         expect(() => chooseKind({ env: {}, probe: NONE })).toThrow(/No provider configured/)
+    })
+
+    it('rejects an unknown STANDUP_PROVIDER value and names the variable', () => {
+        expect(() =>
+            chooseKind({ env: { STANDUP_PROVIDER: 'bitbucket' }, probe: NONE })
+        ).toThrow(/STANDUP_PROVIDER/)
     })
 })
 
