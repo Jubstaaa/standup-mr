@@ -109,6 +109,7 @@ export class GitHubProvider implements Provider {
 
         const location = first.headers.get('location')
         if (!location) {
+            if (first.status === 0 || (first.status >= 300 && first.status < 400)) return ''
             assertUsable(first, this.host)
             return first.ok ? await first.text() : ''
         }

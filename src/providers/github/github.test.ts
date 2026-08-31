@@ -91,9 +91,17 @@ describe('GitHubProvider transport', () => {
     })
 
     it('follows the log redirect without sending the token', async () => {
-        const calls: Array<{ url: string; auth: string | null }> = []
+        const calls: Array<{
+            url: string
+            auth: string | null
+            redirect: RequestInit['redirect']
+        }> = []
         const fetchImpl: FetchLike = async (url, init) => {
-            calls.push({ url, auth: new Headers(init?.headers).get('authorization') })
+            calls.push({
+                url,
+                auth: new Headers(init?.headers).get('authorization'),
+                redirect: init?.redirect,
+            })
             if (url.includes('/logs')) {
                 return new Response(null, {
                     status: 302,
@@ -109,13 +117,22 @@ describe('GitHubProvider transport', () => {
         const log = await gh.getLogText('repos/acme/web/actions/jobs/9/logs')
         expect(log).toContain('npm ERR!')
         expect(calls[0]!.auth).toBe('Bearer tok')
+        expect(calls[0]!.redirect).toBe('manual')
         expect(calls[1]!.url).toBe('https://blob.example.com/log?sig=abc')
         expect(calls[1]!.auth).toBeNull()
+        expect(calls[1]!.redirect).toBeUndefined()
     })
 
     it('returns an empty log when the job has none', async () => {
         const missing: FetchLike = async () => new Response(null, { status: 404 })
         const gh = new GitHubProvider('github.com', 'tok', missing)
+
+        await expect(gh.getLogText('repos/acme/web/actions/jobs/9/logs')).resolves.toBe('')
+    })
+
+    it('gives up on an opaque redirect rather than costing the whole note', async () => {
+        const opaque: FetchLike = async () => Response.error()
+        const gh = new GitHubProvider('github.com', 'tok', opaque)
 
         await expect(gh.getLogText('repos/acme/web/actions/jobs/9/logs')).resolves.toBe('')
     })
