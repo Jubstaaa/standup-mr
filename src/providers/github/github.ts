@@ -3,7 +3,15 @@ import { MS_PER_DAY } from '../../dates/dates.constants'
 import { isoDay, localAt } from '../../dates/dates'
 import { extractErrors } from '../../trace/trace'
 import { ApiError, assertUsable, unreachable } from '../base/http'
-import { API_VERSION, DOT_COM, FAILED_CONCLUSIONS, FRESH_REVIEW_DAYS, PAGE_SIZE, SEARCH_CAP } from './github.constants'
+import {
+    API_VERSION,
+    DOT_COM,
+    EVENTS_PAGE_CAP,
+    FAILED_CONCLUSIONS,
+    FRESH_REVIEW_DAYS,
+    PAGE_SIZE,
+    SEARCH_CAP,
+} from './github.constants'
 import { mapEvent, repoFromUrl } from './github.map'
 import { approvedBy, countChangesRequested, normalizeChecks } from './github.state'
 import type { Provider } from '../base/base.types'
@@ -131,7 +139,9 @@ export class GitHubProvider implements Provider {
     async getEvents(since: Date): Promise<ActivityEvent[]> {
         const login = (await this.getIdentity()).username
         const raw = await this.getPaged<RawEvent>(
-            `users/${encodeURIComponent(login)}/events`
+            `users/${encodeURIComponent(login)}/events`,
+            {},
+            EVENTS_PAGE_CAP
         )
 
         if (raw.length === 0) {
@@ -248,14 +258,18 @@ export class GitHubProvider implements Provider {
             `repos/${mr.project}/actions/runs`,
             { head_sha: sha, per_page: 10 }
         )
-        const run = (runs?.workflow_runs ?? []).find((row) => row.conclusion === 'failure')
+        const run = (runs?.workflow_runs ?? []).find(
+            (row) => row.conclusion !== null && FAILED_CONCLUSIONS.has(row.conclusion)
+        )
         if (!run) return null
 
         const jobs = await this.getJson<{ jobs?: WorkflowJob[] }>(
             `repos/${mr.project}/actions/runs/${run.id}/jobs`,
             { per_page: PAGE_SIZE }
         )
-        const job = (jobs?.jobs ?? []).find((row) => row.conclusion === 'failure')
+        const job = (jobs?.jobs ?? []).find(
+            (row) => row.conclusion !== null && FAILED_CONCLUSIONS.has(row.conclusion)
+        )
         if (!job) return null
 
         const log = await this.getLogText(
@@ -311,9 +325,9 @@ export class GitHubProvider implements Provider {
         const sha = pull?.head?.sha
         if (!sha) return null
 
-        return (
-            (await this.actionsBlocker(mr, sha)) ?? (await this.checkRunBlocker(mr, sha))
-        )
+        const actions = await this.actionsBlocker(mr, sha)
+        if (actions?.errors.length) return actions
+        return (await this.checkRunBlocker(mr, sha)) ?? actions
     }
 
     async getBlockers(mrs: MergeRequest[]): Promise<Blocker[]> {

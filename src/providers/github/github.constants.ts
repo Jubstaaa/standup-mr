@@ -4,6 +4,9 @@ export const API_VERSION = '2022-11-28'
 export const DOT_COM = 'github.com'
 export const SEARCH_CAP = 3
 
+export const EVENT_FEED_CAP = 300
+export const EVENTS_PAGE_CAP = EVENT_FEED_CAP / PAGE_SIZE
+
 export const FAILED_CONCLUSIONS = new Set([
     'failure',
     'timed_out',

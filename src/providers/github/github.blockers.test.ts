@@ -52,6 +52,14 @@ const ACTIONS_ROUTES = {
     'blob.example.com': '2026-08-28T09:12:02.0000000Z npm ERR! code E404\n2026-08-28T09:12:04.0000000Z ##[error]Process completed with exit code 1.\n',
 }
 
+const TIMED_OUT_ROUTES = {
+    '/pulls/6': ACTIONS_ROUTES['/pulls/6'],
+    '/actions/runs/500/jobs': { jobs: [{ id: 901, name: 'quality', conclusion: 'timed_out' }] },
+    '/actions/runs': { workflow_runs: [{ id: 500, name: 'release', conclusion: 'timed_out' }] },
+    '/actions/jobs/901/logs': 'REDIRECT',
+    'blob.example.com': '2026-08-28T09:12:02.0000000Z ##[error]The operation was canceled after the job timed out.\n',
+}
+
 describe('getBlockers', () => {
     it('ignores pull requests whose checks are not failed', async () => {
         const gh = new GitHubProvider('github.com', 't', blockerFetch(ACTIONS_ROUTES))
@@ -150,5 +158,61 @@ describe('getBlockers', () => {
 
         const blockers = await gh.getBlockers([pr(), pr({ iid: 6, project: 'acme/web' })])
         expect(blockers).toHaveLength(2)
+    })
+
+    it('reaches the actions log when the run and its job timed out rather than failed', async () => {
+        const gh = new GitHubProvider('github.com', 't', blockerFetch(TIMED_OUT_ROUTES))
+
+        const [blocker] = await gh.getBlockers([pr()])
+        expect(blocker).toMatchObject({ job: 'quality', stage: 'release' })
+        expect(blocker!.errors).toEqual([
+            'The operation was canceled after the job timed out.',
+        ])
+    })
+
+    it('falls back to the check run summary when the actions log yields no error lines', async () => {
+        const gh = new GitHubProvider(
+            'github.com',
+            't',
+            blockerFetch({
+                '/pulls/6': ACTIONS_ROUTES['/pulls/6'],
+                '/actions/runs/500/jobs': ACTIONS_ROUTES['/actions/runs/500/jobs'],
+                '/actions/runs': ACTIONS_ROUTES['/actions/runs'],
+                '/actions/jobs/901/logs': '',
+                '/commits/abc123/check-runs': {
+                    check_runs: [
+                        {
+                            id: 4,
+                            name: 'quality',
+                            status: 'completed',
+                            conclusion: 'failure',
+                            app: { slug: 'github-actions' },
+                            output: { summary: 'error: real reason here', text: null },
+                        },
+                    ],
+                },
+            })
+        )
+
+        const [blocker] = await gh.getBlockers([pr()])
+        expect(blocker).toMatchObject({ job: 'quality', stage: 'github-actions' })
+        expect(blocker!.errors).toEqual(['error: real reason here'])
+    })
+
+    it('still names the failed actions job when nothing diagnostic exists anywhere', async () => {
+        const gh = new GitHubProvider(
+            'github.com',
+            't',
+            blockerFetch({
+                '/pulls/6': ACTIONS_ROUTES['/pulls/6'],
+                '/actions/runs/500/jobs': ACTIONS_ROUTES['/actions/runs/500/jobs'],
+                '/actions/runs': ACTIONS_ROUTES['/actions/runs'],
+                '/actions/jobs/901/logs': '',
+                '/commits/abc123/check-runs': { check_runs: [] },
+            })
+        )
+
+        const [blocker] = await gh.getBlockers([pr()])
+        expect(blocker).toMatchObject({ job: 'quality', stage: 'release', errors: [] })
     })
 })

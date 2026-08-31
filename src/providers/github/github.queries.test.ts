@@ -85,6 +85,27 @@ describe('getEvents', () => {
 
         expect(written.join('')).toMatch(/events feed/i)
     })
+
+    it('stops at the documented event feed cap instead of asking for a page beyond it', async () => {
+        const pages: string[] = []
+        const full = Array.from({ length: 100 }, () => ({
+            type: 'PushEvent',
+            created_at: '2026-08-27T09:00:00Z',
+            repo: { name: 'acme/web' },
+            payload: { ref: 'refs/heads/main', size: 1 },
+        }))
+        const fetchImpl: FetchLike = async (url: string) => {
+            if (new URL(url).pathname === '/user') {
+                return new Response(JSON.stringify({ id: 1, login: 'dev' }), { status: 200 })
+            }
+            pages.push(url)
+            return new Response(JSON.stringify(full), { status: 200 })
+        }
+        const gh = new GitHubProvider('github.com', 't', fetchImpl)
+
+        await gh.getEvents(new Date(2026, 7, 21))
+        expect(pages).toHaveLength(3)
+    })
 })
 
 const TODAY = new Date(2026, 7, 28)
