@@ -1,8 +1,8 @@
 {
     "name": "standup-mr",
-    "version": "0.1.2",
+    "version": "0.2.0",
     "description": "Standup notes from merge request state, not commit logs.",
-    "keywords": ["standup", "gitlab", "merge-request", "cli", "mcp"],
+    "keywords": ["standup", "gitlab", "github", "merge-request", "pull-request", "cli", "mcp"],
     "license": "MIT",
     "author": {
         "name": "İlker Balcılar",
