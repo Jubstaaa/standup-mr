@@ -7,22 +7,30 @@ const REPORT = {
     provider: 'gitlab' as const,
     user: 'dev',
     today: { date: '2026-08-28', label: 'Friday, 28 August' },
-    previous: {
-        date: '2026-08-27',
-        label: 'Thursday, 27 August',
-        gapDays: 1,
-        eventCount: 2,
-    },
-    previousEvents: [
+    previousDays: [
         {
-            at: '2026-08-27T10:57', action: 'pushed to', project: 'acme/web',
-            targetType: 'Project', title: '', branch: 'fix/date-range',
-            commits: 2, commitTitle: 'fix(filter): send both dates',
+            date: '2026-08-28',
+            label: 'Friday, 28 August',
+            gapDays: 3,
+            events: [
+                {
+                    at: '2026-08-28T10:57', action: 'pushed to', project: 'acme/web',
+                    targetType: 'Project', title: '', branch: 'fix/date-range',
+                    commits: 2, commitTitle: 'fix(filter): send both dates',
+                },
+            ],
         },
         {
-            at: '2026-08-27T11:02', action: 'opened', project: 'acme/ui',
-            targetType: 'MergeRequest', title: 'fix: skip empty chip row',
-            branch: '', commits: 0, commitTitle: '',
+            date: '2026-08-29',
+            label: 'Saturday, 29 August',
+            gapDays: 2,
+            events: [
+                {
+                    at: '2026-08-29T11:02', action: 'opened', project: 'acme/ui',
+                    targetType: 'MergeRequest', title: 'fix: skip empty chip row',
+                    branch: '', commits: 0, commitTitle: '',
+                },
+            ],
         },
     ],
     todayEvents: [],
@@ -70,8 +78,8 @@ const REPORT = {
 describe('toMarkdown', () => {
     it('includes both day labels', () => {
         const out = toMarkdown(REPORT)
-        expect(out).toContain('Thursday, 27 August')
         expect(out).toContain('Friday, 28 August')
+        expect(out).toContain('Saturday, 29 August')
     })
 
     it('states that it is a digest, not a written note', () => {
@@ -163,5 +171,22 @@ describe('toMarkdown for github', () => {
         const out = toMarkdown(REPORT)
         expect(out).toContain('!49')
         expect(out).toContain('unresolved comment')
+    })
+})
+
+describe('toMarkdown across a weekend', () => {
+    it('gives every active day its own section', () => {
+        const out = toMarkdown(REPORT)
+        expect(out).toContain('Friday, 28 August')
+        expect(out).toContain('Saturday, 29 August')
+    })
+
+    it('keeps each day\'s events under that day', () => {
+        const out = toMarkdown(REPORT)
+        const friday = out.indexOf('Friday, 28 August')
+        const saturday = out.indexOf('Saturday, 29 August')
+        expect(out.indexOf('fix(filter): send both dates')).toBeGreaterThan(friday)
+        expect(out.indexOf('fix(filter): send both dates')).toBeLessThan(saturday)
+        expect(out.indexOf('skip empty chip row')).toBeGreaterThan(saturday)
     })
 })

@@ -22,17 +22,28 @@ export function label(day: Date, lang = 'en'): string {
     return key === 'tr' ? `${date} ${month} ${weekday}` : `${weekday}, ${date} ${month}`
 }
 
-export function previousActiveDay(
+function isWeekday(day: string): boolean {
+    const weekday = new Date(`${day}T00:00:00`).getDay()
+    return weekday >= 1 && weekday <= 5
+}
+
+export function previousActiveDays(
     eventDates: Set<string>,
     today: Date
-): { date: string | null; gapDays: number | null } {
+): Array<{ date: string; gapDays: number }> {
     const cutoff = isoDay(today)
-    const past = [...eventDates].filter((d) => d < cutoff).sort()
-    const latest = past[past.length - 1]
-    if (!latest) return { date: null, gapDays: null }
+    const past = [...eventDates].filter((day) => day < cutoff).sort()
+    if (past.length === 0) return []
 
-    const gapDays = Math.round(
-        (Date.parse(`${cutoff}T00:00:00Z`) - Date.parse(`${latest}T00:00:00Z`)) / MS_PER_DAY
-    )
-    return { date: latest, gapDays }
+    const anchor = past.filter(isWeekday).pop() ?? past[0]!
+
+    return past
+        .filter((day) => day >= anchor)
+        .map((day) => ({
+            date: day,
+            gapDays: Math.round(
+                (Date.parse(`${cutoff}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`)) /
+                    MS_PER_DAY
+            ),
+        }))
 }

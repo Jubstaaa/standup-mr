@@ -17,13 +17,14 @@ export function toMarkdown(report: StandupReport, lang = 'en'): string {
 
     out.push(`# ${report.today.label} — ${report.user}`, '', `_${t.digest}_`, '')
 
-    out.push(`## ${t.previous}: ${report.previous.label ?? '—'}`, '')
-    if (report.previousEvents.length > 0) {
-        out.push(...report.previousEvents.map(eventLine))
-    } else {
-        out.push(`_${t.nothing}_`)
+    if (report.previousDays.length === 0) {
+        out.push(`## ${t.previous}`, '', `_${t.nothing}_`, '')
     }
-    out.push('')
+    for (const day of report.previousDays) {
+        out.push(`## ${t.previous}: ${day.label}`, '')
+        out.push(...day.events.map(eventLine))
+        out.push('')
+    }
 
     if (report.todayEvents.length > 0) {
         out.push(`## ${t.today}`, '', ...report.todayEvents.map(eventLine), '')

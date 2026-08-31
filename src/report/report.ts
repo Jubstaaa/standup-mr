@@ -1,4 +1,4 @@
-import { isoDay, label, previousActiveDay } from '../dates/dates'
+import { isoDay, label, previousActiveDays } from '../dates/dates'
 import { MS_PER_DAY } from '../dates/dates.constants'
 import type { Provider } from '../providers/base/base.types'
 import { LOOKBACK_DAYS } from './report.constants'
@@ -15,14 +15,18 @@ export async function buildReport(
     const since = new Date(today.getTime() - lookbackDays * MS_PER_DAY)
     const events = await provider.getEvents(since)
 
-    const { date: previousDate, gapDays } = previousActiveDay(
+    const days = previousActiveDays(
         new Set(events.map((e) => e.at.slice(0, 10))),
         today
     )
 
-    const previousEvents = previousDate
-        ? events.filter((e) => e.at.slice(0, 10) === previousDate)
-        : []
+    const previousDays = days.map(({ date, gapDays }) => ({
+        date,
+        label: label(new Date(`${date}T00:00:00`), lang),
+        gapDays,
+        events: events.filter((e) => e.at.slice(0, 10) === date),
+    }))
+
     const todayEvents = events.filter((e) => e.at.slice(0, 10) === isoDay(today))
 
     const myMrs = await provider.getMyMrs(today)
@@ -35,13 +39,7 @@ export async function buildReport(
         provider: provider.kind,
         user: identity.username,
         today: { date: isoDay(today), label: label(today, lang) },
-        previous: {
-            date: previousDate,
-            label: previousDate ? label(new Date(`${previousDate}T00:00:00`), lang) : null,
-            gapDays,
-            eventCount: previousEvents.length,
-        },
-        previousEvents,
+        previousDays,
         todayEvents,
         myMrs,
         reviews,

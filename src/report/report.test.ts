@@ -27,31 +27,35 @@ function fakeProvider(overrides: Overrides = {}): Provider {
 const event = (at: string) => ({ at, action: 'pushed to' }) as ActivityEvent
 
 describe('buildReport', () => {
-    it('splits events into the previous day and today', async () => {
+    it('reports every active day in the gap, oldest first', async () => {
         const report = await buildReport(
             fakeProvider({
                 events: [
-                    event('2026-08-27T10:00'),
-                    event('2026-08-27T11:00'),
-                    event('2026-08-28T09:00'),
+                    event('2026-08-28T10:00'),
+                    event('2026-08-28T11:00'),
+                    event('2026-08-29T09:00'),
+                    event('2026-08-31T09:00'),
                 ],
             }),
-            TODAY
+            new Date(2026, 7, 31)
         )
 
-        expect(report.previous.date).toBe('2026-08-27')
-        expect(report.previous.eventCount).toBe(2)
-        expect(report.previousEvents).toHaveLength(2)
+        expect(report.previousDays.map((day) => day.date)).toEqual([
+            '2026-08-28',
+            '2026-08-29',
+        ])
+        expect(report.previousDays[0]!.events).toHaveLength(2)
+        expect(report.previousDays[1]!.events).toHaveLength(1)
         expect(report.todayEvents).toHaveLength(1)
     })
 
-    it('labels the previous day in the requested language', async () => {
+    it('labels each day in the requested language', async () => {
         const provider = fakeProvider({ events: [event('2026-08-27T10:00')] })
 
-        expect((await buildReport(provider, TODAY)).previous.label).toBe(
+        expect((await buildReport(provider, TODAY)).previousDays[0]!.label).toBe(
             'Thursday, 27 August'
         )
-        expect((await buildReport(provider, TODAY, 'tr')).previous.label).toBe(
+        expect((await buildReport(provider, TODAY, 'tr')).previousDays[0]!.label).toBe(
             '27 Ağustos Perşembe'
         )
     })
@@ -72,11 +76,9 @@ describe('buildReport', () => {
         expect(report.reviews).toHaveLength(3)
     })
 
-    it('reports a null previous day when there is no history', async () => {
+    it('reports an empty list when there is no history', async () => {
         const report = await buildReport(fakeProvider(), TODAY)
-        expect(report.previous.date).toBeNull()
-        expect(report.previous.label).toBeNull()
-        expect(report.previousEvents).toEqual([])
+        expect(report.previousDays).toEqual([])
     })
 
     it('carries the user and today label', async () => {

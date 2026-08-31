@@ -63,17 +63,18 @@ export interface Blocker {
     errors: string[]
 }
 
+export interface ActiveDay {
+    date: string
+    label: string
+    gapDays: number
+    events: ActivityEvent[]
+}
+
 export interface StandupReport {
     provider: ProviderKind
     user: string
     today: { date: string; label: string }
-    previous: {
-        date: string | null
-        label: string | null
-        gapDays: number | null
-        eventCount: number
-    }
-    previousEvents: ActivityEvent[]
+    previousDays: ActiveDay[]
     todayEvents: ActivityEvent[]
     myMrs: MergeRequest[]
     reviews: Review[]

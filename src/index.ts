@@ -14,7 +14,7 @@ export {
     resolveToken,
 } from './config/config'
 export type { ProviderLabels } from './config/config'
-export { isoDay, label, localAt, previousActiveDay } from './dates/dates'
+export { isoDay, label, localAt, previousActiveDays } from './dates/dates'
 export { postWebhook } from './notify/notify'
 export type { Provider } from './providers/base/base.types'
 export { ApiError, assertUsable, unreachable } from './providers/base/http'
