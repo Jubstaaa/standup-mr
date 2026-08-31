@@ -34,7 +34,7 @@ export async function main(): Promise<void> {
         'Collect merge-request-based standup data from GitLab or GitHub. Returns the ' +
             'previous working day activity, open merge requests or pull requests bucketed ' +
             'by state (ready / blocked / draft / stale), pending reviews, and the error ' +
-            'lines from any failed CI job.',
+            'lines from any failed pipeline or check.',
         {},
         async () => {
             const report = await collect()
