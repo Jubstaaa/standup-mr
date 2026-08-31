@@ -6,7 +6,7 @@ import type { Bucket } from '../types/standup.types'
 
 export function classify(mr: BucketInput, today: Date, staleDays = STALE_DAYS): Bucket {
     if (mr.draft) return 'draft'
-    if (mr.pipeline === 'failed' || mr.unresolved > 0) return 'blocked'
+    if (mr.pipeline === 'failed' || mr.pipeline === 'canceled' || mr.unresolved > 0) return 'blocked'
 
     const age = Math.round(
         (Date.parse(`${isoDay(today)}T00:00:00Z`) - Date.parse(`${mr.updated}T00:00:00Z`)) /

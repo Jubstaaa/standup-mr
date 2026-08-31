@@ -28,6 +28,10 @@ describe('classify', () => {
         expect(classify(mr({ unresolved: 2 }), TODAY)).toBe('blocked')
     })
 
+    it('treats a canceled pipeline as blocked, not ready', () => {
+        expect(classify(mr({ pipeline: 'canceled' }), TODAY)).toBe('blocked')
+    })
+
     it('treats an old but green merge request as stale', () => {
         expect(classify(mr({ updated: '2026-07-24' }), TODAY)).toBe('stale')
     })

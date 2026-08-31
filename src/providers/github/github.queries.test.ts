@@ -156,6 +156,51 @@ describe('getMyMrs', () => {
         })
     })
 
+    it('reports a pull request whose only failing check timed out as blocked, not ready', async () => {
+        const gh = new GitHubProvider(
+            'github.com',
+            't',
+            routedFetch({
+                '/user': { id: 1, login: 'dev' },
+                'search/issues': {
+                    total_count: 1,
+                    items: [
+                        {
+                            number: 12,
+                            title: 'feat: add timeout job',
+                            html_url: 'https://github.com/acme/api/pull/12',
+                            updated_at: '2026-08-27T09:00:00Z',
+                            repository_url: 'https://api.github.com/repos/acme/api',
+                        },
+                    ],
+                },
+                '/repos/acme/api/pulls/12/reviews': [],
+                '/repos/acme/api/pulls/12': {
+                    number: 12,
+                    title: 'feat: add timeout job',
+                    draft: false,
+                    html_url: 'https://github.com/acme/api/pull/12',
+                    updated_at: '2026-08-27T09:00:00Z',
+                    mergeable_state: 'clean',
+                    head: { ref: 'feat/timeout', sha: 'def456' },
+                    base: { ref: 'main', repo: { id: 910 } },
+                },
+                '/commits/def456/check-runs': {
+                    total_count: 1,
+                    check_runs: [
+                        { id: 8, name: 'slow', status: 'completed', conclusion: 'cancelled' },
+                    ],
+                },
+            })
+        )
+
+        const [row] = await gh.getMyMrs(TODAY)
+        expect(row).toMatchObject({
+            pipeline: 'canceled',
+            bucket: 'blocked',
+        })
+    })
+
     it('searches for open pull requests authored by the login', async () => {
         const urls: string[] = []
         const fetchImpl: FetchLike = async (url: string) => {
