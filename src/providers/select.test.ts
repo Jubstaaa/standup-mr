@@ -63,6 +63,27 @@ describe('chooseKind', () => {
         expect(() => chooseKind({ env, probe: NONE })).toThrow(/Both GITHUB_\* and GITLAB_\*/)
     })
 
+    it('lets a configured GITLAB_HOST win over an ambient GITHUB_TOKEN', () => {
+        const env = {
+            GITLAB_HOST: 'gitlab.example.com',
+            GITLAB_TOKEN: 'glpat',
+            GITHUB_TOKEN: 'ghp',
+        }
+        expect(chooseKind({ env, probe: NONE })).toBe('gitlab')
+    })
+
+    it('lets a configured GITHUB_HOST win over an ambient GITLAB_TOKEN', () => {
+        const env = { GITHUB_HOST: 'github.acme.com', GITLAB_TOKEN: 'glpat' }
+        expect(chooseKind({ env, probe: NONE })).toBe('github')
+    })
+
+    it('still refuses to guess when both pairs name a host', () => {
+        const env = { GITHUB_HOST: 'github.acme.com', GITLAB_HOST: 'gitlab.acme.com' }
+        expect(() => chooseKind({ env, probe: NONE })).toThrow(
+            /Both GITHUB_\* and GITLAB_\*/
+        )
+    })
+
     it('falls back to whichever cli is authenticated', () => {
         const onlyGh = { gitlab: () => [], github: () => ['github.com'] }
         const onlyGlab = { gitlab: () => ['gitlab.example.com'], github: () => [] }

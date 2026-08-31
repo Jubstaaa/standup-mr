@@ -70,6 +70,9 @@ export function chooseKind(options: SelectOptions = {}): ProviderKind {
     const hasGitLabEnv = Boolean(env.GITLAB_HOST || env.GITLAB_TOKEN)
     if (hasGitHubEnv !== hasGitLabEnv) return hasGitHubEnv ? 'github' : 'gitlab'
     if (hasGitHubEnv && hasGitLabEnv) {
+        const ghHost = Boolean(env.GITHUB_HOST)
+        const glabHost = Boolean(env.GITLAB_HOST)
+        if (ghHost !== glabHost) return ghHost ? 'github' : 'gitlab'
         throw new ConfigError(
             'Both GITHUB_* and GITLAB_* are configured. ' +
                 'Pass --provider github or --provider gitlab.'

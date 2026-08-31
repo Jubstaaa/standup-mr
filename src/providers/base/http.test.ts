@@ -49,6 +49,21 @@ describe('assertUsable', () => {
         ).toThrow(/2026-08-2\dT/)
     })
 
+    it('reports a secondary rate limit as a rate limit, not a permissions problem', () => {
+        expect(() =>
+            assertUsable(
+                response(403, { 'retry-after': '60', 'x-ratelimit-remaining': '4998' }),
+                'api.github.com'
+            )
+        ).toThrow(/rate limit/i)
+    })
+
+    it('names the retry delay so the wait is knowable', () => {
+        expect(() =>
+            assertUsable(response(429, { 'retry-after': '60' }), 'h')
+        ).toThrow(/retry after 60s/)
+    })
+
     it('throws an ApiError for any other failing status', () => {
         expect(() => assertUsable(response(500), 'h')).toThrow(ApiError)
         expect(() => assertUsable(response(500), 'h')).toThrow(/500/)

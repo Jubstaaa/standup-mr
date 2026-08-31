@@ -21,14 +21,23 @@ function resetAt(response: Response): string {
     return `; resets at ${new Date(seconds * 1000).toISOString()}`
 }
 
+function retryAfter(response: Response): string {
+    const value = response.headers.get('retry-after')
+    if (!value) return ''
+    const seconds = Number(value)
+    if (!Number.isFinite(seconds) || seconds <= 0) return `; retry after ${value}`
+    return `; retry after ${seconds}s`
+}
+
 export function assertUsable(response: Response, host: string): void {
     if (response.ok || response.status === 404) return
 
-    if (
-        (response.status === 403 || response.status === 429) &&
-        remaining(response) === '0'
-    ) {
-        throw new ApiError(`${host} rate limit reached${resetAt(response)}.`)
+    if (response.status === 403 || response.status === 429) {
+        if (remaining(response) === '0') {
+            throw new ApiError(`${host} rate limit reached${resetAt(response)}.`)
+        }
+        const retry = retryAfter(response)
+        if (retry) throw new ApiError(`${host} rate limit reached${retry}.`)
     }
 
     if (response.status === 401) {
