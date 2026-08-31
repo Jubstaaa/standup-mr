@@ -123,3 +123,45 @@ describe('toMarkdown', () => {
         expect(positions).toEqual([...positions].sort((a, b) => a - b))
     })
 })
+
+describe('toMarkdown for github', () => {
+    const GITHUB_REPORT = {
+        ...REPORT,
+        provider: 'github' as const,
+        myMrs: REPORT.myMrs.map((mr) => ({ ...mr, provider: 'github' as const })),
+        reviews: REPORT.reviews.map((review) => ({
+            ...review,
+            provider: 'github' as const,
+        })),
+        blockers: REPORT.blockers.map((blocker) => ({
+            ...blocker,
+            provider: 'github' as const,
+        })),
+    } satisfies StandupReport
+
+    it('uses the hash prefix for pull requests', () => {
+        const out = toMarkdown(GITHUB_REPORT)
+        expect(out).toContain('#49')
+        expect(out).not.toContain('!49')
+    })
+
+    it('uses the hash prefix for reviews and blockers too', () => {
+        const out = toMarkdown(GITHUB_REPORT)
+        expect(out).toContain('#54')
+        expect(out).toContain('#6')
+    })
+
+    it('calls the blocking comments a change request', () => {
+        expect(toMarkdown(GITHUB_REPORT)).toContain('change request')
+    })
+
+    it('says it in Turkish too', () => {
+        expect(toMarkdown(GITHUB_REPORT, 'tr')).toContain('değişiklik isteği')
+    })
+
+    it('keeps the bang prefix and the unresolved wording for gitlab', () => {
+        const out = toMarkdown(REPORT)
+        expect(out).toContain('!49')
+        expect(out).toContain('unresolved comment')
+    })
+})

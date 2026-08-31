@@ -14,7 +14,7 @@ const fakeProvider: Provider = {
 
 describe('collect', () => {
     it('builds a report from an injected provider', async () => {
-        const report = await collect({ provider: fakeProvider })
+        const report = await collect({ providerImpl: fakeProvider })
 
         expect(report.user).toBe('dev')
         expect(report).toHaveProperty('reviewPendingCount')
@@ -22,8 +22,8 @@ describe('collect', () => {
     })
 
     it('passes the language through', async () => {
-        const en = await collect({ provider: fakeProvider, lang: 'en' })
-        const tr = await collect({ provider: fakeProvider, lang: 'tr' })
+        const en = await collect({ providerImpl: fakeProvider, lang: 'en' })
+        const tr = await collect({ providerImpl: fakeProvider, lang: 'tr' })
 
         expect(en.today.label).not.toBe(tr.today.label)
     })
