@@ -85,6 +85,52 @@ lives in the MCP client's prompt or in the Claude Code skill.
 - Without AI: a structured digest.
 - With AI: a note you can read out.
 
+## What the digest looks like
+
+Anonymised output from a real Monday run — note that Friday and Saturday each
+get their own section, and that a merge request GitLab has not evaluated is not
+called ready:
+
+```markdown
+# Monday, 31 August — dev
+
+_Structured digest — not a written note._
+
+## Previous working day: Friday, 28 August
+
+- `acme/ui` pushed to — fix(keyboard): scale keys to viewport (4 commits)
+- `acme/ui` accepted — chore(deps): bump @acme/ui to 0.5.18
+- `acme/api` opened — feat: package subscription sales
+
+## Previous working day: Saturday, 29 August
+
+- `acme/ui` pushed to — fix(keyboard): close the autofill bar (1 commit)
+
+## Ready to merge (2)
+
+- `acme/api` !196 fix: normalise the +90 trunk prefix
+- `acme/web` !194 refactor: loading state — **no pipeline ran**
+
+## Blocked (1)
+
+- `acme/terminal` !49 fix: relative date chips — **1 unresolved comment(s)**
+
+## Reviews (2 pending)
+
+- `acme/mobile` !501 chore: upgrade to RN 0.87 — Teammate
+
+## Blockers
+
+- `acme/mobile` !6 — job `quality`
+  - `npm ERR! code E404`
+  - `npm ERR! 404 Not Found - GET https://registry.example.com/@acme%2fui`
+```
+
+The last section is the point of the tool. Every other standup tool can tell you
+that pipeline is red; this one opens the failed job's log and shows you the
+404 — and a 404 rather than a 403 usually means the token's scope is wrong, not
+that the package is missing.
+
 ## Known limits
 
 - **GitHub's events feed is shallow.** It is capped at roughly 300 events over
