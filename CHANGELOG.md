@@ -4,6 +4,23 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-08-31
+
+### Fixed
+
+- A pull request whose CI timed out was reported as ready to merge. GitHub
+  reports a timed-out job with the conclusion `cancelled`, not `timed_out`, so
+  it normalised to a `canceled` pipeline — and a canceled pipeline was treated
+  as a green light. A canceled pipeline now blocks, on both providers: GitLab's
+  `canceled` status took the same path.
+- Every error line in a GitHub blocker was reported twice. GitHub Actions echoes
+  a step's script inside a `##[group]Run …` block before running it, and those
+  echoed lines matched the error patterns. The body of a `Run` group is now
+  suppressed; other groups are still scanned, since they carry real output.
+
+Both were found by testing 0.2.0 against the real GitHub Actions API — neither
+was reachable from the test fixtures.
+
 ## [0.2.0] - 2026-08-31
 
 GitHub joins GitLab as a first-class provider, and the previous-day report

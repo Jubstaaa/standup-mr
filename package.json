@@ -1,11 +1,19 @@
 {
     "name": "standup-mr",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "description": "Standup notes from merge request state, not commit logs.",
-    "keywords": ["standup", "gitlab", "github", "merge-request", "pull-request", "cli", "mcp"],
+    "keywords": [
+        "standup",
+        "gitlab",
+        "github",
+        "merge-request",
+        "pull-request",
+        "cli",
+        "mcp"
+    ],
     "license": "MIT",
     "author": {
-        "name": "İlker Balcılar",
+        "name": "\u0130lker Balc\u0131lar",
         "email": "ilkerbalcilartr@gmail.com"
     },
     "repository": {
@@ -27,11 +35,22 @@
         }
     ],
     "type": "module",
-    "engines": { "node": ">=20" },
-    "bin": { "standup": "./dist/cli.js" },
+    "engines": {
+        "node": ">=20"
+    },
+    "bin": {
+        "standup": "./dist/cli.js"
+    },
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
-    "files": ["dist", "skills", "mcp/README.md", "README.md", "CHANGELOG.md", "LICENSE"],
+    "files": [
+        "dist",
+        "skills",
+        "mcp/README.md",
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE"
+    ],
     "scripts": {
         "build": "tsup",
         "test": "bun test",
@@ -50,6 +69,8 @@
         "@modelcontextprotocol/sdk": "^1.0.0"
     },
     "peerDependenciesMeta": {
-        "@modelcontextprotocol/sdk": { "optional": true }
+        "@modelcontextprotocol/sdk": {
+            "optional": true
+        }
     }
 }
