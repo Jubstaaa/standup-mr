@@ -1,18 +1,8 @@
 import { describe, expect, it } from 'bun:test'
 
 import type { FetchLike } from '../../types/standup.types'
+import { routedFetch } from '../base/routes.helpers'
 import { GitHubProvider } from './github'
-
-function routedFetch(routes: Record<string, unknown>): FetchLike {
-    return async (url: string) => {
-        for (const [needle, payload] of Object.entries(routes)) {
-            if (url.includes(needle)) {
-                return new Response(JSON.stringify(payload), { status: 200 })
-            }
-        }
-        return new Response('[]', { status: 200 })
-    }
-}
 
 describe('getEvents', () => {
     it('reads the feed for the authenticated login and sorts ascending', async () => {

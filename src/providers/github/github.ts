@@ -2,7 +2,7 @@ import { classify, markMissingPipelines } from '../../buckets/buckets'
 import { MS_PER_DAY } from '../../dates/dates.constants'
 import { isoDay, localAt } from '../../dates/dates'
 import { extractErrors } from '../../trace/trace'
-import { ApiError, assertUsable, unreachable } from '../base/http'
+import { ApiError, assertUsable, buildUrl, unreachable } from '../base/http'
 import {
     API_VERSION,
     DOT_COM,
@@ -35,16 +35,6 @@ export class GitHubProvider implements Provider {
         this.fetchImpl = fetchImpl
     }
 
-    private url(path: string, params?: Params): string {
-        const base = `${this.api}/${path}`
-        if (!params || Object.keys(params).length === 0) return base
-        const query = new URLSearchParams()
-        for (const [key, value] of Object.entries(params)) {
-            query.set(key, String(value))
-        }
-        return `${base}?${query.toString()}`
-    }
-
     private headers(): Record<string, string> {
         return {
             authorization: `Bearer ${this.token}`,
@@ -62,7 +52,7 @@ export class GitHubProvider implements Provider {
     }
 
     async getJson<T>(path: string, params?: Params): Promise<T | null> {
-        const response = await this.send(this.url(path, params))
+        const response = await this.send(buildUrl(this.api, path, params))
         assertUsable(response, this.host)
         if (!response.ok) return null
         try {
@@ -104,7 +94,7 @@ export class GitHubProvider implements Provider {
     }
 
     async getLogText(path: string): Promise<string> {
-        const first = await this.send(this.url(path), { redirect: 'manual' })
+        const first = await this.send(buildUrl(this.api, path), { redirect: 'manual' })
         if (first.status === 404) return ''
 
         const location = first.headers.get('location')

@@ -17,7 +17,7 @@ export type { ProviderLabels } from './config/config'
 export { isoDay, label, localAt, previousActiveDays } from './dates/dates'
 export { postWebhook } from './notify/notify'
 export type { Provider } from './providers/base/base.types'
-export { ApiError, assertUsable, unreachable } from './providers/base/http'
+export { ApiError, assertUsable, buildUrl, unreachable } from './providers/base/http'
 export { GitHubProvider } from './providers/github/github'
 export { mapEvent, repoFromUrl } from './providers/github/github.map'
 export {

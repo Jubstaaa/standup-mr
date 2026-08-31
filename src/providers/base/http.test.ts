@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import { ApiError, assertUsable, unreachable } from './http'
+import { ApiError, assertUsable, buildUrl, unreachable } from './http'
 
 function response(status: number, headers: Record<string, string> = {}): Response {
     return new Response('', { status, headers })
@@ -67,6 +67,27 @@ describe('assertUsable', () => {
     it('throws an ApiError for any other failing status', () => {
         expect(() => assertUsable(response(500), 'h')).toThrow(ApiError)
         expect(() => assertUsable(response(500), 'h')).toThrow(/500/)
+    })
+})
+
+describe('buildUrl', () => {
+    it('joins the api base and the path', () => {
+        expect(buildUrl('https://api.github.com', 'user')).toBe('https://api.github.com/user')
+    })
+
+    it('omits the query when there are no params', () => {
+        expect(buildUrl('https://h/api/v4', 'merge_requests', {})).toBe(
+            'https://h/api/v4/merge_requests'
+        )
+    })
+
+    it('encodes every param value', () => {
+        expect(
+            buildUrl('https://api.github.com', 'search/issues', {
+                q: 'is:pr author:dev',
+                page: 2,
+            })
+        ).toBe('https://api.github.com/search/issues?q=is%3Apr+author%3Adev&page=2')
     })
 })
 

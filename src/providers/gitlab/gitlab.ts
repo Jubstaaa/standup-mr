@@ -11,7 +11,7 @@ import type {
 } from '../../types/standup.types'
 import { extractErrors } from '../../trace/trace'
 import type { Provider } from '../base/base.types'
-import { assertUsable, unreachable } from '../base/http'
+import { assertUsable, buildUrl, unreachable } from '../base/http'
 import { FRESH_REVIEW_DAYS, PAGE_SIZE } from './gitlab.constants'
 
 type Params = Record<string, string | number>
@@ -30,16 +30,6 @@ export class GitLabProvider implements Provider {
         this.fetchImpl = fetchImpl
     }
 
-    private url(path: string, params?: Params): string {
-        const base = `${this.api}/${path}`
-        if (!params || Object.keys(params).length === 0) return base
-        const query = new URLSearchParams()
-        for (const [key, value] of Object.entries(params)) {
-            query.set(key, String(value))
-        }
-        return `${base}?${query.toString()}`
-    }
-
     private async send(url: string): Promise<Response> {
         let response: Response
         try {
@@ -54,7 +44,7 @@ export class GitLabProvider implements Provider {
     }
 
     async getJson<T>(path: string, params?: Params): Promise<T | null> {
-        const response = await this.send(this.url(path, params))
+        const response = await this.send(buildUrl(this.api, path, params))
         if (!response.ok) return null
         try {
             return (await response.json()) as T
@@ -64,7 +54,7 @@ export class GitLabProvider implements Provider {
     }
 
     async getText(path: string): Promise<string> {
-        const response = await this.send(this.url(path))
+        const response = await this.send(buildUrl(this.api, path))
         if (!response.ok) return ''
         return await response.text()
     }

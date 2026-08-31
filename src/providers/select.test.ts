@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'bun:test'
 
-import { ConfigError } from '../config/config'
 import { chooseKind, connect } from './select'
 
 const NONE = { gitlab: () => [], github: () => [] }
+
+const EXPLODING = {
+    github: (): string[] => {
+        throw new Error('probed gh')
+    },
+    gitlab: (): string[] => {
+        throw new Error('probed glab')
+    },
+}
 
 describe('chooseKind', () => {
     it('obeys the explicit flag', () => {
@@ -152,23 +160,26 @@ describe('connect', () => {
         ).toThrow(/No token/)
     })
 
-    it('does not probe the cli when the host is given explicitly', () => {
-        const exploding = {
-            github: () => { throw new Error('probed gh') },
-            gitlab: () => { throw new Error('probed glab') },
-        }
-
+    it('does not probe gh when the github host is given explicitly', () => {
         expect(() =>
-            connect({ provider: 'github', host: 'github.com', token: 'ghp', env: {}, probe: exploding })
+            connect({
+                provider: 'github',
+                host: 'github.com',
+                token: 'ghp',
+                env: {},
+                probe: EXPLODING,
+            })
         ).not.toThrow()
+    })
 
+    it('does not probe glab when the gitlab host is given explicitly', () => {
         expect(() =>
             connect({
                 provider: 'gitlab',
                 host: 'gitlab.example.com',
                 token: 'glpat',
                 env: {},
-                probe: exploding,
+                probe: EXPLODING,
             })
         ).not.toThrow()
     })

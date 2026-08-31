@@ -1,3 +1,17 @@
+export function buildUrl(
+    api: string,
+    path: string,
+    params?: Record<string, string | number>
+): string {
+    const base = `${api}/${path}`
+    if (!params || Object.keys(params).length === 0) return base
+    const query = new URLSearchParams()
+    for (const [key, value] of Object.entries(params)) {
+        query.set(key, String(value))
+    }
+    return `${base}?${query.toString()}`
+}
+
 export class ApiError extends Error {
     constructor(message: string) {
         super(message)
