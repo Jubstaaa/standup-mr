@@ -6,7 +6,7 @@ import type { StandupReport } from '../types/standup.types'
 const REPORT = {
     provider: 'gitlab' as const,
     user: 'dev',
-    today: { date: '2026-08-28', label: 'Friday, 28 August' },
+    today: { date: '2026-08-31', label: 'Monday, 31 August' },
     previousDays: [
         {
             date: '2026-08-28',
@@ -76,10 +76,9 @@ const REPORT = {
 } satisfies StandupReport
 
 describe('toMarkdown', () => {
-    it('includes both day labels', () => {
+    it('renders the top header with today\'s label and the user', () => {
         const out = toMarkdown(REPORT)
-        expect(out).toContain('Friday, 28 August')
-        expect(out).toContain('Saturday, 29 August')
+        expect(out).toContain('# Monday, 31 August — dev')
     })
 
     it('states that it is a digest, not a written note', () => {
