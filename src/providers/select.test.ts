@@ -130,4 +130,25 @@ describe('connect', () => {
             connect({ provider: 'gitlab', host: 'gitlab.example.com', env: {}, probe: NONE })
         ).toThrow(/No token/)
     })
+
+    it('does not probe the cli when the host is given explicitly', () => {
+        const exploding = {
+            github: () => { throw new Error('probed gh') },
+            gitlab: () => { throw new Error('probed glab') },
+        }
+
+        expect(() =>
+            connect({ provider: 'github', host: 'github.com', token: 'ghp', env: {}, probe: exploding })
+        ).not.toThrow()
+
+        expect(() =>
+            connect({
+                provider: 'gitlab',
+                host: 'gitlab.example.com',
+                token: 'glpat',
+                env: {},
+                probe: exploding,
+            })
+        ).not.toThrow()
+    })
 })

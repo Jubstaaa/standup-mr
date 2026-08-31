@@ -12,6 +12,7 @@ import {
 import { GitHubProvider } from './github/github'
 import { DOT_COM } from './github/github.constants'
 import { GitLabProvider } from './gitlab/gitlab'
+import type { ProviderLabels } from '../config/config'
 import type { Provider, ProviderKind } from './base/base.types'
 
 export interface SelectOptions {
@@ -23,6 +24,19 @@ export interface SelectOptions {
 }
 
 const DEFAULT_PROBE = { gitlab: glabHosts, github: ghHosts }
+
+function hostFrom(
+    cliHost: string | undefined,
+    envHost: string | undefined,
+    probe: () => string[],
+    fallback: string[],
+    labels: ProviderLabels
+): string {
+    if (cliHost) return cliHost
+    if (envHost) return envHost
+    const found = probe()
+    return resolveHost(undefined, undefined, found.length > 0 ? found : fallback, labels)
+}
 
 export function chooseKind(options: SelectOptions = {}): ProviderKind {
     const env = options.env ?? process.env
@@ -83,13 +97,7 @@ export function connect(options: SelectOptions = {}): Provider {
     const probe = options.probe ?? DEFAULT_PROBE
 
     if (chooseKind(options) === 'github') {
-        const found = probe.github()
-        const host = resolveHost(
-            options.host,
-            env.GITHUB_HOST,
-            found.length > 0 ? found : [DOT_COM],
-            GITHUB_LABELS
-        )
+        const host = hostFrom(options.host, env.GITHUB_HOST, probe.github, [DOT_COM], GITHUB_LABELS)
         const token = resolveToken(
             host,
             options.token,
@@ -100,7 +108,7 @@ export function connect(options: SelectOptions = {}): Provider {
         return new GitHubProvider(host, token)
     }
 
-    const host = resolveHost(options.host, env.GITLAB_HOST, probe.gitlab(), GITLAB_LABELS)
+    const host = hostFrom(options.host, env.GITLAB_HOST, probe.gitlab, [], GITLAB_LABELS)
     const token = resolveToken(
         host,
         options.token,

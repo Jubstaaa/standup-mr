@@ -174,6 +174,7 @@ describe('main', () => {
         const code = await main([
             'fetch',
             '--provider', 'github',
+            '--host', 'github.com',
             '--token', 'ghp',
         ])
 
