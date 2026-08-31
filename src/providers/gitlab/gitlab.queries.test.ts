@@ -1,20 +1,9 @@
 import { describe, expect, it } from 'bun:test'
 
-import type { FetchLike } from '../../types/standup.types'
+import { routedFetch } from '../base/routes.helpers'
 import { GitLabProvider } from './gitlab'
 
 const TODAY = new Date(2026, 7, 28)
-
-function routedFetch(routes: Record<string, unknown>): FetchLike {
-    return async (url: string) => {
-        for (const [needle, payload] of Object.entries(routes)) {
-            if (url.includes(needle)) {
-                return new Response(JSON.stringify(payload), { status: 200 })
-            }
-        }
-        return new Response('[]', { status: 200 })
-    }
-}
 
 describe('getIdentity', () => {
     it('returns id and username', async () => {
@@ -162,6 +151,32 @@ describe('getMyMrs', () => {
         expect(row!.unresolved).toBe(1)
         expect(row!.bucket).toBe('blocked')
     })
+
+    it('stamps the provider on every merge request', async () => {
+        const gl = new GitLabProvider(
+            'h',
+            't',
+            routedFetch({
+                '/merge_requests': [
+                    {
+                        project_id: 3,
+                        iid: 11,
+                        title: 'feat: add stories endpoint',
+                        draft: false,
+                        source_branch: 'feat/stories',
+                        target_branch: 'main',
+                        updated_at: '2026-08-27T09:00:00.000+03:00',
+                        web_url: 'https://h/acme/api/-/merge_requests/11',
+                        detailed_merge_status: 'mergeable',
+                        references: { full: 'acme/api!11' },
+                    },
+                ],
+            })
+        )
+
+        const [row] = await gl.getMyMrs(TODAY)
+        expect(row).toMatchObject({ provider: 'gitlab', iid: 11 })
+    })
 })
 
 describe('getReviews', () => {
@@ -170,7 +185,7 @@ describe('getReviews', () => {
             'h',
             't',
             routedFetch({
-                reviewer_id: [
+                'reviewer_id=': [
                     {
                         project_id: 1, iid: 53, title: 'feat: refund limits',
                         draft: false, updated_at: '2026-08-27T00:00:00Z',
@@ -183,7 +198,7 @@ describe('getReviews', () => {
             })
         )
 
-        const [row] = await gl.getReviews(285, TODAY)
+        const [row] = await gl.getReviews({ id: 285, username: 'dev' }, TODAY)
         expect(row).toMatchObject({ approvedByMe: true, author: 'Teammate', fresh: true })
     })
 
@@ -192,7 +207,7 @@ describe('getReviews', () => {
             'h',
             't',
             routedFetch({
-                reviewer_id: [
+                'reviewer_id=': [
                     {
                         project_id: 1, iid: 54, title: 'feat: balance inquiry',
                         draft: false, updated_at: '2026-08-28T00:00:00Z',
@@ -205,7 +220,7 @@ describe('getReviews', () => {
             })
         )
 
-        const [row] = await gl.getReviews(285, TODAY)
+        const [row] = await gl.getReviews({ id: 285, username: 'dev' }, TODAY)
         expect(row!.approvedByMe).toBe(false)
     })
 
@@ -215,7 +230,7 @@ describe('getReviews', () => {
             'h',
             't',
             routedFetch({
-                reviewer_id: [
+                'reviewer_id=': [
                     {
                         project_id: 1, iid: 12, title: 'chore: recent back then',
                         draft: false, updated_at: '2020-01-14T00:00:00Z',
@@ -228,7 +243,7 @@ describe('getReviews', () => {
             })
         )
 
-        const [row] = await gl.getReviews(285, longAgo)
+        const [row] = await gl.getReviews({ id: 285, username: 'dev' }, longAgo)
         expect(row!.fresh).toBe(true)
     })
 })

@@ -100,6 +100,25 @@ bun run build
    `TZ=America/Chicago bun test` and `TZ=Pacific/Kiritimati bun test` are good
    choices for catching UTC-vs-local bugs.
 
+   **Day-boundary tests belong in a `.cases.ts` file, not `.test.ts`.** Plain
+   `bun test` picks up every `.test.ts` file and runs with its internal clock
+   pinned to UTC unless `TZ` is set in the environment, so a fixed-timezone
+   assertion living in a `.test.ts` file will fail under plain `bun test` (and
+   therefore under CI). That's why the tests asserting a specific local-day
+   boundary live in `src/dates/dates.tz.istanbul.cases.ts` and
+   `src/dates/dates.tz.los-angeles.cases.ts` - named outside the `.test.ts`
+   glob on purpose - and run separately via:
+
+   ```bash
+   bun run test:tz
+   ```
+
+   If you add a new file like this, you must also add it to the `test:tz`
+   chain in `package.json`, or it will silently never run - not in `bun test`,
+   not in `test:tz`, not in CI. Both GitHub Actions workflows invoke
+   `bun run test:tz` alongside `bun test`, so a file left out of the chain
+   stays uncovered everywhere.
+
 4. **Commit with conventional commits**:
 
    ```bash
@@ -133,8 +152,8 @@ bun run build
 ```
 src/
 ├── cli/                  # Argument parsing and the fetch/post commands
-├── config/               # Host and token resolution (flags, env, glab)
-├── providers/            # GitLab API client (Provider interface + implementation)
+├── config/               # Host and token resolution (flags, env, gh/glab)
+├── providers/            # GitLab and GitHub API clients (Provider interface + implementations, provider selection)
 ├── dates/                # Local-day date helpers
 ├── buckets/              # Merge request state classification (ready/blocked/draft/stale)
 ├── report/                # Assembles the standup report from a provider
@@ -149,7 +168,7 @@ skills/standup/             # Claude Code skill (note-writing playbook)
 
 #### Key Concepts
 
-- **Provider**: the interface GitLab (and any future host) implements -
+- **Provider**: the interface GitLab and GitHub (and any future host) implement -
   `getIdentity`, `getEvents`, `getMyMrs`, `getReviews`, `getBlockers`
 - **Bucket**: the classification of an open merge request - `ready`,
   `blocked`, `draft`, or `stale`

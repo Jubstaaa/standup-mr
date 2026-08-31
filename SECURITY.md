@@ -29,7 +29,8 @@ Instead:
 
 | Version | Supported |
 | ------- | --------- |
-| 0.1.x   | ✅        |
+| 0.2.x   | ✅        |
+| 0.1.x   | ❌        |
 
 We recommend always using the latest version of standup-mr.
 
@@ -47,11 +48,18 @@ webhook. Keep the following in mind:
 
 ### 2. **Data handling**
 
-- standup-mr does not persist anything — each run makes live GitLab API calls
-  and prints the result
-- Job trace text is scanned for error lines locally; nothing is sent anywhere
-  except the GitLab host you configured and, if you use `post`, the webhook
-  URL you pass
+- standup-mr does not persist anything — each run makes live GitLab or GitHub
+  API calls and prints the result
+- Job log text is scanned for error lines locally. Requests leave for exactly
+  three kinds of destination: the GitLab or GitHub host you configured; the
+  storage host GitHub redirects to when a workflow job's log is fetched; and,
+  if you use `post`, the webhook URL you pass
+- **That storage host is a third party.** GitHub answers a job-log request with
+  a 302 to a pre-signed URL on its own blob storage, and standup-mr follows it
+  with **no `Authorization` header** — the URL already carries its own
+  signature, and forwarding a token to a host that does not need it would
+  disclose it. That behaviour is asserted in the test suite, in both
+  directions: the API call must carry the token and the redirect must not
 
 ### 3. **Webhook URLs**
 

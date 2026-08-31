@@ -1,9 +1,19 @@
-import type { ActivityEvent, Blocker, Identity, MergeRequest, Review } from '../../types/standup.types'
+import type {
+    ActivityEvent,
+    Blocker,
+    Identity,
+    MergeRequest,
+    ProviderKind,
+    Review,
+} from '../../types/standup.types'
+
+export type { ProviderKind }
 
 export interface Provider {
+    readonly kind: ProviderKind
     getIdentity(): Promise<Identity>
     getEvents(since: Date): Promise<ActivityEvent[]>
     getMyMrs(today: Date): Promise<MergeRequest[]>
-    getReviews(uid: number, today: Date): Promise<Review[]>
+    getReviews(identity: Identity, today: Date): Promise<Review[]>
     getBlockers(mrs: MergeRequest[]): Promise<Blocker[]>
 }

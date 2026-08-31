@@ -154,6 +154,48 @@ describe('main', () => {
         stdout.mockRestore()
         stderr.mockRestore()
     })
+
+    it('routes --provider github to the github api', async () => {
+        const { stdout, stderr } = spyOutputs()
+        const urls: string[] = []
+        const fakeFetch = (async (url: unknown) => {
+            const target = String(url)
+            urls.push(target)
+            if (target.endsWith('/user')) {
+                return new Response(JSON.stringify({ id: 1, login: 'dev' }), { status: 200 })
+            }
+            if (target.includes('search/issues')) {
+                return new Response(JSON.stringify({ items: [] }), { status: 200 })
+            }
+            return new Response('[]', { status: 200 })
+        }) as typeof fetch
+        spyOn(globalThis, 'fetch').mockImplementation(fakeFetch)
+
+        const code = await main([
+            'fetch',
+            '--provider', 'github',
+            '--host', 'github.com',
+            '--token', 'ghp',
+        ])
+
+        expect(code).toBe(0)
+        expect(urls.some((url) => url.startsWith('https://api.github.com/'))).toBe(true)
+        expect(String(stdout.mock.calls[0]![0])).toContain('"provider": "github"')
+        stdout.mockRestore()
+        stderr.mockRestore()
+    })
+
+    it('names both providers in the usage text', async () => {
+        const { stdout, stderr } = spyOutputs()
+
+        await main(['--help'])
+
+        const usage = String(stdout.mock.calls[0]![0])
+        expect(usage).toContain('--provider')
+        expect(usage).toContain('GITHUB_TOKEN')
+        stdout.mockRestore()
+        stderr.mockRestore()
+    })
 })
 
 describe('symlinked entry point', () => {

@@ -3,9 +3,9 @@ import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 
 import { USAGE } from './cli.constants'
-import { ConfigError, glabHosts, glabToken, resolveHost, resolveToken } from '../config/config'
+import { ConfigError } from '../config/config'
 import { postWebhook } from '../notify/notify'
-import { GitLabProvider } from '../providers/gitlab/gitlab'
+import { connect } from '../providers/select'
 import { toMarkdown } from '../render/render'
 import { buildReport } from '../report/report'
 
@@ -13,12 +13,6 @@ async function readStdin(): Promise<string> {
     const chunks: Buffer[] = []
     for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk))
     return Buffer.concat(chunks).toString('utf8')
-}
-
-function connect(values: { host?: string; token?: string }): GitLabProvider {
-    const host = resolveHost(values.host, process.env.GITLAB_HOST, glabHosts())
-    const token = resolveToken(host, values.token, process.env.GITLAB_TOKEN, glabToken)
-    return new GitLabProvider(host, token)
 }
 
 export async function main(argv: string[]): Promise<number> {
@@ -34,6 +28,7 @@ export async function main(argv: string[]): Promise<number> {
             const { values } = parseArgs({
                 args: rest,
                 options: {
+                    provider: { type: 'string' },
                     host: { type: 'string' },
                     token: { type: 'string' },
                     lang: { type: 'string', default: 'en' },

@@ -1,8 +1,8 @@
 {
     "name": "standup-mr",
-    "version": "0.1.2",
+    "version": "0.2.0",
     "description": "Standup notes from merge request state, not commit logs.",
-    "keywords": ["standup", "gitlab", "merge-request", "cli", "mcp"],
+    "keywords": ["standup", "gitlab", "github", "merge-request", "pull-request", "cli", "mcp"],
     "license": "MIT",
     "author": {
         "name": "İlker Balcılar",
@@ -31,10 +31,11 @@
     "bin": { "standup": "./dist/cli.js" },
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
-    "files": ["dist", "skills", "mcp/README.md", "README.md", "LICENSE"],
+    "files": ["dist", "skills", "mcp/README.md", "README.md", "CHANGELOG.md", "LICENSE"],
     "scripts": {
         "build": "tsup",
         "test": "bun test",
+        "test:tz": "TZ=Europe/Istanbul bun test ./src/dates/dates.tz.istanbul.cases.ts && TZ=America/Los_Angeles bun test ./src/dates/dates.tz.los-angeles.cases.ts",
         "typecheck": "tsc --noEmit",
         "prepublishOnly": "tsup"
     },

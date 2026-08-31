@@ -1,10 +1,34 @@
 export { classify, markMissingPipelines } from './buckets/buckets'
 export { STALE_DAYS } from './buckets/buckets.constants'
-export { ConfigError, glabHosts, glabToken, resolveHost, resolveToken } from './config/config'
-export { isoDay, label, previousActiveDay } from './dates/dates'
+export {
+    ConfigError,
+    GITHUB_LABELS,
+    GITLAB_LABELS,
+    ghHosts,
+    ghToken,
+    glabHosts,
+    glabToken,
+    parseGlabHosts,
+    parseLoggedInHosts,
+    resolveHost,
+    resolveToken,
+} from './config/config'
+export type { ProviderLabels } from './config/config'
+export { isoDay, label, localAt, previousActiveDays } from './dates/dates'
 export { postWebhook } from './notify/notify'
 export type { Provider } from './providers/base/base.types'
+export { ApiError, assertUsable, buildUrl, unreachable } from './providers/base/http'
+export { GitHubProvider } from './providers/github/github'
+export { mapEvent, repoFromUrl } from './providers/github/github.map'
+export {
+    approvedBy,
+    countChangesRequested,
+    latestStateByReviewer,
+    normalizeChecks,
+} from './providers/github/github.state'
 export { GitLabProvider } from './providers/gitlab/gitlab'
+export { chooseKind, connect } from './providers/select'
+export type { SelectOptions } from './providers/select'
 export { toMarkdown } from './render/render'
 export { buildReport } from './report/report'
 export { extractErrors } from './trace/trace'

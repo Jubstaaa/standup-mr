@@ -1,29 +1,24 @@
 import { realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
-import { glabHosts, glabToken, resolveHost, resolveToken } from '../src/config/config'
+import { connect } from '../src/providers/select'
 import type { Provider } from '../src/providers/base/base.types'
-import { GitLabProvider } from '../src/providers/gitlab/gitlab'
 import { buildReport } from '../src/report/report'
 import type { StandupReport } from '../src/types/standup.types'
 
 export interface CollectOptions {
+    provider?: string
     host?: string
     token?: string
     lang?: string
-    provider?: Provider
-}
-
-function resolveProvider(options: CollectOptions): Provider {
-    if (options.provider) return options.provider
-
-    const host = resolveHost(options.host, process.env.GITLAB_HOST, glabHosts())
-    const token = resolveToken(host, options.token, process.env.GITLAB_TOKEN, glabToken)
-    return new GitLabProvider(host, token)
+    providerImpl?: Provider
 }
 
 export async function collect(options: CollectOptions = {}): Promise<StandupReport> {
-    return buildReport(resolveProvider(options), new Date(), options.lang ?? 'en')
+    const provider =
+        options.providerImpl ??
+        connect({ provider: options.provider, host: options.host, token: options.token })
+    return buildReport(provider, new Date(), options.lang ?? 'en')
 }
 
 export async function main(): Promise<void> {
@@ -32,14 +27,14 @@ export async function main(): Promise<void> {
         '@modelcontextprotocol/sdk/server/stdio.js'
     )
 
-    const server = new McpServer({ name: 'standup-mr', version: '0.1.0' })
+    const server = new McpServer({ name: 'standup-mr', version: '0.2.0' })
 
     server.tool(
         'get_standup_data',
-        'Collect merge-request-based standup data from GitLab. Returns the previous ' +
-            'working day activity, open merge requests bucketed by state ' +
-            '(ready / blocked / draft / stale), pending reviews, and the error lines ' +
-            'from any failed CI pipeline.',
+        'Collect merge-request-based standup data from GitLab or GitHub. Returns the ' +
+            'previous working day activity, open merge requests or pull requests bucketed ' +
+            'by state (ready / blocked / draft / stale), pending reviews, and the error ' +
+            'lines from any failed pipeline or check.',
         {},
         async () => {
             const report = await collect()

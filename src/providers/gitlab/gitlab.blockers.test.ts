@@ -1,23 +1,12 @@
 import { describe, expect, it } from 'bun:test'
 
-import type { FetchLike, MergeRequest } from '../../types/standup.types'
+import type { MergeRequest } from '../../types/standup.types'
+import { routedFetch } from '../base/routes.helpers'
 import { GitLabProvider } from './gitlab'
-
-function blockerFetch(routes: Record<string, unknown>): FetchLike {
-    return async (url: string) => {
-        for (const [needle, payload] of Object.entries(routes)) {
-            if (url.includes(needle)) {
-                return typeof payload === 'string'
-                    ? new Response(payload, { status: 200 })
-                    : new Response(JSON.stringify(payload), { status: 200 })
-            }
-        }
-        return new Response('[]', { status: 200 })
-    }
-}
 
 function mr(overrides: Partial<MergeRequest> = {}): MergeRequest {
     return {
+        provider: 'gitlab',
         project: 'acme/web',
         projectId: 1,
         iid: 6,
@@ -42,8 +31,8 @@ describe('getBlockers', () => {
         const gl = new GitLabProvider(
             'h',
             't',
-            blockerFetch({
-                '/pipelines/': [{ id: 2, name: 'quality', stage: 'test', status: 'failed' }],
+            routedFetch({
+                '/pipelines/99/jobs': [{ id: 2, name: 'quality', stage: 'test', status: 'failed' }],
                 '/trace': 'error: this must not be reported\n',
             })
         )
@@ -59,7 +48,7 @@ describe('getBlockers', () => {
         const gl = new GitLabProvider(
             'h',
             't',
-            blockerFetch({
+            routedFetch({
                 '/pipelines/99/jobs': [
                     { id: 1, name: 'lint', stage: 'test', status: 'success' },
                     { id: 2, name: 'quality', stage: 'test', status: 'failed' },
@@ -83,7 +72,7 @@ describe('getBlockers', () => {
         const gl = new GitLabProvider(
             'h',
             't',
-            blockerFetch({
+            routedFetch({
                 '/pipelines/99/jobs': [{ id: 1, name: 'lint', stage: 'test', status: 'success' }],
             })
         )
@@ -91,17 +80,17 @@ describe('getBlockers', () => {
         expect(await gl.getBlockers([mr()])).toEqual([])
     })
 
-    it('survives a jobs endpoint that returns nothing usable', async () => {
+    it('throws when the jobs endpoint is not usable, instead of hiding the blocker', async () => {
         const gl = new GitLabProvider('h', 't', async () => new Response('nope', { status: 500 }))
 
-        expect(await gl.getBlockers([mr()])).toEqual([])
+        await expect(gl.getBlockers([mr()])).rejects.toThrow(/500/)
     })
 
     it('diagnoses several failed merge requests independently', async () => {
         const gl = new GitLabProvider(
             'h',
             't',
-            blockerFetch({
+            routedFetch({
                 '/pipelines/99/jobs': [{ id: 2, name: 'quality', stage: 'test', status: 'failed' }],
                 '/pipelines/77/jobs': [{ id: 5, name: 'deps', stage: 'setup', status: 'failed' }],
                 '/jobs/2/trace': 'error: first one broke\n',

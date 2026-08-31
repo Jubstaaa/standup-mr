@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 
-import { GLAB_TIMEOUT_MS } from './config.constants'
+import { CLI_TIMEOUT_MS } from './config.constants'
 
 export class ConfigError extends Error {
     constructor(message: string) {
@@ -9,25 +9,50 @@ export class ConfigError extends Error {
     }
 }
 
+export interface ProviderLabels {
+    name: string
+    cli: string
+    envHost: string
+    envToken: string
+    login: (host: string) => string
+}
+
+export const GITLAB_LABELS: ProviderLabels = {
+    name: 'GitLab',
+    cli: 'glab',
+    envHost: 'GITLAB_HOST',
+    envToken: 'GITLAB_TOKEN',
+    login: (host) => `glab auth login --hostname ${host}`,
+}
+
+export const GITHUB_LABELS: ProviderLabels = {
+    name: 'GitHub',
+    cli: 'gh',
+    envHost: 'GITHUB_HOST',
+    envToken: 'GITHUB_TOKEN',
+    login: (host) => `gh auth login --hostname ${host}`,
+}
+
 export function resolveHost(
     cliHost?: string,
     envHost?: string,
-    glabHostList?: string[]
+    hostList?: string[],
+    labels: ProviderLabels = GITLAB_LABELS
 ): string {
     if (cliHost) return cliHost
     if (envHost) return envHost
 
-    const hosts = glabHostList ?? []
+    const hosts = hostList ?? []
     if (hosts.length === 1) return hosts[0]!
     if (hosts.length === 0) {
         throw new ConfigError(
-            'No GitLab host configured. Pass --host, set GITLAB_HOST, ' +
-                'or log in with `glab auth login`.'
+            `No ${labels.name} host configured. Pass --host, set ${labels.envHost}, ` +
+                `or log in with \`${labels.cli} auth login\`.`
         )
     }
     throw new ConfigError(
-        `Multiple GitLab hosts found (${[...hosts].sort().join(', ')}). ` +
-            'Pick one with --host or GITLAB_HOST.'
+        `Multiple ${labels.name} hosts found (${[...hosts].sort().join(', ')}). ` +
+            `Pick one with --host or ${labels.envHost}.`
     )
 }
 
@@ -35,25 +60,26 @@ export function resolveToken(
     host: string,
     cliToken?: string,
     envToken?: string,
-    glabLookup?: (host: string) => string
+    lookup?: (host: string) => string,
+    labels: ProviderLabels = GITLAB_LABELS
 ): string {
     if (cliToken) return cliToken
     if (envToken) return envToken
-    if (glabLookup) {
-        const token = glabLookup(host)
+    if (lookup) {
+        const token = lookup(host)
         if (token) return token
     }
     throw new ConfigError(
-        `No token for ${host}. Pass --token, set GITLAB_TOKEN, ` +
-            `or run \`glab auth login --hostname ${host}\`.`
+        `No token for ${host}. Pass --token, set ${labels.envToken}, ` +
+            `or run \`${labels.login(host)}\`.`
     )
 }
 
-function glab(args: string[]): string {
+function cliCapture(cli: string, args: string[]): string {
     try {
-        return execFileSync('glab', args, {
+        return execFileSync(cli, args, {
             encoding: 'utf8',
-            timeout: GLAB_TIMEOUT_MS,
+            timeout: CLI_TIMEOUT_MS,
             stdio: ['ignore', 'pipe', 'ignore'],
         }).trim()
     } catch {
@@ -61,16 +87,11 @@ function glab(args: string[]): string {
     }
 }
 
-export function parseGlabHosts(statusOutput: string): string[] {
-    const hosts = [...statusOutput.matchAll(/Logged in to (\S+)/g)].map((match) => match[1]!)
-    return [...new Set(hosts)].sort()
-}
-
-function glabStatus(): string {
+function cliStatus(cli: string): string {
     try {
-        return execFileSync('glab', ['auth', 'status'], {
+        return execFileSync(cli, ['auth', 'status'], {
             encoding: 'utf8',
-            timeout: GLAB_TIMEOUT_MS,
+            timeout: CLI_TIMEOUT_MS,
             stdio: ['ignore', 'pipe', 'pipe'],
         })
     } catch (error) {
@@ -79,10 +100,25 @@ function glabStatus(): string {
     }
 }
 
+export function parseLoggedInHosts(statusOutput: string): string[] {
+    const hosts = [...statusOutput.matchAll(/Logged in to (\S+)/g)].map((match) => match[1]!)
+    return [...new Set(hosts)].sort()
+}
+
+export const parseGlabHosts = parseLoggedInHosts
+
 export function glabHosts(): string[] {
-    return parseGlabHosts(glabStatus())
+    return parseLoggedInHosts(cliStatus('glab'))
 }
 
 export function glabToken(host: string): string {
-    return glab(['config', 'get', 'token', '--host', host])
+    return cliCapture('glab', ['config', 'get', 'token', '--host', host])
+}
+
+export function ghHosts(): string[] {
+    return parseLoggedInHosts(cliStatus('gh'))
+}
+
+export function ghToken(host: string): string {
+    return cliCapture('gh', ['auth', 'token', '--hostname', host])
 }

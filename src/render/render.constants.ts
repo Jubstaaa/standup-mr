@@ -1,4 +1,4 @@
-import type { Bucket } from '../types/standup.types'
+import type { Bucket, ProviderKind } from '../types/standup.types'
 import type { Strings } from './render.types'
 
 export const STRINGS: Record<string, Strings> = {
@@ -35,3 +35,16 @@ export const STRINGS: Record<string, Strings> = {
 }
 
 export const BUCKET_ORDER: Bucket[] = ['ready', 'blocked', 'draft', 'stale']
+
+export const REF_PREFIX: Record<ProviderKind, string> = {
+    gitlab: '!',
+    github: '#',
+}
+
+export const PROVIDER_STRINGS: Record<ProviderKind, Record<string, Partial<Strings>>> = {
+    gitlab: {},
+    github: {
+        en: { unresolved: 'change request(s)' },
+        tr: { unresolved: 'değişiklik isteği' },
+    },
+}

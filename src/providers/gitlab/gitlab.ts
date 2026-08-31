@@ -11,11 +11,13 @@ import type {
 } from '../../types/standup.types'
 import { extractErrors } from '../../trace/trace'
 import type { Provider } from '../base/base.types'
+import { assertUsable, buildUrl, unreachable } from '../base/http'
 import { FRESH_REVIEW_DAYS, PAGE_SIZE } from './gitlab.constants'
 
 type Params = Record<string, string | number>
 
 export class GitLabProvider implements Provider {
+    readonly kind = 'gitlab' as const
     readonly host: string
     readonly api: string
     private readonly token: string
@@ -28,38 +30,33 @@ export class GitLabProvider implements Provider {
         this.fetchImpl = fetchImpl
     }
 
-    private url(path: string, params?: Params): string {
-        const base = `${this.api}/${path}`
-        if (!params || Object.keys(params).length === 0) return base
-        const query = new URLSearchParams()
-        for (const [key, value] of Object.entries(params)) {
-            query.set(key, String(value))
+    private async send(url: string): Promise<Response> {
+        let response: Response
+        try {
+            response = await this.fetchImpl(url, {
+                headers: { 'PRIVATE-TOKEN': this.token },
+            })
+        } catch (cause) {
+            throw unreachable(this.host, cause)
         }
-        return `${base}?${query.toString()}`
+        assertUsable(response, this.host)
+        return response
     }
 
     async getJson<T>(path: string, params?: Params): Promise<T | null> {
+        const response = await this.send(buildUrl(this.api, path, params))
+        if (!response.ok) return null
         try {
-            const response = await this.fetchImpl(this.url(path, params), {
-                headers: { 'PRIVATE-TOKEN': this.token },
-            })
-            if (!response.ok) return null
             return (await response.json()) as T
-        } catch {
-            return null
+        } catch (cause) {
+            throw unreachable(this.host, cause)
         }
     }
 
     async getText(path: string): Promise<string> {
-        try {
-            const response = await this.fetchImpl(this.url(path), {
-                headers: { 'PRIVATE-TOKEN': this.token },
-            })
-            if (!response.ok) return ''
-            return await response.text()
-        } catch {
-            return ''
-        }
+        const response = await this.send(buildUrl(this.api, path))
+        if (!response.ok) return ''
+        return await response.text()
     }
 
     async getPaged<T>(path: string, params: Params = {}, cap = 5): Promise<T[]> {
@@ -150,6 +147,7 @@ export class GitLabProvider implements Provider {
         const latest = pipelines?.[0]
 
         return {
+            provider: 'gitlab',
             project: String(mr.references.full).split('!')[0]!,
             projectId,
             iid,
@@ -194,16 +192,17 @@ export class GitLabProvider implements Provider {
         return (approvals.approved_by ?? []).some((entry) => entry.user?.id === uid)
     }
 
-    async getReviews(uid: number, today: Date): Promise<Review[]> {
+    async getReviews(identity: Identity, today: Date): Promise<Review[]> {
         const raw = await this.getPaged<Record<string, any>>('merge_requests', {
             scope: 'all',
             state: 'opened',
-            reviewer_id: uid,
+            reviewer_id: identity.id,
         })
         const cutoff = isoDay(new Date(today.getTime() - FRESH_REVIEW_DAYS * MS_PER_DAY))
 
         const rows = await Promise.all(
             raw.map(async (mr) => ({
+                provider: 'gitlab' as const,
                 project: String(mr.references.full).split('!')[0]!,
                 iid: mr.iid as number,
                 title: mr.title as string,
@@ -212,7 +211,7 @@ export class GitLabProvider implements Provider {
                 draft: mr.draft as boolean,
                 url: mr.web_url as string,
                 fresh: String(mr.updated_at).slice(0, 10) >= cutoff,
-                approvedByMe: await this.approvedByMe(mr.project_id, mr.iid, uid),
+                approvedByMe: await this.approvedByMe(mr.project_id, mr.iid, identity.id),
             }))
         )
 
@@ -236,6 +235,7 @@ export class GitLabProvider implements Provider {
                     `projects/${mr.projectId}/jobs/${job.id}/trace`
                 )
                 return {
+                    provider: 'gitlab',
                     project: mr.project,
                     mr: mr.iid,
                     title: mr.title,
