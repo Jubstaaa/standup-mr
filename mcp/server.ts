@@ -27,7 +27,7 @@ export async function main(): Promise<void> {
         '@modelcontextprotocol/sdk/server/stdio.js'
     )
 
-    const server = new McpServer({ name: 'standup-mr', version: '0.1.0' })
+    const server = new McpServer({ name: 'standup-mr', version: '0.2.0' })
 
     server.tool(
         'get_standup_data',

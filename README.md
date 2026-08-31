@@ -89,10 +89,30 @@ lives in the MCP client's prompt or in the Claude Code skill.
 
 - **GitHub's events feed is shallow.** It is capped at roughly 300 events over
   the last 90 days, so a very active account or an old gap can silently lose
-  the earliest events. GitLab's API has no such cap.
+  the earliest events. GitLab has no comparable documented cap.
 - **GitHub activity is only visible to a token belonging to that same
   account**, and private-repository events do not show up for anyone else's
   token, even with otherwise sufficient scopes.
+- **On GitHub, CI that reports only through the legacy commit-statuses API**
+  — still how some vendors integrate — shows up as `pipelineMissing`. Check
+  state is read from check-runs only.
+
+## Upgrading from 0.1.x
+
+0.2.0 changes the JSON output, the library API, and the MCP options. If you
+pipe `standup fetch` into anything, or import the package, read
+[`CHANGELOG.md`](CHANGELOG.md) before upgrading. The short version:
+
+- `previous` and `previousEvents` are replaced by `previousDays[]`, one entry
+  per active day, so a weekend no longer swallows Friday. `jq .previous` now
+  returns `null` with no error.
+- `MergeRequest`, `Review` and `Blocker` carry a required `provider` field, and
+  `Provider.getReviews` takes an `Identity` rather than a numeric id.
+- The MCP `CollectOptions.provider` is now a provider *name*; inject a
+  `Provider` instance through `providerImpl`.
+
+Claude Code plugin users should run `/plugin marketplace update standup-mr` —
+the `standup` skill changed along with the report shape.
 
 ## Requirements
 

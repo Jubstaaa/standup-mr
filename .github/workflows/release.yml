@@ -43,6 +43,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the plugin manifest version matches package.json
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          PLUGIN=$(node -p "require('./.claude-plugin/plugin.json').version")
+          if [ "$PLUGIN" != "$PKG" ]; then
+            echo ".claude-plugin/plugin.json version $PLUGIN does not match package.json version $PKG"
+            exit 1
+          fi
+
       - name: Verify the built binary runs through its bin symlink
         run: |
           mkdir -p /tmp/binlink

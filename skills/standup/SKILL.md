@@ -92,6 +92,9 @@ rollout — make it **one bullet** and say how many projects it touched.
   - anything else (`conflict`, `need_rebase`, `discussions_not_resolved`,
     GitHub's `dirty`/`blocked`/`behind`, …) → name that specific reason instead
     of the generic bucket label.
+  - `null` (the field is `string | null`) → say **nothing** about mergeability.
+    The provider did not report it; do not guess a reason and do not round it
+    up to "ready to merge".
   - If `pipelineMissing` is true, say **"no pipeline ever ran"** explicitly. Do
     not let it pass as green.
 - **`blocked`** → say which: red pipeline, unresolved comments, or both. On

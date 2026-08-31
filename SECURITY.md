@@ -29,7 +29,8 @@ Instead:
 
 | Version | Supported |
 | ------- | --------- |
-| 0.1.x   | ✅        |
+| 0.2.x   | ✅        |
+| 0.1.x   | ❌        |
 
 We recommend always using the latest version of standup-mr.
 
