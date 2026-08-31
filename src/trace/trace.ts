@@ -1,4 +1,15 @@
-import { ANSI, ERROR_MARKER, GROUP, MAX_LINE, NOISE, SECTION, SIGNAL, TIMESTAMP } from './trace.constants'
+import {
+    ANSI,
+    ERROR_MARKER,
+    GROUP_END,
+    GROUP_START,
+    MAX_LINE,
+    NOISE,
+    RUN_GROUP,
+    SECTION,
+    SIGNAL,
+    TIMESTAMP,
+} from './trace.constants'
 
 export function extractErrors(rawTrace: string, limit = 8): string[] {
     if (!rawTrace) return []
@@ -7,9 +18,20 @@ export function extractErrors(rawTrace: string, limit = 8): string[] {
 
     const seen = new Set<string>()
     const hits: string[] = []
+    let suppressing = false
     for (const rawLine of cleaned.split('\n')) {
         const stamped = rawLine.trim().replace(TIMESTAMP, '')
-        if (GROUP.test(stamped)) continue
+
+        if (GROUP_START.test(stamped)) {
+            suppressing = RUN_GROUP.test(stamped)
+            continue
+        }
+        if (GROUP_END.test(stamped)) {
+            suppressing = false
+            continue
+        }
+        if (suppressing) continue
+
         if (!stamped || NOISE.test(stamped) || !SIGNAL.test(stamped)) continue
 
         const line = stamped.replace(ERROR_MARKER, '').trim()

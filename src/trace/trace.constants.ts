@@ -6,4 +6,6 @@ export const NOISE =
 export const MAX_LINE = 200
 export const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s+/
 export const ERROR_MARKER = /^##\[error\]\s*/
-export const GROUP = /^##\[(group|endgroup)\]/
+export const GROUP_START = /^##\[group\]/
+export const GROUP_END = /^##\[endgroup\]/
+export const RUN_GROUP = /^##\[group\]Run\s/

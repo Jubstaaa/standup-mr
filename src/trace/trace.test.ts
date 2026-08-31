@@ -86,9 +86,10 @@ describe('extractErrors on github actions logs', () => {
     it('keeps the real failure out of a full actions log', () => {
         const log = [
             '2026-08-28T09:12:01.0000000Z ##[group]Run npm ci',
+            '2026-08-28T09:12:01.0000000Z $ npm ci',
+            '2026-08-28T09:12:03.0000000Z ##[endgroup]',
             '2026-08-28T09:12:02.0000000Z npm ERR! code E404',
             "2026-08-28T09:12:02.0000000Z npm ERR! 404 Not Found - GET https://npm.pkg.github.com/@acme%2fui",
-            '2026-08-28T09:12:03.0000000Z ##[endgroup]',
             '2026-08-28T09:12:04.0000000Z ##[error]Process completed with exit code 1.',
         ].join('\n')
 
@@ -97,5 +98,35 @@ describe('extractErrors on github actions logs', () => {
         expect(errors[0]).toBe('npm ERR! code E404')
         expect(errors.some((line) => line.startsWith('##['))).toBe(false)
         expect(errors.some((line) => line.startsWith('2026-'))).toBe(false)
+    })
+
+    it('does not report the command echo twice alongside the real error', () => {
+        const log = [
+            '2026-08-28T09:12:01.0000000Z ##[group]Run npm ci',
+            '2026-08-28T09:12:01.0000000Z echo "::error::npm ERR! code E404"',
+            '2026-08-28T09:12:01.0000000Z echo "npm ERR! 404 Not Found - GET https://registry.example.com/@acme%2fui"',
+            '2026-08-28T09:12:03.0000000Z ##[endgroup]',
+            '2026-08-28T09:12:02.0000000Z npm ERR! code E404',
+            '2026-08-28T09:12:02.0000000Z npm ERR! 404 Not Found - GET https://registry.example.com/@acme%2fui',
+            '2026-08-28T09:12:04.0000000Z ##[error]Process completed with exit code 1.',
+        ].join('\n')
+
+        const errors = extractErrors(log)
+        expect(errors).toEqual([
+            'npm ERR! code E404',
+            'npm ERR! 404 Not Found - GET https://registry.example.com/@acme%2fui',
+            'Process completed with exit code 1.',
+        ])
+        expect(errors.some((line) => line.startsWith('echo '))).toBe(false)
+    })
+
+    it('still scans a group whose header is not a Run step', () => {
+        const log = [
+            '2026-08-28T09:12:01.0000000Z ##[group]Post job cleanup',
+            '2026-08-28T09:12:02.0000000Z npm ERR! cleanup failed',
+            '2026-08-28T09:12:03.0000000Z ##[endgroup]',
+        ].join('\n')
+
+        expect(extractErrors(log)).toEqual(['npm ERR! cleanup failed'])
     })
 })
