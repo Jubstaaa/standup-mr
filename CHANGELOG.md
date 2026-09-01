@@ -17,6 +17,20 @@ All notable changes to standup-mr are recorded here. The format follows
 - README section for using the MCP server from Cursor, Codex, or another
   assistant.
 
+### Fixed
+
+- The skill wrote the note in English even when the user was speaking Turkish.
+  The language rule was buried as a clause inside a sentence about section
+  structure, and `fetch` was called with no `--lang`, so every date label in
+  the JSON came back English and outweighed it. The rule is now a standalone,
+  unmissable line, and the skill passes `--lang` to match the user's language
+  so the payload reinforces the note instead of fighting it.
+- On a machine where both `gh` and `glab` are authenticated, every run failed
+  once before succeeding: the skill called `fetch` with no `--provider`, hit
+  the "both authenticated" error, then retried with the flag. The skill now
+  passes `--provider` on the first call whenever it's known, and only asks the
+  user (instead of guessing) when it genuinely isn't.
+
 Nothing breaking. `@modelcontextprotocol/sdk` moves from a dev dependency to
 a regular dependency, since the CLI can now start the MCP server itself; the
 CLI's `fetch`/`post`/`instructions` path still pulls nothing.

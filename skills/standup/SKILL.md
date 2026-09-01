@@ -19,22 +19,43 @@ Not a commit log — what finished, what is waiting, what is stuck.
 npx standup-mr fetch
 ```
 
-Prints one JSON document. The command picks GitLab or GitHub on its own — from
-flags, host, environment, or whichever of `gh`/`glab` is logged in. If the user
-already said which one they mean, pass it explicitly instead of guessing:
+Prints one JSON document. Nothing else needs running: the command resolves
+the host and token, works out which day to report on, and reads failed job
+logs itself.
+
+**Know the provider before the first call, don't discover it from a failure.**
+If the user has named GitHub or GitLab, or it is otherwise obvious from
+context, pass it on the very first invocation:
 
 ```bash
 npx standup-mr fetch --provider github
 npx standup-mr fetch --provider gitlab
 ```
 
-Add `--lang tr` for Turkish date labels. Nothing else needs running: the
-command resolves the host and token, works out which day to report on, and
-reads failed job logs itself.
+If it is not known, do not guess. The command resolves it itself, in order:
+`--provider` → a recognisable `--host` → `STANDUP_PROVIDER` → the
+`GITHUB_*`/`GITLAB_*` env pair → whichever of `gh`/`glab` is logged in → an
+error naming what it found. On a machine where both `gh` and `glab` are
+authenticated, that resolution is ambiguous and the bare call fails with
+`Both gh and glab are authenticated. Pass --provider github or --provider
+gitlab.` — if you hit that, ask the user which one they mean rather than
+picking one silently, unless the conversation already makes it obvious, in
+which case pass that provider and say so in the note.
 
-If the command exits non-zero, relay its stderr verbatim — do not invent a
-cause. The usual fix is `gh auth login` or `glab auth login`, depending on
-which provider it was trying to reach.
+If the command exits non-zero for any other reason, relay its stderr verbatim
+— do not invent a cause. The usual fix is `gh auth login` or `glab auth
+login`, depending on which provider it was trying to reach.
+
+**Pass `--lang` to match the language the user is speaking** — `--lang tr`
+for Turkish. It only affects the date labels inside the JSON (`"label":
+"Friday, 28 August"` → `"Cuma, 28 Ağustos"`); the prose of the note is always
+your own work, in the user's language, regardless of this flag. Passing it
+matters because the payload is otherwise ~1000 lines of English labels
+fighting a note you're trying to write in another language. Today `--lang`
+supports only `en` (default) and `tr` — any other value silently falls back
+to English labels. If the user speaks a language `--lang` doesn't cover,
+still write the note in their language; just leave the date labels in
+English rather than passing a value that won't take effect.
 
 ## 2. Shape of the JSON
 
@@ -57,8 +78,12 @@ under its own `label`, never merged into a single "yesterday".
 
 ## 3. Write the note
 
-Three sections: **Previous day · Today · Blockers**. Short, in the language the
-user is speaking, phrased the way they would say it out loud.
+**Write in the language the user is speaking, not the language of the JSON.**
+The payload's labels and field names are English regardless of `--lang`
+coverage — that is source data, not a cue for what language to write in.
+
+Three sections: **Previous day · Today · Blockers**. Short, phrased the way
+the user would say it out loud.
 
 ### Previous day
 
