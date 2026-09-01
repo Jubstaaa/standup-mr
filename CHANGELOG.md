@@ -4,6 +4,27 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-09-01
+
+### Added
+
+- **The MCP tool takes arguments.** `get_standup_data` exposed an empty input
+  schema, so an MCP client could not pick a provider, point at a self-hosted
+  host, or ask for Turkish date labels — all of which the CLI has always
+  allowed. `provider` (`github` / `gitlab`), `host` and `lang` (`en` / `tr`)
+  are now declared options, each with a description. The two enums replace
+  free strings, so an unsupported language is rejected instead of silently
+  falling back to English.
+
+  No token argument, deliberately: credentials come from the environment or a
+  logged-in `gh` / `glab` session, and a tool argument would end up in the
+  transcript.
+
+### Changed
+
+- `zod` is a direct dependency rather than one borrowed from the MCP SDK's
+  dependency tree.
+
 ## [0.3.3] - 2026-09-01
 
 ### Fixed

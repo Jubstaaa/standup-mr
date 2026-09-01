@@ -10,7 +10,7 @@
             "name": "standup",
             "source": "./",
             "description": "Generates a standup note from GitLab merge requests or GitHub pull requests, including why CI is red",
-            "version": "0.3.3"
+            "version": "0.4.0"
         }
     ]
 }
