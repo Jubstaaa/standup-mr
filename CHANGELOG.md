@@ -4,6 +4,21 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-09-01
+
+Metadata only — no functional change, and nothing to do if you are already on
+0.3.1.
+
+### Added
+
+- A project icon (`assets/`), referenced from `server.json` so the MCP
+  Registry and directories can show it. SVG plus 512x512 and 400x400 PNGs.
+
+### Fixed
+
+- The release workflow no longer fails when the version being tagged is
+  already on npm; the publish step checks first and exits cleanly.
+
 ## [0.3.1] - 2026-09-01
 
 ### Fixed
