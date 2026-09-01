@@ -335,6 +335,20 @@ describe('mcp command', () => {
                     (tool) => tool.name
                 )
                 expect(toolNames).toContain('get_standup_data')
+
+                const tool = (
+                    toolsResponse.result.tools as Array<{
+                        name: string
+                        inputSchema: { properties?: Record<string, unknown> }
+                    }>
+                ).find((row) => row.name === 'get_standup_data')!
+                expect(Object.keys(tool.inputSchema.properties ?? {}).sort()).toEqual([
+                    'host',
+                    'lang',
+                    'provider',
+                ])
+                expect(JSON.stringify(tool.inputSchema)).not.toMatch(/token/i)
+
                 expect(lines).toHaveLength(2)
             } finally {
                 child.kill()
