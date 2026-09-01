@@ -1,5 +1,7 @@
 # standup-mr
 
+[![standup-mr MCP server](https://glama.ai/mcp/servers/Jubstaaa/standup-mr/badges/score.svg)](https://glama.ai/mcp/servers/Jubstaaa/standup-mr)
+
 Standup notes from **merge request state**, not commit logs.
 
 Most standup tools read your local `git log`. That answers "what did I type",
