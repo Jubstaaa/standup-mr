@@ -1,6 +1,6 @@
 {
     "name": "standup-mr",
-    "version": "0.2.1",
+    "version": "0.3.0",
     "description": "Standup notes from merge request state, not commit logs.",
     "keywords": [
         "standup",
@@ -58,19 +58,13 @@
         "typecheck": "tsc --noEmit",
         "prepublishOnly": "tsup"
     },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.0.0"
+    },
     "devDependencies": {
-        "@modelcontextprotocol/sdk": "^1.0.0",
         "@types/bun": "^1.0.0",
         "@types/node": "^22.0.0",
         "tsup": "^8.0.0",
         "typescript": "^5.5.0"
-    },
-    "peerDependencies": {
-        "@modelcontextprotocol/sdk": "^1.0.0"
-    },
-    "peerDependenciesMeta": {
-        "@modelcontextprotocol/sdk": {
-            "optional": true
-        }
     }
 }

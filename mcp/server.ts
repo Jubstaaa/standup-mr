@@ -1,6 +1,9 @@
 import { realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+
 import { connect } from '../src/providers/select'
 import type { Provider } from '../src/providers/base/base.types'
 import { buildReport } from '../src/report/report'
@@ -22,12 +25,7 @@ export async function collect(options: CollectOptions = {}): Promise<StandupRepo
 }
 
 export async function main(): Promise<void> {
-    const { McpServer } = await import('@modelcontextprotocol/sdk/server/mcp.js')
-    const { StdioServerTransport } = await import(
-        '@modelcontextprotocol/sdk/server/stdio.js'
-    )
-
-    const server = new McpServer({ name: 'standup-mr', version: '0.2.1' })
+    const server = new McpServer({ name: 'standup-mr', version: '0.3.0' })
 
     server.tool(
         'get_standup_data',
@@ -54,15 +52,7 @@ try {
 }
 if (entryUrl && import.meta.url === entryUrl) {
     main().catch((error: unknown) => {
-        if (error instanceof Error && (error as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND') {
-            process.stderr.write(
-                'standup-mr MCP server requires the optional dependency ' +
-                    '@modelcontextprotocol/sdk. Install it with: ' +
-                    'npm install @modelcontextprotocol/sdk\n'
-            )
-            process.exitCode = 1
-            return
-        }
-        throw error
+        process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
+        process.exitCode = 1
     })
 }

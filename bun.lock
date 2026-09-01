@@ -4,19 +4,15 @@
   "workspaces": {
     "": {
       "name": "standup-mr",
-      "devDependencies": {
+      "dependencies": {
         "@modelcontextprotocol/sdk": "^1.0.0",
+      },
+      "devDependencies": {
         "@types/bun": "^1.0.0",
         "@types/node": "^22.0.0",
         "tsup": "^8.0.0",
         "typescript": "^5.5.0",
       },
-      "peerDependencies": {
-        "@modelcontextprotocol/sdk": "^1.0.0",
-      },
-      "optionalPeers": [
-        "@modelcontextprotocol/sdk",
-      ],
     },
   },
   "packages": {

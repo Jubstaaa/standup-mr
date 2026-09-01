@@ -1,5 +1,6 @@
-import { realpathSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 
 import { USAGE } from './cli.constants'
@@ -13,6 +14,31 @@ async function readStdin(): Promise<string> {
     const chunks: Buffer[] = []
     for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk))
     return Buffer.concat(chunks).toString('utf8')
+}
+
+function findPackageRoot(startDir: string): string {
+    let dir = startDir
+    while (!existsSync(join(dir, 'package.json'))) {
+        const parent = dirname(dir)
+        if (parent === dir) {
+            throw new Error(`Could not locate package.json above ${startDir}`)
+        }
+        dir = parent
+    }
+    return dir
+}
+
+function readStandupSkillBody(): string {
+    const moduleDir = dirname(fileURLToPath(import.meta.url))
+    const skillPath = join(findPackageRoot(moduleDir), 'skills', 'standup', 'SKILL.md')
+
+    if (!existsSync(skillPath)) {
+        throw new Error(`Cannot find the standup skill file at ${skillPath}`)
+    }
+
+    const content = readFileSync(skillPath, 'utf8')
+    const withoutFrontmatter = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')
+    return withoutFrontmatter.replace(/^\n+/, '')
 }
 
 export async function main(argv: string[]): Promise<number> {
@@ -67,6 +93,22 @@ export async function main(argv: string[]): Promise<number> {
             }
 
             await postWebhook(url, text, values.slack ? 'slack' : 'discord')
+            return 0
+        }
+
+        if (command === 'mcp') {
+            const moduleDir = dirname(fileURLToPath(import.meta.url))
+            const serverPath = join(findPackageRoot(moduleDir), 'dist', 'mcp', 'server.js')
+            const serverUrl = pathToFileURL(serverPath).href
+            const { main: startMcpServer } = (await import(serverUrl)) as {
+                main: () => Promise<void>
+            }
+            await startMcpServer()
+            return 0
+        }
+
+        if (command === 'instructions') {
+            process.stdout.write(readStandupSkillBody())
             return 0
         }
 

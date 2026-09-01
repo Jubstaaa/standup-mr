@@ -1,9 +1,9 @@
 {
     "name": "standup-mr",
-    "version": "0.2.1",
+    "version": "0.3.0",
     "description": "Standup notes from merge request state, not commit logs.",
     "author": {
-        "name": "\u0130lker Balc\u0131lar",
+        "name": "İlker Balcılar",
         "email": "ilkerbalcilartr@gmail.com"
     },
     "repository": "https://github.com/Jubstaaa/standup-mr",
