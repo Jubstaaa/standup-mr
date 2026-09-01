@@ -1,5 +1,5 @@
-import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
+import { execFileSync, spawn } from 'node:child_process'
+import { cpSync, existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, spyOn } from 'bun:test'
@@ -196,6 +196,21 @@ describe('main', () => {
         stdout.mockRestore()
         stderr.mockRestore()
     })
+
+    it('prints the standup skill body, without its YAML frontmatter, for instructions', async () => {
+        const { stdout, stderr } = spyOutputs()
+
+        const code = await main(['instructions'])
+
+        expect(code).toBe(0)
+        const output = String(stdout.mock.calls[0]![0])
+        expect(output.startsWith('---')).toBe(false)
+        expect(output).not.toContain('name: standup')
+        expect(output).toContain('# Standup Note')
+        expect(output.startsWith('# Standup Note')).toBe(true)
+        stdout.mockRestore()
+        stderr.mockRestore()
+    })
 })
 
 describe('symlinked entry point', () => {
@@ -214,5 +229,113 @@ describe('symlinked entry point', () => {
                 rmSync(dir, { recursive: true, force: true })
             }
         })
+
+        it('still finds the standup skill file for instructions when invoked through a symlink', () => {
+            const dir = mkdtempSync(join(tmpdir(), 'standup-mr-symlink-'))
+            const link = join(dir, 'standup')
+            symlinkSync(distCli, link)
+
+            try {
+                const output = execFileSync('node', [link, 'instructions'], { encoding: 'utf8' })
+                expect(output).toContain('# Standup Note')
+                expect(output).not.toContain('name: standup')
+            } finally {
+                rmSync(dir, { recursive: true, force: true })
+            }
+        })
+    }
+})
+
+describe('instructions command failure', () => {
+    if (!canRunSymlinkTest) {
+        it.skip('fails loudly, naming the path, when the skill file is missing (dist/cli.js missing and `bun run build` failed)', () => {})
+    } else {
+        it('fails loudly, naming the path it looked for, when the skill file is missing', () => {
+            const dir = mkdtempSync(join(tmpdir(), 'standup-mr-missing-skill-'))
+            cpSync(join(repoRoot, 'dist'), join(dir, 'dist'), { recursive: true })
+            writeFileSync(join(dir, 'package.json'), JSON.stringify({ type: 'module' }))
+            const fakeCli = join(dir, 'dist', 'cli.js')
+
+            try {
+                execFileSync('node', [fakeCli, 'instructions'], { stdio: ['ignore', 'pipe', 'pipe'] })
+                throw new Error('expected `instructions` to exit non-zero when the skill file is missing')
+            } catch (error) {
+                const failure = error as { status?: number; stderr?: Buffer }
+                expect(failure.status).toBe(1)
+                expect(String(failure.stderr)).toContain(join(dir, 'skills', 'standup', 'SKILL.md'))
+            } finally {
+                rmSync(dir, { recursive: true, force: true })
+            }
+        })
+    }
+})
+
+describe('mcp command', () => {
+    if (!canRunSymlinkTest) {
+        it.skip('speaks MCP over stdio and writes nothing else to stdout (dist/cli.js missing and `bun run build` failed)', () => {})
+    } else {
+        it('speaks MCP over stdio and writes nothing else to stdout', async () => {
+            const child = spawn('node', [distCli, 'mcp'], { stdio: ['pipe', 'pipe', 'pipe'] })
+            const lines: string[] = []
+            let buffer = ''
+
+            child.stdout.on('data', (chunk: Buffer) => {
+                buffer += chunk.toString('utf8')
+                let index: number
+                while ((index = buffer.indexOf('\n')) !== -1) {
+                    lines.push(buffer.slice(0, index))
+                    buffer = buffer.slice(index + 1)
+                }
+            })
+
+            function send(message: unknown) {
+                child.stdin.write(`${JSON.stringify(message)}\n`)
+            }
+
+            function waitForLines(count: number, timeoutMs = 5000): Promise<void> {
+                return new Promise((resolve, reject) => {
+                    const start = Date.now()
+                    const timer = setInterval(() => {
+                        if (lines.length >= count) {
+                            clearInterval(timer)
+                            resolve()
+                        } else if (Date.now() - start > timeoutMs) {
+                            clearInterval(timer)
+                            reject(new Error('timed out waiting for the mcp server to respond'))
+                        }
+                    }, 20)
+                })
+            }
+
+            try {
+                send({
+                    jsonrpc: '2.0',
+                    id: 1,
+                    method: 'initialize',
+                    params: {
+                        protocolVersion: '2024-11-05',
+                        capabilities: {},
+                        clientInfo: { name: 'standup-mr-test', version: '1.0.0' },
+                    },
+                })
+                await waitForLines(1)
+
+                send({ jsonrpc: '2.0', method: 'notifications/initialized' })
+                send({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} })
+                await waitForLines(2)
+
+                const initResponse = JSON.parse(lines[0]!)
+                expect(initResponse.result.serverInfo.name).toBe('standup-mr')
+
+                const toolsResponse = JSON.parse(lines[1]!)
+                const toolNames = (toolsResponse.result.tools as Array<{ name: string }>).map(
+                    (tool) => tool.name
+                )
+                expect(toolNames).toContain('get_standup_data')
+                expect(lines).toHaveLength(2)
+            } finally {
+                child.kill()
+            }
+        }, 10000)
     }
 })
