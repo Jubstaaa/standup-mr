@@ -1,0 +1,71 @@
+{
+    "name": "standup-mr",
+    "version": "0.3.3",
+    "mcpName": "io.github.Jubstaaa/standup-mr",
+    "description": "Standup notes from merge request state, not commit logs.",
+    "keywords": [
+        "standup",
+        "gitlab",
+        "github",
+        "merge-request",
+        "pull-request",
+        "cli",
+        "mcp"
+    ],
+    "license": "MIT",
+    "author": {
+        "name": "\u0130lker Balc\u0131lar",
+        "email": "ilkerbalcilartr@gmail.com"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Jubstaaa/standup-mr.git"
+    },
+    "bugs": {
+        "url": "https://github.com/Jubstaaa/standup-mr/issues"
+    },
+    "homepage": "https://github.com/Jubstaaa/standup-mr#readme",
+    "funding": [
+        {
+            "type": "github",
+            "url": "https://github.com/sponsors/Jubstaaa"
+        },
+        {
+            "type": "buy_me_a_coffee",
+            "url": "https://buymeacoffee.com/jubstaa"
+        }
+    ],
+    "type": "module",
+    "engines": {
+        "node": ">=20"
+    },
+    "bin": {
+        "standup": "./dist/cli.js"
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "files": [
+        "dist",
+        "skills",
+        "mcp/README.md",
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "tsup",
+        "test": "bun test",
+        "test:tz": "TZ=Europe/Istanbul bun test ./src/dates/dates.tz.istanbul.cases.ts && TZ=America/Los_Angeles bun test ./src/dates/dates.tz.los-angeles.cases.ts",
+        "typecheck": "tsc --noEmit",
+        "prepublishOnly": "tsup"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.0.0"
+    },
+    "devDependencies": {
+        "@types/bun": "^1.0.0",
+        "@types/node": "^22.0.0",
+        "tsup": "^8.0.0",
+        "typescript": "^5.5.0"
+    }
+}
