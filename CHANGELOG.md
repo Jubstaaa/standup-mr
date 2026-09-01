@@ -4,6 +4,23 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-09-01
+
+### Added
+
+- `standup mcp` — starts the stdio MCP server directly from the CLI, so
+  `npx -y standup-mr mcp` works without a local clone.
+- `standup instructions` — prints the note-writing playbook (the standup
+  skill body, minus its YAML frontmatter) to stdout, for teaching a
+  non-Claude assistant the same rules, e.g.
+  `npx standup-mr instructions >> AGENTS.md`.
+- README section for using the MCP server from Cursor, Codex, or another
+  assistant.
+
+Nothing breaking. `@modelcontextprotocol/sdk` moves from a dev dependency to
+a regular dependency, since the CLI can now start the MCP server itself; the
+CLI's `fetch`/`post`/`instructions` path still pulls nothing.
+
 ## [0.2.1] - 2026-08-31
 
 ### Fixed

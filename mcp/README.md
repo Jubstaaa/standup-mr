@@ -3,12 +3,6 @@
 Exposes one tool, `get_standup_data`, for either GitLab or GitHub, returning
 the same JSON as `standup fetch`.
 
-## Install
-
-```bash
-npm install standup-mr @modelcontextprotocol/sdk
-```
-
 ## Configure
 
 GitLab:
@@ -17,8 +11,8 @@ GitLab:
 {
   "mcpServers": {
     "standup": {
-      "command": "node",
-      "args": ["/absolute/path/to/standup-mr/dist/mcp/server.js"],
+      "command": "npx",
+      "args": ["-y", "standup-mr", "mcp"],
       "env": {
         "GITLAB_HOST": "gitlab.example.com",
         "GITLAB_TOKEN": "glpat-..."
@@ -29,6 +23,26 @@ GitLab:
 ```
 
 GitHub:
+
+```json
+{
+  "mcpServers": {
+    "standup": {
+      "command": "npx",
+      "args": ["-y", "standup-mr", "mcp"],
+      "env": {
+        "GITHUB_HOST": "github.com",
+        "GITHUB_TOKEN": "ghp_..."
+      }
+    }
+  }
+}
+```
+
+### Running from a clone
+
+If you're working from a local clone instead of the published package, point
+`command` at `node` and `args` at the absolute path to the built server:
 
 ```json
 {

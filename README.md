@@ -76,6 +76,52 @@ skill. From inside Claude Code:
 
 Then type `/standup`. Updates come with `/plugin marketplace update standup-mr`.
 
+### Using it from Cursor, Codex, or another assistant
+
+If you're not using Claude Code, wire up the MCP server for live data and
+paste in the note-writing rules separately.
+
+**Cursor** — add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json`
+(project-local):
+
+```json
+{
+  "mcpServers": {
+    "standup": {
+      "command": "npx",
+      "args": ["-y", "standup-mr", "mcp"],
+      "env": {
+        "GITHUB_TOKEN": "ghp_..."
+      }
+    }
+  }
+}
+```
+
+**Codex** — add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.standup]
+command = "npx"
+args = ["-y", "standup-mr", "mcp"]
+
+[mcp_servers.standup.env]
+GITHUB_TOKEN = "ghp_..."
+```
+
+The exact config key and file path are version-dependent for both clients —
+if a snippet above doesn't work, check [Cursor's MCP
+docs](https://docs.cursor.com/context/mcp) or Codex's own config
+documentation for the current format rather than trusting this file blindly.
+
+The tool only returns data; the assistant still needs the note-writing rules
+that the Claude Code skill carries. Paste them into whatever instructions
+file your assistant reads (e.g. `AGENTS.md`):
+
+```bash
+npx standup-mr instructions >> AGENTS.md
+```
+
 ## `--markdown` is a digest, not a written note
 
 `--markdown` organizes the raw material into readable sections. It does **not**
@@ -162,7 +208,9 @@ the `standup` skill changed along with the report shape.
 
 ## Requirements
 
-Node 20 or newer. No runtime dependencies.
+Node 20 or newer. The CLI core (`fetch`, `post`, `instructions`) pulls no
+runtime dependencies. The MCP server (`mcp` command) brings one:
+`@modelcontextprotocol/sdk`.
 
 ## License
 
