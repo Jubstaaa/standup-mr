@@ -80,10 +80,18 @@ describe('getBlockers', () => {
         expect(await gl.getBlockers([mr()])).toEqual([])
     })
 
-    it('throws when the jobs endpoint is not usable, instead of hiding the blocker', async () => {
+    it('reports an undiagnosed blocker when the jobs endpoint stays unusable', async () => {
         const gl = new GitLabProvider('h', 't', async () => new Response('nope', { status: 500 }))
 
-        await expect(gl.getBlockers([mr()])).rejects.toThrow(/500/)
+        const [blocker] = await gl.getBlockers([mr()])
+        expect(blocker).toMatchObject({ provider: 'gitlab', mr: 6, job: 'unknown' })
+        expect(blocker!.errors[0]).toMatch(/diagnosis unavailable.*500/i)
+    })
+
+    it('never degrades a 401, so a revoked token still fails loudly', async () => {
+        const gl = new GitLabProvider('h', 't', async () => new Response('', { status: 401 }))
+
+        await expect(gl.getBlockers([mr()])).rejects.toThrow(/token/i)
     })
 
     it('diagnoses several failed merge requests independently', async () => {

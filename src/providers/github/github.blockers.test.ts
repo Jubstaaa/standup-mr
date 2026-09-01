@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import type { MergeRequest } from '../../types/standup.types'
+import type { FetchLike, MergeRequest } from '../../types/standup.types'
 import { REDIRECT, routedFetch } from '../base/routes.helpers'
 import { GitHubProvider } from './github'
 
@@ -196,5 +196,45 @@ describe('getBlockers', () => {
 
         const [blocker] = await gh.getBlockers([pr()])
         expect(blocker).toMatchObject({ job: 'quality', stage: 'release', errors: [] })
+    })
+})
+
+describe('getBlockers when the diagnosis itself fails', () => {
+    it('reports an undiagnosed blocker instead of losing the whole note', async () => {
+        const gh = new GitHubProvider('github.com', 't', async () =>
+            new Response('', { status: 403 })
+        )
+
+        const [blocker] = await gh.getBlockers([pr()])
+        expect(blocker).toMatchObject({
+            provider: 'github',
+            project: 'acme/web',
+            mr: 6,
+            job: 'unknown',
+            stage: 'unknown',
+        })
+        expect(blocker!.errors[0]).toMatch(/diagnosis unavailable.*403/i)
+    })
+
+    it('keeps the diagnosis of the pull requests that did answer', async () => {
+        const routes = routedFetch(ACTIONS_ROUTES)
+        const mixed: FetchLike = async (url, init) => {
+            if (url.includes('acme/api')) return new Response('', { status: 403 })
+            return routes(url, init)
+        }
+        const gh = new GitHubProvider('github.com', 't', mixed)
+
+        const blockers = await gh.getBlockers([pr(), pr({ project: 'acme/api', iid: 9 })])
+        expect(blockers).toHaveLength(2)
+        expect(blockers.find((b) => b.mr === 6)!.job).toBe('quality')
+        expect(blockers.find((b) => b.mr === 9)!.errors[0]).toMatch(/diagnosis unavailable/i)
+    })
+
+    it('never degrades a 401, so a revoked token still fails loudly', async () => {
+        const gh = new GitHubProvider('github.com', 't', async () =>
+            new Response('', { status: 401 })
+        )
+
+        await expect(gh.getBlockers([pr()])).rejects.toThrow(/token/i)
     })
 })

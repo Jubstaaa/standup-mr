@@ -164,3 +164,42 @@ describe('getIdentity', () => {
         await expect(gh.getIdentity()).rejects.toThrow(/git\.acme\.com/)
     })
 })
+
+describe('GitHubProvider transient failures', () => {
+    it('retries a 503 and returns the payload from the attempt that lands', async () => {
+        let calls = 0
+        const flaky: FetchLike = async () => {
+            calls += 1
+            if (calls === 1) return new Response('', { status: 503 })
+            return jsonResponse({ id: 7, login: 'dev' })
+        }
+        const gh = new GitHubProvider('github.com', 'tok', flaky)
+
+        await expect(gh.getJson('user')).resolves.toEqual({ id: 7, login: 'dev' })
+        expect(calls).toBe(2)
+    })
+
+    it('still throws once the host stays down, so a bad run is never silent', async () => {
+        let calls = 0
+        const down: FetchLike = async () => {
+            calls += 1
+            return new Response('', { status: 503 })
+        }
+        const gh = new GitHubProvider('github.com', 'tok', down)
+
+        await expect(gh.getJson('user')).rejects.toThrow(/503/)
+        expect(calls).toBe(3)
+    })
+
+    it('does not retry a 401, so an invalid token fails on the first call', async () => {
+        let calls = 0
+        const rejected: FetchLike = async () => {
+            calls += 1
+            return new Response('', { status: 401 })
+        }
+        const gh = new GitHubProvider('github.com', 'tok', rejected)
+
+        await expect(gh.getJson('user')).rejects.toThrow(/token/i)
+        expect(calls).toBe(1)
+    })
+})

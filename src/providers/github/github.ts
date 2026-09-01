@@ -2,7 +2,8 @@ import { classify, markMissingPipelines } from '../../buckets/buckets'
 import { MS_PER_DAY } from '../../dates/dates.constants'
 import { isoDay, localAt } from '../../dates/dates'
 import { extractErrors } from '../../trace/trace'
-import { ApiError, assertUsable, buildUrl, unreachable } from '../base/http'
+import { degradable, undiagnosed } from '../base/diagnosis'
+import { ApiError, assertUsable, buildUrl, sendWithRetry, unreachable } from '../base/http'
 import {
     API_VERSION,
     DOT_COM,
@@ -44,11 +45,12 @@ export class GitHubProvider implements Provider {
     }
 
     private async send(url: string, init?: RequestInit): Promise<Response> {
-        try {
-            return await this.fetchImpl(url, { headers: this.headers(), ...init })
-        } catch (cause) {
-            throw unreachable(this.host, cause)
-        }
+        return await sendWithRetry(
+            this.fetchImpl,
+            url,
+            { headers: this.headers(), ...init },
+            this.host
+        )
     }
 
     async getJson<T>(path: string, params?: Params): Promise<T | null> {
@@ -323,7 +325,16 @@ export class GitHubProvider implements Provider {
 
     async getBlockers(mrs: MergeRequest[]): Promise<Blocker[]> {
         const red = mrs.filter((mr) => mr.pipeline === 'failed')
-        const diagnosed = await Promise.all(red.map((mr) => this.diagnose(mr)))
+        const diagnosed = await Promise.all(red.map((mr) => this.tryDiagnose(mr)))
         return diagnosed.filter((row): row is Blocker => row !== null)
+    }
+
+    private async tryDiagnose(mr: MergeRequest): Promise<Blocker | null> {
+        try {
+            return await this.diagnose(mr)
+        } catch (cause) {
+            if (degradable(cause)) return undiagnosed(mr, cause)
+            throw cause
+        }
     }
 }

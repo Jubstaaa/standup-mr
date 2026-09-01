@@ -188,6 +188,10 @@ that the package is missing.
 - **On GitHub, CI that reports only through the legacy commit-statuses API**
   — still how some vendors integrate — shows up as `pipelineMissing`. Check
   state is read from check-runs only.
+- **A blocker whose diagnosis could not be fetched is still reported**, as
+  `job: "unknown"` with a `diagnosis unavailable: …` error line. The merge
+  request is blocked either way; only the explanation is missing. Server
+  errors are retried twice first, and a rejected token still fails the run.
 
 ## Upgrading from 0.1.x
 

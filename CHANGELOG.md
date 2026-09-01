@@ -4,6 +4,31 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-09-01
+
+### Fixed
+
+- One flaky sub-request no longer costs the whole note. A run fans out to
+  several requests per merge request — pull detail, check runs, reviews, and
+  for a red pipeline the run, the job and its log — and any one of them
+  returning a 502 aborted the entire standup. Server errors (5xx) and dropped
+  connections are now retried twice with a short backoff before giving up. When
+  the retries run out the error is raised exactly as before: nothing is
+  swallowed. A rejected token (401), a refused resource (403), a rate limit
+  (429) and a missing resource (404) are not retried, because retrying them is
+  never the right answer.
+- A blocker whose diagnosis could not be fetched is now reported as a blocker
+  with `job: "unknown"` and an error line reading
+  `diagnosis unavailable: <reason>`, instead of failing the run. The merge
+  request is genuinely blocked either way, and the log fetch already degraded
+  this way; the metadata calls around it now match. **A 401 is never degraded**
+  — a revoked or invalid token still fails loudly, which is the whole reason
+  these calls throw in the first place.
+
+### Added
+
+- `mcpName` in `package.json`, for publication to the official MCP Registry.
+
 ## [0.3.0] - 2026-09-01
 
 ### Added

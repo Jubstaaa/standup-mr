@@ -11,7 +11,8 @@ import type {
 } from '../../types/standup.types'
 import { extractErrors } from '../../trace/trace'
 import type { Provider } from '../base/base.types'
-import { assertUsable, buildUrl, unreachable } from '../base/http'
+import { degradable, undiagnosed } from '../base/diagnosis'
+import { assertUsable, buildUrl, sendWithRetry, unreachable } from '../base/http'
 import { FRESH_REVIEW_DAYS, PAGE_SIZE } from './gitlab.constants'
 
 type Params = Record<string, string | number>
@@ -31,14 +32,12 @@ export class GitLabProvider implements Provider {
     }
 
     private async send(url: string): Promise<Response> {
-        let response: Response
-        try {
-            response = await this.fetchImpl(url, {
-                headers: { 'PRIVATE-TOKEN': this.token },
-            })
-        } catch (cause) {
-            throw unreachable(this.host, cause)
-        }
+        const response = await sendWithRetry(
+            this.fetchImpl,
+            url,
+            { headers: { 'PRIVATE-TOKEN': this.token } },
+            this.host
+        )
         assertUsable(response, this.host)
         return response
     }
@@ -218,35 +217,40 @@ export class GitLabProvider implements Provider {
         return rows.sort((a, b) => b.updated.localeCompare(a.updated))
     }
 
+    private async diagnose(mr: MergeRequest): Promise<Blocker | null> {
+        const jobs =
+            (await this.getJson<Array<Record<string, any>>>(
+                `projects/${mr.projectId}/pipelines/${mr.pipelineId}/jobs`,
+                { per_page: PAGE_SIZE }
+            )) ?? []
+        const job = jobs.find((j) => j.status === 'failed')
+        if (!job) return null
+
+        const trace = await this.getText(`projects/${mr.projectId}/jobs/${job.id}/trace`)
+        return {
+            provider: 'gitlab',
+            project: mr.project,
+            mr: mr.iid,
+            title: mr.title,
+            job: job.name,
+            stage: job.stage,
+            url: mr.url,
+            errors: extractErrors(trace),
+        }
+    }
+
+    private async tryDiagnose(mr: MergeRequest): Promise<Blocker | null> {
+        try {
+            return await this.diagnose(mr)
+        } catch (cause) {
+            if (degradable(cause)) return undiagnosed(mr, cause)
+            throw cause
+        }
+    }
+
     async getBlockers(mrs: MergeRequest[]): Promise<Blocker[]> {
         const red = mrs.filter((mr) => mr.pipeline === 'failed')
-
-        const diagnosed = await Promise.all(
-            red.map(async (mr): Promise<Blocker | null> => {
-                const jobs =
-                    (await this.getJson<Array<Record<string, any>>>(
-                        `projects/${mr.projectId}/pipelines/${mr.pipelineId}/jobs`,
-                        { per_page: PAGE_SIZE }
-                    )) ?? []
-                const job = jobs.find((j) => j.status === 'failed')
-                if (!job) return null
-
-                const trace = await this.getText(
-                    `projects/${mr.projectId}/jobs/${job.id}/trace`
-                )
-                return {
-                    provider: 'gitlab',
-                    project: mr.project,
-                    mr: mr.iid,
-                    title: mr.title,
-                    job: job.name,
-                    stage: job.stage,
-                    url: mr.url,
-                    errors: extractErrors(trace),
-                }
-            })
-        )
-
+        const diagnosed = await Promise.all(red.map((mr) => this.tryDiagnose(mr)))
         return diagnosed.filter((row): row is Blocker => row !== null)
     }
 }

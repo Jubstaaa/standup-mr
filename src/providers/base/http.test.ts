@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'bun:test'
 
-import { ApiError, assertUsable, buildUrl, unreachable } from './http'
+import {
+    ApiError,
+    RETRY_ATTEMPTS,
+    RETRY_BACKOFF_MS,
+    assertUsable,
+    buildUrl,
+    sendWithRetry,
+    unreachable,
+} from './http'
+
+import type { FetchLike } from '../../types/standup.types'
 
 function response(status: number, headers: Record<string, string> = {}): Response {
     return new Response('', { status, headers })
@@ -97,5 +107,103 @@ describe('unreachable', () => {
         expect(error).toBeInstanceOf(ApiError)
         expect(error.message).toMatch(/gitlab\.example\.com/)
         expect(error.message).toMatch(/offline/)
+    })
+})
+
+describe('sendWithRetry', () => {
+    function counter(responses: Array<Response | Error>): {
+        fetchImpl: FetchLike
+        calls: () => number
+    } {
+        let index = 0
+        const fetchImpl: FetchLike = async () => {
+            const next = responses[Math.min(index, responses.length - 1)]!
+            index += 1
+            if (next instanceof Error) throw next
+            return new Response('', { status: next.status, headers: next.headers })
+        }
+        return { fetchImpl, calls: () => index }
+    }
+
+    const noSleep = async () => {}
+
+    it('returns a first-try success without retrying', async () => {
+        const { fetchImpl, calls } = counter([response(200)])
+        const result = await sendWithRetry(fetchImpl, 'https://h/x', undefined, 'h', noSleep)
+        expect(result.status).toBe(200)
+        expect(calls()).toBe(1)
+    })
+
+    it('retries a 503 and returns the success that follows', async () => {
+        const { fetchImpl, calls } = counter([response(503), response(200)])
+        const result = await sendWithRetry(fetchImpl, 'https://h/x', undefined, 'h', noSleep)
+        expect(result.status).toBe(200)
+        expect(calls()).toBe(2)
+    })
+
+    it('retries a thrown network error and returns the success that follows', async () => {
+        const { fetchImpl, calls } = counter([new Error('socket hang up'), response(200)])
+        const result = await sendWithRetry(fetchImpl, 'https://h/x', undefined, 'h', noSleep)
+        expect(result.status).toBe(200)
+        expect(calls()).toBe(2)
+    })
+
+    it('gives the 5xx back once the attempts run out, so assertUsable still throws', async () => {
+        const { fetchImpl, calls } = counter([response(503)])
+        const result = await sendWithRetry(fetchImpl, 'https://h/x', undefined, 'h', noSleep)
+        expect(result.status).toBe(503)
+        expect(calls()).toBe(RETRY_ATTEMPTS)
+        expect(() => assertUsable(result, 'h')).toThrow(/503/)
+    })
+
+    it('throws unreachable once a thrown error survives every attempt', async () => {
+        const { fetchImpl, calls } = counter([new Error('offline')])
+        await expect(
+            sendWithRetry(fetchImpl, 'https://h/x', undefined, 'h', noSleep)
+        ).rejects.toThrow(/offline/)
+        expect(calls()).toBe(RETRY_ATTEMPTS)
+    })
+
+    it('does not retry a 401, so a bad token still fails on the first call', async () => {
+        const { fetchImpl, calls } = counter([response(401)])
+        const result = await sendWithRetry(fetchImpl, 'https://h/x', undefined, 'h', noSleep)
+        expect(result.status).toBe(401)
+        expect(calls()).toBe(1)
+    })
+
+    it('does not retry a 429, whose reset time is the real answer', async () => {
+        const { fetchImpl, calls } = counter([response(429, { 'ratelimit-remaining': '0' })])
+        const result = await sendWithRetry(fetchImpl, 'https://h/x', undefined, 'h', noSleep)
+        expect(result.status).toBe(429)
+        expect(calls()).toBe(1)
+    })
+
+    it('does not retry a 404, which callers read as an absent resource', async () => {
+        const { fetchImpl, calls } = counter([response(404)])
+        const result = await sendWithRetry(fetchImpl, 'https://h/x', undefined, 'h', noSleep)
+        expect(result.status).toBe(404)
+        expect(calls()).toBe(1)
+    })
+
+    it('backs off between attempts instead of hammering the host', async () => {
+        const waits: number[] = []
+        const { fetchImpl } = counter([response(503)])
+        await sendWithRetry(fetchImpl, 'https://h/x', undefined, 'h', async (ms) => {
+            waits.push(ms)
+        })
+        expect(waits).toEqual(RETRY_BACKOFF_MS)
+    })
+
+    it('passes the init through on every attempt', async () => {
+        const seen: Array<RequestInit | undefined> = []
+        let index = 0
+        const fetchImpl: FetchLike = async (_url, init) => {
+            seen.push(init)
+            index += 1
+            return response(index === 1 ? 503 : 200)
+        }
+        const init = { headers: { authorization: 'Bearer t' } }
+        await sendWithRetry(fetchImpl, 'https://h/x', init, 'h', noSleep)
+        expect(seen).toEqual([init, init])
     })
 })

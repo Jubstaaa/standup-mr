@@ -92,3 +92,45 @@ describe('GitLabProvider transport', () => {
         expect(fetchImpl.calls).toHaveLength(3)
     })
 })
+
+describe('GitLabProvider transient failures', () => {
+    it('retries a 503 and returns the payload from the attempt that lands', async () => {
+        let calls = 0
+        const flaky: FetchLike = async () => {
+            calls += 1
+            if (calls === 1) return new Response('', { status: 503 })
+            return new Response(JSON.stringify({ id: 7 }), {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+            })
+        }
+        const gl = new GitLabProvider('gitlab.example.com', 'tok', flaky)
+
+        await expect(gl.getJson('user')).resolves.toEqual({ id: 7 })
+        expect(calls).toBe(2)
+    })
+
+    it('still throws once the host stays down, so a bad run is never silent', async () => {
+        let calls = 0
+        const down: FetchLike = async () => {
+            calls += 1
+            return new Response('', { status: 503 })
+        }
+        const gl = new GitLabProvider('gitlab.example.com', 'tok', down)
+
+        await expect(gl.getJson('user')).rejects.toThrow(/503/)
+        expect(calls).toBe(3)
+    })
+
+    it('does not retry a 401, so an invalid token fails on the first call', async () => {
+        let calls = 0
+        const rejected: FetchLike = async () => {
+            calls += 1
+            return new Response('', { status: 401 })
+        }
+        const gl = new GitLabProvider('gitlab.example.com', 'tok', rejected)
+
+        await expect(gl.getJson('user')).rejects.toThrow(/token/i)
+        expect(calls).toBe(1)
+    })
+})
