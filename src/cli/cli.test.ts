@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process'
-import { cpSync, existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, spyOn } from 'bun:test'
@@ -326,6 +326,9 @@ describe('mcp command', () => {
 
                 const initResponse = JSON.parse(lines[0]!)
                 expect(initResponse.result.serverInfo.name).toBe('standup-mr')
+                expect(initResponse.result.serverInfo.version).toBe(
+                    JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')).version
+                )
 
                 const toolsResponse = JSON.parse(lines[1]!)
                 const toolNames = (toolsResponse.result.tools as Array<{ name: string }>).map(

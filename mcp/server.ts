@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 
+import { packageVersion } from '../src/manifest/manifest'
 import { connect } from '../src/providers/select'
 import type { Provider } from '../src/providers/base/base.types'
 import { buildReport } from '../src/report/report'
@@ -25,7 +26,7 @@ export async function collect(options: CollectOptions = {}): Promise<StandupRepo
 }
 
 export async function main(): Promise<void> {
-    const server = new McpServer({ name: 'standup-mr', version: '0.3.0' })
+    const server = new McpServer({ name: 'standup-mr', version: packageVersion(import.meta.url) })
 
     server.tool(
         'get_standup_data',
