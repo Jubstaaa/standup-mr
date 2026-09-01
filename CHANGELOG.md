@@ -4,6 +4,20 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] - 2026-09-01
+
+### Fixed
+
+- The MCP server announced itself as version 0.3.0 in the `initialize`
+  handshake while the package was already 0.3.2, so every client listed a
+  version that had not shipped for two releases. The version is now read from
+  `package.json` at runtime and cannot drift again — the handshake test
+  asserts the two match.
+
+### Added
+
+- `glama.json` and a Glama score badge in the README.
+
 ## [0.3.2] - 2026-09-01
 
 Metadata only — no functional change, and nothing to do if you are already on
