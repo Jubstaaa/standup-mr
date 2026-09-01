@@ -1,0 +1,59 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Jubstaaa/standup-mr",
+  "description": "Standup notes from merge request state, with the failed job's error lines.",
+  "repository": {
+    "url": "https://github.com/Jubstaaa/standup-mr",
+    "source": "github"
+  },
+  "version": "0.3.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "standup-mr",
+      "version": "0.3.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "valueHint": "command",
+          "value": "mcp"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "STANDUP_PROVIDER",
+          "description": "Which provider to read: github or gitlab. Omit to auto-detect.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "GITHUB_HOST",
+          "description": "GitHub host. Defaults to github.com; set it for GitHub Enterprise.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "GITHUB_TOKEN",
+          "description": "GitHub token. Falls back to the gh CLI session when unset.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "GITLAB_HOST",
+          "description": "GitLab host. Required for GitLab, which has no default host.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "GITLAB_TOKEN",
+          "description": "GitLab token. Falls back to the glab CLI session when unset.",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
