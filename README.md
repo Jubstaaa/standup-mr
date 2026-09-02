@@ -135,7 +135,12 @@ it belongs with the tokens, not in a transcript. The payload shape is inferred
 from the URL host; `kind` is only needed when a proxy hides it.
 
 Three shapes are implemented: `slack` and `google-chat` both post `{"text"}`,
-`discord` posts `{"content"}`. Anything else that accepts a Slack-shaped body —
+`discord` posts `{"content"}`.
+
+Slack and Google Chat do not render standard Markdown, so the note is rewritten
+on the way out: `**bold**` becomes `*bold*` and a `##` heading becomes a bold
+line. Inline code, fenced blocks and their contents are left alone. Discord
+speaks Markdown natively and is sent untouched. Anything else that accepts a Slack-shaped body —
 Mattermost, Rocket.Chat, an n8n or Zapier endpoint — works today by passing
 `kind: "slack"`, or `--slack URL` on the CLI.
 

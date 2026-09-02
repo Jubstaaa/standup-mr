@@ -38,6 +38,7 @@ export {
 export { GitLabProvider } from './providers/gitlab/gitlab'
 export { chooseKind, connect } from './providers/select'
 export type { SelectOptions } from './providers/select'
+export { toChatText } from './render/chat'
 export { toMarkdown } from './render/render'
 export { buildReport } from './report/report'
 export { readStandupSkillBody } from './skill/skill'

@@ -1,4 +1,5 @@
 import { PAYLOAD_FIELD } from './notify.constants'
+import { toChatText } from '../render/chat'
 import type { WebhookKind } from './notify.types'
 import type { FetchLike } from '../types/standup.types'
 
@@ -18,7 +19,7 @@ export async function postWebhook(
     const response = await fetchImpl(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: text }),
+        body: JSON.stringify({ [field]: toChatText(text, kind) }),
     })
 
     if (!response.ok) {

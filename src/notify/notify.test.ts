@@ -95,3 +95,27 @@ describe('Google Chat support', () => {
         expect([...WEBHOOK_KINDS].sort()).toEqual(['discord', 'google-chat', 'slack'])
     })
 })
+
+describe('postWebhook formatting', () => {
+    it('rewrites Markdown bold for Slack, which does not render **', async () => {
+        let body = ''
+        await postWebhook('https://hooks.slack.com/x', '## Dün\n- **ready**', 'slack',
+            async (_u, init) => {
+                body = String(init?.body)
+                return new Response('', { status: 200 })
+            })
+
+        expect(JSON.parse(body).text).toBe('*Dün*\n- *ready*')
+    })
+
+    it('sends Discord the Markdown untouched', async () => {
+        let body = ''
+        await postWebhook('https://discord.com/api/webhooks/1/x', '## Dün\n- **ready**', 'discord',
+            async (_u, init) => {
+                body = String(init?.body)
+                return new Response('', { status: 200 })
+            })
+
+        expect(JSON.parse(body).content).toBe('## Dün\n- **ready**')
+    })
+})
