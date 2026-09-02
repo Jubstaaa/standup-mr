@@ -1,15 +1,15 @@
 export interface Strings {
-    digest: string
-    previous: string
-    today: string
-    ready: string
     blocked: string
-    draft: string
-    stale: string
-    reviews: string
-    pending: string
     blockers: string
+    digest: string
+    draft: string
     noPipeline: string
-    unresolved: string
     nothing: string
+    pending: string
+    previous: string
+    ready: string
+    reviews: string
+    stale: string
+    today: string
+    unresolved: string
 }

@@ -1,3 +1,3 @@
-import { PAYLOAD_FIELD } from './notify.constants'
+import type { PAYLOAD_FIELD } from './notify.constants'
 
 export type WebhookKind = keyof typeof PAYLOAD_FIELD

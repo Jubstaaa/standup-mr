@@ -10,10 +10,10 @@ import type {
 export type { ProviderKind }
 
 export interface Provider {
-    readonly kind: ProviderKind
-    getIdentity(): Promise<Identity>
+    getBlockers(mrs: MergeRequest[]): Promise<Blocker[]>
     getEvents(since: Date): Promise<ActivityEvent[]>
+    getIdentity(): Promise<Identity>
     getMyMrs(today: Date): Promise<MergeRequest[]>
     getReviews(identity: Identity, today: Date): Promise<Review[]>
-    getBlockers(mrs: MergeRequest[]): Promise<Blocker[]>
+    readonly kind: ProviderKind
 }

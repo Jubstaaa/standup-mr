@@ -1,7 +1,16 @@
 import { classify, markMissingPipelines } from '../../buckets/buckets'
-import { MS_PER_DAY } from '../../dates/dates.constants'
 import { isoDay, localAt } from '../../dates/dates'
+import { MS_PER_DAY } from '../../dates/dates.constants'
 import { extractErrors } from '../../trace/trace'
+import type {
+    ActivityEvent,
+    Blocker,
+    FetchLike,
+    Identity,
+    MergeRequest,
+    Review,
+} from '../../types/standup.types'
+import type { Provider } from '../base/base.types'
 import { degradable, undiagnosed } from '../base/diagnosis'
 import {
     ApiError,
@@ -10,6 +19,7 @@ import {
     sendWithRetry,
     unreachable,
 } from '../base/http'
+
 import {
     API_VERSION,
     DOT_COM,
@@ -25,15 +35,6 @@ import {
     countChangesRequested,
     normalizeChecks,
 } from './github.state'
-import type { Provider } from '../base/base.types'
-import type {
-    ActivityEvent,
-    Blocker,
-    Identity,
-    FetchLike,
-    MergeRequest,
-    Review,
-} from '../../types/standup.types'
 import type {
     CheckRun,
     PullDetail,

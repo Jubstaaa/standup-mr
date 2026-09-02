@@ -1,10 +1,11 @@
+import type { ActivityEvent, StandupReport } from '../types/standup.types'
+
 import {
     BUCKET_ORDER,
     PROVIDER_STRINGS,
     REF_PREFIX,
     STRINGS,
 } from './render.constants'
-import type { ActivityEvent, StandupReport } from '../types/standup.types'
 import type { Strings } from './render.types'
 
 function eventLine(event: ActivityEvent): string {

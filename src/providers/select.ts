@@ -1,26 +1,27 @@
 import {
     ConfigError,
-    GITHUB_LABELS,
-    GITLAB_LABELS,
     ghHosts,
     ghToken,
+    GITHUB_LABELS,
+    GITLAB_LABELS,
     glabHosts,
     glabToken,
     resolveHost,
     resolveToken,
 } from '../config/config'
+import type { ProviderLabels } from '../config/config'
+
+import type { Provider, ProviderKind } from './base/base.types'
 import { GitHubProvider } from './github/github'
 import { DOT_COM } from './github/github.constants'
 import { GitLabProvider } from './gitlab/gitlab'
-import type { ProviderLabels } from '../config/config'
-import type { Provider, ProviderKind } from './base/base.types'
 
 export interface SelectOptions {
-    provider?: string
-    host?: string
-    token?: string
     env?: Record<string, string | undefined>
+    host?: string
     probe?: { gitlab: () => string[]; github: () => string[] }
+    provider?: string
+    token?: string
 }
 
 const DEFAULT_PROBE = { gitlab: glabHosts, github: ghHosts }

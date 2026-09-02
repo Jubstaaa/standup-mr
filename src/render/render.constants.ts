@@ -1,4 +1,5 @@
 import type { Bucket, ProviderKind } from '../types/standup.types'
+
 import type { Strings } from './render.types'
 
 export const STRINGS: Record<string, Strings> = {

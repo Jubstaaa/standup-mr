@@ -3,15 +3,16 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 
-import { USAGE } from './cli.constants'
-import { findPackageRoot } from '../manifest/manifest'
-import { readStandupSkillBody } from '../skill/skill'
 import { ConfigError } from '../config/config'
-import { WEBHOOK_KINDS } from '../notify/notify.constants'
+import { findPackageRoot } from '../manifest/manifest'
 import { postWebhook } from '../notify/notify'
+import { WEBHOOK_KINDS } from '../notify/notify.constants'
 import { connect } from '../providers/select'
 import { toMarkdown } from '../render/render'
 import { buildReport } from '../report/report'
+import { readStandupSkillBody } from '../skill/skill'
+
+import { USAGE } from './cli.constants'
 
 async function readStdin(): Promise<string> {
     const chunks: Buffer[] = []

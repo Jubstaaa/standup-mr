@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'bun:test'
 
+import type { FetchLike } from '../../types/standup.types'
+
 import {
     ApiError,
-    RETRY_ATTEMPTS,
-    RETRY_BACKOFF_MS,
     assertUsable,
     buildUrl,
+    RETRY_ATTEMPTS,
+    RETRY_BACKOFF_MS,
     sendWithRetry,
     unreachable,
 } from './http'
-
-import type { FetchLike } from '../../types/standup.types'
 
 function response(
     status: number,

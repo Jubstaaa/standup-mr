@@ -7,19 +7,19 @@ import { z } from 'zod'
 
 import { packageVersion } from '../src/manifest/manifest'
 import { inferWebhookKind, postWebhook } from '../src/notify/notify'
-import { connect } from '../src/providers/select'
-import { readStandupSkillBody } from '../src/skill/skill'
-import type { Provider } from '../src/providers/base/base.types'
-import { buildReport } from '../src/report/report'
 import type { WebhookKind } from '../src/notify/notify.types'
+import type { Provider } from '../src/providers/base/base.types'
+import { connect } from '../src/providers/select'
+import { buildReport } from '../src/report/report'
+import { readStandupSkillBody } from '../src/skill/skill'
 import type { StandupReport } from '../src/types/standup.types'
 
 export interface CollectOptions {
-    provider?: string
     host?: string
-    token?: string
     lang?: string
+    provider?: string
     providerImpl?: Provider
+    token?: string
 }
 
 export async function collect(

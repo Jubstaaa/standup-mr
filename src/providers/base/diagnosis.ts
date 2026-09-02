@@ -1,6 +1,6 @@
-import { ApiError } from './http'
-
 import type { Blocker, MergeRequest } from '../../types/standup.types'
+
+import { ApiError } from './http'
 
 export const DIAGNOSIS_UNAVAILABLE = 'diagnosis unavailable'
 

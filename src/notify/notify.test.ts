@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'bun:test'
 
-import { WEBHOOK_KINDS } from './notify.constants'
-import { inferWebhookKind, postWebhook } from './notify'
 import type { FetchLike } from '../types/standup.types'
+
+import { inferWebhookKind, postWebhook } from './notify'
+import { WEBHOOK_KINDS } from './notify.constants'
 
 function recordingFetch() {
     const sent: Array<{

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
 import type { Provider } from '../providers/base/base.types'
-import { buildReport } from './report'
 import type {
     ActivityEvent,
     Blocker,
@@ -10,13 +9,15 @@ import type {
     Review,
 } from '../types/standup.types'
 
+import { buildReport } from './report'
+
 const TODAY = new Date(2026, 7, 28)
 
 interface Overrides {
+    blockers?: Blocker[]
     events?: ActivityEvent[]
     mrs?: MergeRequest[]
     reviews?: Review[]
-    blockers?: Blocker[]
 }
 
 function fakeProvider(overrides: Overrides = {}): Provider {

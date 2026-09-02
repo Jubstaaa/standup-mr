@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 
 import type { MergeRequest } from '../../types/standup.types'
 import { routedFetch } from '../base/routes.helpers'
+
 import { GitLabProvider } from './gitlab'
 
 function mr(overrides: Partial<MergeRequest> = {}): MergeRequest {

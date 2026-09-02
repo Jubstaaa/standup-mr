@@ -6,7 +6,7 @@ export interface BucketInput {
 }
 
 export interface PipelineInput {
-    project: string
     pipeline: string | null
     pipelineMissing?: boolean
+    project: string
 }

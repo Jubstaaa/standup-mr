@@ -1,7 +1,8 @@
-import { PAYLOAD_FIELD } from './notify.constants'
 import { toChatText } from '../render/chat'
-import type { WebhookKind } from './notify.types'
 import type { FetchLike } from '../types/standup.types'
+
+import { PAYLOAD_FIELD } from './notify.constants'
+import type { WebhookKind } from './notify.types'
 
 export async function postWebhook(
     url: string,

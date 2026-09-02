@@ -1,6 +1,7 @@
 import { localAt } from '../../dates/dates'
-import { EVENT_ACTIONS, EVENT_TARGET_TYPES } from './github.constants'
 import type { ActivityEvent } from '../../types/standup.types'
+
+import { EVENT_ACTIONS, EVENT_TARGET_TYPES } from './github.constants'
 import type { RawEvent } from './github.types'
 
 export function repoFromUrl(repositoryUrl: string): string {

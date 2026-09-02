@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+
 import { afterEach, describe, expect, it } from 'bun:test'
 
 import { findPackageRoot, packageVersion } from './manifest'

@@ -10,11 +10,11 @@ export class ConfigError extends Error {
 }
 
 export interface ProviderLabels {
-    name: string
     cli: string
     envHost: string
     envToken: string
     login: (host: string) => string
+    name: string
 }
 
 export const GITLAB_LABELS: ProviderLabels = {

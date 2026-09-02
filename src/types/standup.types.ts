@@ -10,74 +10,74 @@ export interface Identity {
 }
 
 export interface ActivityEvent {
-    at: string
     action: string
-    project: string
-    targetType: string
-    title: string
+    at: string
     branch: string
     commits: number
     commitTitle: string
+    project: string
+    targetType: string
+    title: string
 }
 
 export interface MergeRequest {
-    provider: ProviderKind
-    project: string
-    projectId: number
-    iid: number
-    title: string
-    draft: boolean
     branch: string
-    target: string
-    updated: string
-    url: string
+    bucket: Bucket
+    draft: boolean
+    iid: number
     mergeStatus: string | null
     pipeline: string | null
     pipelineId: number | null
-    unresolved: number
     pipelineMissing: boolean
-    bucket: Bucket
+    project: string
+    projectId: number
+    provider: ProviderKind
+    target: string
+    title: string
+    unresolved: number
+    updated: string
+    url: string
 }
 
 export interface Review {
-    provider: ProviderKind
-    project: string
-    iid: number
-    title: string
-    author: string
-    updated: string
-    draft: boolean
-    url: string
-    fresh: boolean
     approvedByMe: boolean
+    author: string
+    draft: boolean
+    fresh: boolean
+    iid: number
+    project: string
+    provider: ProviderKind
+    title: string
+    updated: string
+    url: string
 }
 
 export interface Blocker {
-    provider: ProviderKind
-    project: string
-    mr: number
-    title: string
-    job: string
-    stage: string
-    url: string
     errors: string[]
+    job: string
+    mr: number
+    project: string
+    provider: ProviderKind
+    stage: string
+    title: string
+    url: string
 }
 
 export interface ActiveDay {
     date: string
-    label: string
-    gapDays: number
     events: ActivityEvent[]
+    gapDays: number
+    label: string
 }
 
 export interface StandupReport {
-    provider: ProviderKind
-    user: string
-    today: { date: string; label: string }
-    previousDays: ActiveDay[]
-    todayEvents: ActivityEvent[]
-    myMrs: MergeRequest[]
-    reviews: Review[]
-    reviewPendingCount: number
     blockers: Blocker[]
+    myMrs: MergeRequest[]
+    previousDays: ActiveDay[]
+    provider: ProviderKind
+    reviewPendingCount: number
+    reviews: Review[]
+    today: { date: string; label: string }
+    todayEvents: ActivityEvent[]
+    user: string
 }

@@ -3,9 +3,7 @@ export interface RawCommit {
 }
 
 export interface RawEvent {
-    type?: string
     created_at: string
-    repo?: { name?: string }
     payload?: {
         action?: string
         ref?: string
@@ -14,27 +12,29 @@ export interface RawEvent {
         pull_request?: { title?: string }
         issue?: { title?: string }
     }
+    repo?: { name?: string }
+    type?: string
 }
 
 export interface SearchItem {
-    number: number
-    title: string
-    html_url: string
-    updated_at: string
     draft?: boolean
+    html_url: string
+    number: number
     repository_url: string
+    title: string
+    updated_at: string
     user?: { login?: string }
 }
 
 export interface PullDetail {
+    base?: { ref?: string; repo?: { id?: number } }
+    draft: boolean
+    head?: { ref?: string; sha?: string }
+    html_url: string
+    mergeable_state?: string | null
     number: number
     title: string
-    draft: boolean
-    html_url: string
     updated_at: string
-    mergeable_state?: string | null
-    head?: { ref?: string; sha?: string }
-    base?: { ref?: string; repo?: { id?: number } }
     user?: { login?: string; name?: string | null }
 }
 
@@ -46,21 +46,21 @@ export interface PullReview {
 
 export interface CheckRun {
     id: number
-    name: string
-    status: string
-    conclusion: string | null
     app?: { slug?: string } | null
+    conclusion: string | null
+    name: string
     output?: { summary?: string | null; text?: string | null } | null
+    status: string
 }
 
 export interface WorkflowRun {
     id: number
-    name?: string | null
     conclusion: string | null
+    name?: string | null
 }
 
 export interface WorkflowJob {
     id: number
-    name: string
     conclusion: string | null
+    name: string
 }
