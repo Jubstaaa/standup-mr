@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'bun:test'
 
 import type { Provider } from '../src/providers/base/base.types'
-import { STANDUP_TOOL_SCHEMA, collect, runStandupTool } from './server'
+import {
+    STANDUP_TOOL_DESCRIPTION,
+    STANDUP_TOOL_SCHEMA,
+    collect,
+    runStandupTool,
+} from './server'
 
 const fakeProvider: Provider = {
     kind: 'gitlab',
@@ -92,5 +97,50 @@ describe('runStandupTool', () => {
 
         expect(result.content[0]!.type).toBe('text')
         expect(JSON.parse(result.content[0]!.text).user).toBe('dev')
+    })
+})
+
+describe('STANDUP_TOOL_DESCRIPTION', () => {
+    it('names every collection the report actually returns', () => {
+        for (const key of ['previousDays', 'todayEvents', 'myMrs', 'reviews', 'blockers']) {
+            expect(STANDUP_TOOL_DESCRIPTION).toContain(key)
+        }
+    })
+
+    it('names all four buckets a merge request can land in', () => {
+        for (const bucket of ['ready', 'blocked', 'draft', 'stale']) {
+            expect(STANDUP_TOOL_DESCRIPTION).toContain(bucket)
+        }
+    })
+
+    it('states the credential rule the handler enforces', () => {
+        expect(STANDUP_TOOL_DESCRIPTION).toMatch(/never come from an argument/i)
+    })
+
+    it('states the degradation the blocker path actually performs', () => {
+        expect(STANDUP_TOOL_DESCRIPTION).toContain('job: "unknown"')
+    })
+
+    it('says when the tool does not apply, not only what it does', () => {
+        expect(STANDUP_TOOL_DESCRIPTION).toMatch(/not a search api/i)
+    })
+
+    it('stays scannable rather than turning into a manual', () => {
+        expect(STANDUP_TOOL_DESCRIPTION.length).toBeLessThan(1200)
+    })
+})
+
+describe('STANDUP_TOOL_SCHEMA parameter semantics', () => {
+    it('says GitLab needs a host and GitHub does not', () => {
+        expect(STANDUP_TOOL_SCHEMA.host.description).toMatch(/required for gitlab/i)
+        expect(STANDUP_TOOL_SCHEMA.host.description).toMatch(/defaults to github\.com/i)
+    })
+
+    it('warns that an ambiguous provider fails rather than being guessed', () => {
+        expect(STANDUP_TOOL_SCHEMA.provider.description).toMatch(/fails|error/i)
+    })
+
+    it('says lang only relabels dates', () => {
+        expect(STANDUP_TOOL_SCHEMA.lang.description).toMatch(/relabel|label/i)
     })
 })

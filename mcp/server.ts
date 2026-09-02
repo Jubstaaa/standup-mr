@@ -26,6 +26,20 @@ export async function collect(options: CollectOptions = {}): Promise<StandupRepo
     return buildReport(provider, new Date(), options.lang ?? 'en')
 }
 
+export const STANDUP_TOOL_DESCRIPTION =
+    'Collect merge-request-based standup data from GitLab or GitHub. Returns one JSON ' +
+    'object: `today`, `previousDays[]` with the events of each, `todayEvents[]`, ' +
+    '`myMrs[]` bucketed ready / blocked / draft / stale, `reviews[]` waiting on you, and ' +
+    '`blockers[]` carrying the error lines read out of each failed pipeline job log.\n\n' +
+    'Call it once at the start of a working day, to write a standup note. It is a ' +
+    'snapshot, not a search API: it cannot fetch one named merge request, reach further ' +
+    'back than the previous working day, or filter by project.\n\n' +
+    'Read-only, and credentials never come from an argument — they come from the ' +
+    'environment or a logged-in gh / glab session. A rejected token, a refused resource ' +
+    'or a rate limit fails the call with the host\'s own message, after two retries on ' +
+    'transient server errors. A blocker whose diagnosis could not be fetched is still ' +
+    'returned, with `job: "unknown"`, so a red pipeline is never silently dropped.'
+
 export const STANDUP_TOOL_SCHEMA = {
     provider: z
         .enum(['github', 'gitlab'])
@@ -33,22 +47,26 @@ export const STANDUP_TOOL_SCHEMA = {
         .describe(
             'Which provider to read. Omit to auto-detect, in this order: a recognisable ' +
                 'host, STANDUP_PROVIDER, a GITHUB_*/GITLAB_* environment pair, then whichever ' +
-                'of the gh / glab CLIs is logged in.'
+                'of the gh / glab CLIs is logged in. Pass it when both are configured — ' +
+                'ambiguity fails the call rather than being guessed at.'
         ),
     host: z
         .string()
         .optional()
         .describe(
             'Self-hosted host, without a scheme, e.g. gitlab.example.com or ' +
-                'github.example.com. GitHub defaults to github.com; GitLab has no default, ' +
-                'so self-hosted GitLab needs this or GITLAB_HOST.'
+                'github.example.com. Required for GitLab, which has no default host; ' +
+                'optional for GitHub, which defaults to github.com. A recognisable host ' +
+                'also settles `provider` on its own, so the two are rarely both needed.'
         ),
     lang: z
         .enum(['en', 'tr'])
         .optional()
         .describe(
-            'Language for the date labels inside the returned JSON. Defaults to en. Only ' +
-                'the labels change — the standup note itself is written by the caller.'
+            'Language for the date labels inside the returned JSON: en (default) or tr. ' +
+                'It relabels dates and nothing else — no field is translated, and the ' +
+                'standup note itself is written by the caller, in whatever language they ' +
+                'are speaking.'
         ),
 }
 
@@ -76,11 +94,7 @@ export async function main(): Promise<void> {
 
     server.tool(
         'get_standup_data',
-        'Collect merge-request-based standup data from GitLab or GitHub. Returns the ' +
-            'previous working day activity, open merge requests or pull requests bucketed ' +
-            'by state (ready / blocked / draft / stale), pending reviews, and the error ' +
-            'lines from any failed pipeline or check. Credentials come from the ' +
-            'environment or a logged-in gh / glab session, never from an argument.',
+        STANDUP_TOOL_DESCRIPTION,
         STANDUP_TOOL_SCHEMA,
         async (args) => await runStandupTool(args)
     )
