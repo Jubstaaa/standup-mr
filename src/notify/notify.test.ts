@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import { postWebhook } from './notify'
+import { inferWebhookKind, postWebhook } from './notify'
 import type { FetchLike } from '../types/standup.types'
 
 function recordingFetch() {
@@ -49,5 +49,24 @@ describe('postWebhook', () => {
     it('rejects when the webhook returns an error status', async () => {
         const failing: FetchLike = async () => new Response('no', { status: 403 })
         await expect(postWebhook('https://x', 'hi', 'slack', failing)).rejects.toThrow(/403/)
+    })
+})
+
+describe('inferWebhookKind', () => {
+    it('recognises a Slack webhook by its host', () => {
+        expect(inferWebhookKind('https://hooks.slack.com/services/T0/B0/xxx')).toBe('slack')
+    })
+
+    it('recognises a Discord webhook by its host', () => {
+        expect(inferWebhookKind('https://discord.com/api/webhooks/1/xxx')).toBe('discord')
+        expect(inferWebhookKind('https://discordapp.com/api/webhooks/1/xxx')).toBe('discord')
+    })
+
+    it('returns null for a host it does not know, rather than guessing', () => {
+        expect(inferWebhookKind('https://hooks.example.com/abc')).toBeNull()
+    })
+
+    it('returns null for something that is not a url at all', () => {
+        expect(inferWebhookKind('not a url')).toBeNull()
     })
 })

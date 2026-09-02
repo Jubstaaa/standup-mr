@@ -1,10 +1,11 @@
-import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { realpathSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 
 import { USAGE } from './cli.constants'
 import { findPackageRoot } from '../manifest/manifest'
+import { readStandupSkillBody } from '../skill/skill'
 import { ConfigError } from '../config/config'
 import { postWebhook } from '../notify/notify'
 import { connect } from '../providers/select'
@@ -15,19 +16,6 @@ async function readStdin(): Promise<string> {
     const chunks: Buffer[] = []
     for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk))
     return Buffer.concat(chunks).toString('utf8')
-}
-
-function readStandupSkillBody(): string {
-    const moduleDir = dirname(fileURLToPath(import.meta.url))
-    const skillPath = join(findPackageRoot(moduleDir), 'skills', 'standup', 'SKILL.md')
-
-    if (!existsSync(skillPath)) {
-        throw new Error(`Cannot find the standup skill file at ${skillPath}`)
-    }
-
-    const content = readFileSync(skillPath, 'utf8')
-    const withoutFrontmatter = content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '')
-    return withoutFrontmatter.replace(/^\n+/, '')
 }
 
 export async function main(argv: string[]): Promise<number> {

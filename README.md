@@ -117,9 +117,20 @@ if a snippet above doesn't work, check [Cursor's MCP
 docs](https://docs.cursor.com/context/mcp) or Codex's own config
 documentation for the current format rather than trusting this file blindly.
 
-The tool only returns data; the assistant still needs the note-writing rules
-that the Claude Code skill carries. Paste them into whatever instructions
-file your assistant reads (e.g. `AGENTS.md`):
+The server exposes three tools:
+
+| Tool | What it does |
+|---|---|
+| `get_standup_data` | Reads the provider and returns the report as JSON. Optional `provider`, `host`, `lang`. |
+| `get_note_instructions` | Returns the note-writing rules, so the assistant can write the note the way the skill would. |
+| `post_standup_note` | Posts a finished note to a Slack or Discord webhook. |
+
+`post_standup_note` reads the webhook URL from `STANDUP_WEBHOOK_URL` and never
+takes it as an argument — anyone holding that URL can post to the channel, so
+it belongs with the tokens, not in a transcript. The payload shape is inferred
+from the URL host; `kind` is only needed when a proxy hides it.
+
+Outside MCP, the same rules are available on stdout:
 
 ```bash
 npx standup-mr instructions >> AGENTS.md

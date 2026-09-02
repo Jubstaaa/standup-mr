@@ -25,3 +25,19 @@ export async function postWebhook(
         throw new Error(`Webhook rejected the message: HTTP ${response.status}.`)
     }
 }
+
+const WEBHOOK_HOSTS: Record<string, WebhookKind> = {
+    'hooks.slack.com': 'slack',
+    'discord.com': 'discord',
+    'discordapp.com': 'discord',
+    'ptb.discord.com': 'discord',
+    'canary.discord.com': 'discord',
+}
+
+export function inferWebhookKind(url: string): WebhookKind | null {
+    try {
+        return WEBHOOK_HOSTS[new URL(url).hostname] ?? null
+    } catch {
+        return null
+    }
+}

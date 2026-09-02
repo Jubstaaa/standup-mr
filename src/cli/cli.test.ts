@@ -334,7 +334,11 @@ describe('mcp command', () => {
                 const toolNames = (toolsResponse.result.tools as Array<{ name: string }>).map(
                     (tool) => tool.name
                 )
-                expect(toolNames).toContain('get_standup_data')
+                expect(toolNames.sort()).toEqual([
+                    'get_note_instructions',
+                    'get_standup_data',
+                    'post_standup_note',
+                ])
 
                 const tool = (
                     toolsResponse.result.tools as Array<{

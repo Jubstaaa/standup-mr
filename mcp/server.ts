@@ -6,9 +6,12 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
 
 import { packageVersion } from '../src/manifest/manifest'
+import { inferWebhookKind, postWebhook } from '../src/notify/notify'
 import { connect } from '../src/providers/select'
+import { readStandupSkillBody } from '../src/skill/skill'
 import type { Provider } from '../src/providers/base/base.types'
 import { buildReport } from '../src/report/report'
+import type { WebhookKind } from '../src/notify/notify.types'
 import type { StandupReport } from '../src/types/standup.types'
 
 export interface CollectOptions {
@@ -89,6 +92,99 @@ export async function runStandupTool(
     return { content: [{ type: 'text' as const, text: JSON.stringify(report) }] }
 }
 
+export const WEBHOOK_URL_ENV = 'STANDUP_WEBHOOK_URL'
+
+export const POST_TOOL_DESCRIPTION =
+    'Posts a finished standup note to a chat webhook. This one has a side effect: it ' +
+    'sends a message other people will see, so only call it on a note the user has ' +
+    `agreed to send.\n\nThe webhook URL is read from ${WEBHOOK_URL_ENV}, never from an ` +
+    'argument — a webhook URL is a credential, since anyone holding it can post to the ' +
+    'channel. Slack and Discord payload shapes are supported; the shape is inferred from ' +
+    'the URL host, and `kind` is only needed for a proxied or self-hosted endpoint whose ' +
+    'host gives nothing away. A missing URL, an unrecognised host, or a webhook that ' +
+    'rejects the message comes back as an error rather than a silent success.'
+
+export const POST_TOOL_SCHEMA = {
+    text: z
+        .string()
+        .min(1)
+        .describe(
+            'The note to post, as the chat should render it. Slack and Discord both take ' +
+                'Markdown, so send the written note rather than the raw JSON from ' +
+                'get_standup_data.'
+        ),
+    kind: z
+        .enum(['slack', 'discord'])
+        .optional()
+        .describe(
+            'Which payload shape to send: slack posts {"text"}, discord posts ' +
+                '{"content"}. Omit it — the shape is inferred from the webhook host. ' +
+                'Pass it only when the host is not recognisable, e.g. a proxy in front of ' +
+                'the real webhook.'
+        ),
+}
+
+export const INSTRUCTIONS_TOOL_DESCRIPTION =
+    'Returns the note-writing rules — the playbook for turning get_standup_data output ' +
+    'into a standup note a person would actually say out loud: how to group the previous ' +
+    'day by theme, how to derive today from open merge requests, and how to report a ' +
+    'blocker from its job log. Read-only, no arguments, no network. Call it once before ' +
+    'writing the first note; the rules do not change between calls.'
+
+export type PostToolArgs = z.infer<z.ZodObject<typeof POST_TOOL_SCHEMA>>
+
+type ToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: true }
+
+function text(body: string): ToolResult {
+    return { content: [{ type: 'text' as const, text: body }] }
+}
+
+function failure(body: string): ToolResult {
+    return { content: [{ type: 'text' as const, text: body }], isError: true }
+}
+
+export interface PostToolDeps {
+    env?: Record<string, string | undefined>
+    post?: (url: string, body: string, kind: WebhookKind) => Promise<void>
+}
+
+export async function runPostTool(
+    args: PostToolArgs,
+    deps: PostToolDeps = {}
+): Promise<ToolResult> {
+    const env = deps.env ?? process.env
+    const post = deps.post ?? postWebhook
+
+    const url = env[WEBHOOK_URL_ENV]
+    if (!url) {
+        return failure(
+            `No webhook configured. Set ${WEBHOOK_URL_ENV} to the Slack or Discord ` +
+                'webhook URL; it is deliberately not accepted as a tool argument.'
+        )
+    }
+
+    const kind = args.kind ?? inferWebhookKind(url)
+    if (!kind) {
+        return failure(
+            `Could not tell from the ${WEBHOOK_URL_ENV} host whether this is a Slack or a ` +
+                'Discord webhook. Pass kind explicitly.'
+        )
+    }
+
+    try {
+        await post(url, args.text, kind)
+    } catch (cause) {
+        const detail = cause instanceof Error ? cause.message : String(cause)
+        return failure(`The ${kind} webhook did not accept the note: ${detail}`)
+    }
+
+    return text(`Posted the note to the configured ${kind} webhook.`)
+}
+
+export async function runInstructionsTool(): Promise<ToolResult> {
+    return text(readStandupSkillBody())
+}
+
 export async function main(): Promise<void> {
     const server = new McpServer({ name: 'standup-mr', version: packageVersion(import.meta.url) })
 
@@ -97,6 +193,14 @@ export async function main(): Promise<void> {
         STANDUP_TOOL_DESCRIPTION,
         STANDUP_TOOL_SCHEMA,
         async (args) => await runStandupTool(args)
+    )
+
+    server.tool('post_standup_note', POST_TOOL_DESCRIPTION, POST_TOOL_SCHEMA, async (args) =>
+        await runPostTool(args)
+    )
+
+    server.tool('get_note_instructions', INSTRUCTIONS_TOOL_DESCRIPTION, {}, async () =>
+        await runInstructionsTool()
     )
 
     await server.connect(new StdioServerTransport())

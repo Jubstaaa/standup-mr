@@ -2,9 +2,15 @@ import { describe, expect, it } from 'bun:test'
 
 import type { Provider } from '../src/providers/base/base.types'
 import {
+    INSTRUCTIONS_TOOL_DESCRIPTION,
+    POST_TOOL_DESCRIPTION,
+    POST_TOOL_SCHEMA,
     STANDUP_TOOL_DESCRIPTION,
     STANDUP_TOOL_SCHEMA,
+    WEBHOOK_URL_ENV,
     collect,
+    runInstructionsTool,
+    runPostTool,
     runStandupTool,
 } from './server'
 
@@ -142,5 +148,141 @@ describe('STANDUP_TOOL_SCHEMA parameter semantics', () => {
 
     it('says lang only relabels dates', () => {
         expect(STANDUP_TOOL_SCHEMA.lang.description).toMatch(/relabel|label/i)
+    })
+})
+
+describe('POST_TOOL_SCHEMA', () => {
+    it('takes the note text and, optionally, which payload shape to send', () => {
+        expect(Object.keys(POST_TOOL_SCHEMA).sort()).toEqual(['kind', 'text'])
+    })
+
+    it('requires the text, since there is nothing to post without it', () => {
+        expect(POST_TOOL_SCHEMA.text.safeParse(undefined).success).toBe(false)
+        expect(POST_TOOL_SCHEMA.text.safeParse('note').success).toBe(true)
+    })
+
+    it('constrains kind to the two payload shapes that are implemented', () => {
+        expect(POST_TOOL_SCHEMA.kind.safeParse('slack').success).toBe(true)
+        expect(POST_TOOL_SCHEMA.kind.safeParse('discord').success).toBe(true)
+        expect(POST_TOOL_SCHEMA.kind.safeParse('teams').success).toBe(false)
+    })
+
+    it('never takes the webhook url as an argument', () => {
+        expect(Object.keys(POST_TOOL_SCHEMA)).not.toContain('url')
+        expect(JSON.stringify(POST_TOOL_SCHEMA)).not.toMatch(/https?:/)
+    })
+})
+
+describe('POST_TOOL_DESCRIPTION', () => {
+    it('discloses that the tool sends something, since that is a side effect', () => {
+        expect(POST_TOOL_DESCRIPTION).toMatch(/posts|sends/i)
+    })
+
+    it('names the environment variable the url comes from', () => {
+        expect(POST_TOOL_DESCRIPTION).toContain(WEBHOOK_URL_ENV)
+    })
+})
+
+describe('runPostTool', () => {
+    const env = (url?: string) => (url ? { [WEBHOOK_URL_ENV]: url } : {})
+
+    it('posts the text to the url from the environment', async () => {
+        const seen: Array<[string, string, string]> = []
+        const result = await runPostTool({ text: 'note' }, {
+            env: env('https://hooks.slack.com/services/T0/B0/x'),
+            post: async (url, text, kind) => {
+                seen.push([url, text, kind])
+            },
+        })
+
+        expect(seen).toEqual([['https://hooks.slack.com/services/T0/B0/x', 'note', 'slack']])
+        expect(result.isError).toBeUndefined()
+    })
+
+    it('infers discord from the url when kind is omitted', async () => {
+        let kind = ''
+        await runPostTool({ text: 'note' }, {
+            env: env('https://discord.com/api/webhooks/1/x'),
+            post: async (_u, _t, k) => {
+                kind = k
+            },
+        })
+
+        expect(kind).toBe('discord')
+    })
+
+    it('lets an explicit kind win over the inferred one', async () => {
+        let kind = ''
+        await runPostTool({ text: 'note', kind: 'slack' }, {
+            env: env('https://discord.com/api/webhooks/1/x'),
+            post: async (_u, _t, k) => {
+                kind = k
+            },
+        })
+
+        expect(kind).toBe('slack')
+    })
+
+    it('fails loudly when the environment carries no webhook url', async () => {
+        let called = false
+        const result = await runPostTool({ text: 'note' }, {
+            env: env(),
+            post: async () => {
+                called = true
+            },
+        })
+
+        expect(called).toBe(false)
+        expect(result.isError).toBe(true)
+        expect(result.content[0]!.text).toContain(WEBHOOK_URL_ENV)
+    })
+
+    it('asks for a kind rather than guessing when the host is unknown', async () => {
+        let called = false
+        const result = await runPostTool({ text: 'note' }, {
+            env: env('https://hooks.example.com/abc'),
+            post: async () => {
+                called = true
+            },
+        })
+
+        expect(called).toBe(false)
+        expect(result.isError).toBe(true)
+        expect(result.content[0]!.text).toMatch(/kind/i)
+    })
+
+    it('reports a rejected webhook instead of claiming the note was posted', async () => {
+        const result = await runPostTool({ text: 'note' }, {
+            env: env('https://hooks.slack.com/services/T0/B0/x'),
+            post: async () => {
+                throw new Error('Webhook rejected the message: HTTP 404.')
+            },
+        })
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0]!.text).toContain('404')
+    })
+
+    it('never echoes the webhook url back to the caller', async () => {
+        const url = 'https://hooks.slack.com/services/T0/B0/supersecret'
+        const result = await runPostTool({ text: 'note' }, {
+            env: env(url),
+            post: async () => {},
+        })
+
+        expect(JSON.stringify(result)).not.toContain('supersecret')
+    })
+})
+
+describe('runInstructionsTool', () => {
+    it('returns the note-writing rules as text', async () => {
+        const result = await runInstructionsTool()
+
+        expect(result.content[0]!.type).toBe('text')
+        expect(result.content[0]!.text.startsWith('# Standup Note')).toBe(true)
+    })
+
+    it('says the rules are the note-writing playbook, not data', () => {
+        expect(INSTRUCTIONS_TOOL_DESCRIPTION).toMatch(/rules|playbook/i)
     })
 })
