@@ -4,6 +4,18 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-09-02
+
+### Fixed
+
+- A note posted to Google Chat or Slack arrived with its formatting showing:
+  `**bold**` as literal asterisks, `## Dün` as a literal heading marker.
+  Neither renders standard Markdown — both use a single asterisk for bold and
+  have no headings — while the note is Markdown throughout. Bold is now
+  converted and headings become bold lines for those two. Discord speaks
+  Markdown natively and is sent untouched, and fenced blocks pass through
+  verbatim so a code sample keeps its asterisks.
+
 ## [0.6.0] - 2026-09-02
 
 ### Added
