@@ -4,6 +4,21 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-09-02
+
+### Changed
+
+- `get_standup_data` documents itself properly. The description now gives the
+  shape of the object it returns, says the tool is a snapshot rather than a
+  search API and what that rules out, and spells out failure behaviour: a
+  rejected token, a refused resource or a rate limit surfaces the host's own
+  message after two retries on transient errors, and a blocker whose
+  diagnosis could not be fetched still comes back with `job: "unknown"`. The
+  parameter descriptions gained the interactions the schema cannot express —
+  `host` is required for GitLab and optional for GitHub, a recognisable host
+  settles `provider` on its own, and `lang` relabels dates without
+  translating anything.
+
 ## [0.4.0] - 2026-09-01
 
 ### Added
