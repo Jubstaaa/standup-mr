@@ -1,6 +1,7 @@
 import { classify, markMissingPipelines } from '../../buckets/buckets'
 import { isoDay } from '../../dates/dates'
 import { MS_PER_DAY } from '../../dates/dates.constants'
+import { extractErrors } from '../../trace/trace'
 import type {
     ActivityEvent,
     Blocker,
@@ -9,7 +10,6 @@ import type {
     MergeRequest,
     Review,
 } from '../../types/standup.types'
-import { extractErrors } from '../../trace/trace'
 import type { Provider } from '../base/base.types'
 import { degradable, undiagnosed } from '../base/diagnosis'
 import {
@@ -18,7 +18,9 @@ import {
     sendWithRetry,
     unreachable,
 } from '../base/http'
+
 import { FRESH_REVIEW_DAYS, PAGE_SIZE } from './gitlab.constants'
+import type { RawEvent, RawJob, RawMr, RawNote } from './gitlab.types'
 
 type Params = Record<string, string | number>
 
@@ -100,7 +102,7 @@ export class GitLabProvider implements Provider {
     }
 
     async getEvents(since: Date): Promise<ActivityEvent[]> {
-        const raw = await this.getPaged<Record<string, any>>('events', {
+        const raw = await this.getPaged<RawEvent>('events', {
             after: isoDay(since),
         })
 
@@ -119,7 +121,7 @@ export class GitLabProvider implements Provider {
                 return {
                     at: String(event.created_at).slice(0, 16),
                     action: event.action_name,
-                    project: paths.get(event.project_id) ?? '',
+                    project: paths.get(event.project_id ?? -1) ?? '',
                     targetType: event.target_type ?? '',
                     title: event.target_title ?? '',
                     branch: push.ref ?? '',
@@ -134,11 +136,12 @@ export class GitLabProvider implements Provider {
         projectId: number,
         iid: number
     ): Promise<number> {
-        const discussions = await this.getJson<
-            Array<{ notes?: Array<Record<string, any>> }>
-        >(`projects/${projectId}/merge_requests/${iid}/discussions`, {
-            per_page: PAGE_SIZE,
-        })
+        const discussions = await this.getJson<Array<{ notes?: RawNote[] }>>(
+            `projects/${projectId}/merge_requests/${iid}/discussions`,
+            {
+                per_page: PAGE_SIZE,
+            }
+        )
         if (!discussions) return 0
 
         return discussions.filter(discussion => {
@@ -149,7 +152,7 @@ export class GitLabProvider implements Provider {
         }).length
     }
 
-    private async shapeMr(mr: Record<string, any>): Promise<MergeRequest> {
+    private async shapeMr(mr: RawMr): Promise<MergeRequest> {
         const projectId: number = mr.project_id
         const iid: number = mr.iid
 
@@ -183,7 +186,7 @@ export class GitLabProvider implements Provider {
     }
 
     async getMyMrs(today: Date): Promise<MergeRequest[]> {
-        const raw = await this.getPaged<Record<string, any>>('merge_requests', {
+        const raw = await this.getPaged<RawMr>('merge_requests', {
             scope: 'created_by_me',
             state: 'opened',
         })
@@ -211,7 +214,7 @@ export class GitLabProvider implements Provider {
     }
 
     async getReviews(identity: Identity, today: Date): Promise<Review[]> {
-        const raw = await this.getPaged<Record<string, any>>('merge_requests', {
+        const raw = await this.getPaged<RawMr>('merge_requests', {
             scope: 'all',
             state: 'opened',
             reviewer_id: identity.id,
@@ -244,7 +247,7 @@ export class GitLabProvider implements Provider {
 
     private async diagnose(mr: MergeRequest): Promise<Blocker | null> {
         const jobs =
-            (await this.getJson<Array<Record<string, any>>>(
+            (await this.getJson<RawJob[]>(
                 `projects/${mr.projectId}/pipelines/${mr.pipelineId}/jobs`,
                 { per_page: PAGE_SIZE }
             )) ?? []
