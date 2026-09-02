@@ -22,7 +22,7 @@ export const GITLAB_LABELS: ProviderLabels = {
     cli: 'glab',
     envHost: 'GITLAB_HOST',
     envToken: 'GITLAB_TOKEN',
-    login: (host) => `glab auth login --hostname ${host}`,
+    login: host => `glab auth login --hostname ${host}`,
 }
 
 export const GITHUB_LABELS: ProviderLabels = {
@@ -30,7 +30,7 @@ export const GITHUB_LABELS: ProviderLabels = {
     cli: 'gh',
     envHost: 'GITHUB_HOST',
     envToken: 'GITHUB_TOKEN',
-    login: (host) => `gh auth login --hostname ${host}`,
+    login: host => `gh auth login --hostname ${host}`,
 }
 
 export function resolveHost(
@@ -101,7 +101,9 @@ function cliStatus(cli: string): string {
 }
 
 export function parseLoggedInHosts(statusOutput: string): string[] {
-    const hosts = [...statusOutput.matchAll(/Logged in to (\S+)/g)].map((match) => match[1]!)
+    const hosts = [...statusOutput.matchAll(/Logged in to (\S+)/g)].map(
+        match => match[1]!
+    )
     return [...new Set(hosts)].sort()
 }
 

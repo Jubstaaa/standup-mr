@@ -63,7 +63,7 @@ describe('previousActiveDays', () => {
     it('anchors on the most recent active weekday, not the most recent day', () => {
         const active = new Set(['2026-08-26', '2026-08-28', '2026-08-29'])
         const days = previousActiveDays(active, monday)
-        expect(days.map((day) => day.date)).toEqual(['2026-08-28', '2026-08-29'])
+        expect(days.map(day => day.date)).toEqual(['2026-08-28', '2026-08-29'])
     })
 
     it('reports a single day when only yesterday was active', () => {
@@ -75,24 +75,22 @@ describe('previousActiveDays', () => {
 
     it('includes a sunday tail after the friday anchor', () => {
         const active = new Set(['2026-08-28', '2026-08-30'])
-        expect(previousActiveDays(active, monday).map((day) => day.date)).toEqual([
-            '2026-08-28',
-            '2026-08-30',
-        ])
+        expect(previousActiveDays(active, monday).map(day => day.date)).toEqual(
+            ['2026-08-28', '2026-08-30']
+        )
     })
 
     it('reports every active day when no weekday was active at all', () => {
         const active = new Set(['2026-08-29', '2026-08-30'])
-        expect(previousActiveDays(active, monday).map((day) => day.date)).toEqual([
-            '2026-08-29',
-            '2026-08-30',
-        ])
+        expect(previousActiveDays(active, monday).map(day => day.date)).toEqual(
+            ['2026-08-29', '2026-08-30']
+        )
     })
 
     it('ignores today and anything after it', () => {
         const active = new Set(['2026-08-28', '2026-08-31', '2026-09-01'])
-        expect(previousActiveDays(active, monday).map((day) => day.date)).toEqual([
-            '2026-08-28',
-        ])
+        expect(previousActiveDays(active, monday).map(day => day.date)).toEqual(
+            ['2026-08-28']
+        )
     })
 })

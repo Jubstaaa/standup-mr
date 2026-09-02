@@ -15,7 +15,8 @@ function scratch(): string {
 }
 
 afterEach(() => {
-    while (temps.length > 0) rmSync(temps.pop()!, { recursive: true, force: true })
+    while (temps.length > 0)
+        rmSync(temps.pop()!, { recursive: true, force: true })
 })
 
 describe('findPackageRoot', () => {
@@ -34,8 +35,13 @@ describe('findPackageRoot', () => {
 describe('packageVersion', () => {
     it('reads the version out of the nearest package.json', () => {
         const root = scratch()
-        writeFileSync(join(root, 'package.json'), JSON.stringify({ version: '9.9.9' }))
-        const moduleUrl = pathToFileURL(join(root, 'dist', 'mcp', 'server.js')).href
+        writeFileSync(
+            join(root, 'package.json'),
+            JSON.stringify({ version: '9.9.9' })
+        )
+        const moduleUrl = pathToFileURL(
+            join(root, 'dist', 'mcp', 'server.js')
+        ).href
         expect(packageVersion(moduleUrl)).toBe('9.9.9')
     })
 

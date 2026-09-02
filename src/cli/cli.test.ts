@@ -1,5 +1,13 @@
 import { execFileSync, spawn } from 'node:child_process'
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import {
+    cpSync,
+    existsSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    symlinkSync,
+    writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, spyOn } from 'bun:test'
@@ -12,7 +20,10 @@ const distCli = join(repoRoot, 'dist', 'cli.js')
 function ensureBuilt(): boolean {
     if (existsSync(distCli)) return true
     try {
-        execFileSync('bun', ['run', 'build'], { cwd: repoRoot, stdio: 'ignore' })
+        execFileSync('bun', ['run', 'build'], {
+            cwd: repoRoot,
+            stdio: 'ignore',
+        })
     } catch {
         return false
     }
@@ -88,7 +99,13 @@ describe('main', () => {
             new Error('fetch must not be called for whitespace-only text')
         )
 
-        const code = await main(['post', '--slack', 'https://hooks.example.com/a', '--text', '   '])
+        const code = await main([
+            'post',
+            '--slack',
+            'https://hooks.example.com/a',
+            '--text',
+            '   ',
+        ])
 
         expect(code).toBe(1)
         expect(fetchSpy).not.toHaveBeenCalled()
@@ -102,12 +119,20 @@ describe('main', () => {
             new Response('ok', { status: 200 })
         )
 
-        const code = await main(['post', '--slack', 'https://hooks.example.com/a', '--text', 'hello'])
+        const code = await main([
+            'post',
+            '--slack',
+            'https://hooks.example.com/a',
+            '--text',
+            'hello',
+        ])
 
         expect(code).toBe(0)
         expect(fetchSpy).toHaveBeenCalledTimes(1)
         const [, init] = fetchSpy.mock.calls[0]!
-        expect(JSON.parse(String((init as RequestInit).body))).toEqual({ text: 'hello' })
+        expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+            text: 'hello',
+        })
         stdout.mockRestore()
         stderr.mockRestore()
     })
@@ -118,12 +143,20 @@ describe('main', () => {
             new Response('ok', { status: 200 })
         )
 
-        const code = await main(['post', '--discord', 'https://hooks.example.com/b', '--text', 'hi'])
+        const code = await main([
+            'post',
+            '--discord',
+            'https://hooks.example.com/b',
+            '--text',
+            'hi',
+        ])
 
         expect(code).toBe(0)
         expect(fetchSpy).toHaveBeenCalledTimes(1)
         const [, init] = fetchSpy.mock.calls[0]!
-        expect(JSON.parse(String((init as RequestInit).body))).toEqual({ content: 'hi' })
+        expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+            content: 'hi',
+        })
         stdout.mockRestore()
         stderr.mockRestore()
     })
@@ -133,16 +166,23 @@ describe('main', () => {
         const fakeFetch = (async (url: unknown) => {
             const target = String(url)
             if (target.includes('/api/v4/user')) {
-                return new Response(JSON.stringify({ id: 1, username: 'dev' }), { status: 200 })
+                return new Response(
+                    JSON.stringify({ id: 1, username: 'dev' }),
+                    { status: 200 }
+                )
             }
             return new Response('[]', { status: 200 })
         }) as typeof fetch
-        const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(fakeFetch)
+        const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
+            fakeFetch
+        )
 
         const code = await main([
             'fetch',
-            '--host', 'gitlab.example.com',
-            '--token', 'tkn',
+            '--host',
+            'gitlab.example.com',
+            '--token',
+            'tkn',
             '--markdown',
         ])
 
@@ -162,10 +202,14 @@ describe('main', () => {
             const target = String(url)
             urls.push(target)
             if (target.endsWith('/user')) {
-                return new Response(JSON.stringify({ id: 1, login: 'dev' }), { status: 200 })
+                return new Response(JSON.stringify({ id: 1, login: 'dev' }), {
+                    status: 200,
+                })
             }
             if (target.includes('search/issues')) {
-                return new Response(JSON.stringify({ items: [] }), { status: 200 })
+                return new Response(JSON.stringify({ items: [] }), {
+                    status: 200,
+                })
             }
             return new Response('[]', { status: 200 })
         }) as typeof fetch
@@ -173,14 +217,21 @@ describe('main', () => {
 
         const code = await main([
             'fetch',
-            '--provider', 'github',
-            '--host', 'github.com',
-            '--token', 'ghp',
+            '--provider',
+            'github',
+            '--host',
+            'github.com',
+            '--token',
+            'ghp',
         ])
 
         expect(code).toBe(0)
-        expect(urls.some((url) => url.startsWith('https://api.github.com/'))).toBe(true)
-        expect(String(stdout.mock.calls[0]![0])).toContain('"provider": "github"')
+        expect(
+            urls.some(url => url.startsWith('https://api.github.com/'))
+        ).toBe(true)
+        expect(String(stdout.mock.calls[0]![0])).toContain(
+            '"provider": "github"'
+        )
         stdout.mockRestore()
         stderr.mockRestore()
     })
@@ -223,7 +274,9 @@ describe('symlinked entry point', () => {
             symlinkSync(distCli, link)
 
             try {
-                const output = execFileSync('node', [link, '--help'], { encoding: 'utf8' })
+                const output = execFileSync('node', [link, '--help'], {
+                    encoding: 'utf8',
+                })
                 expect(output).toContain('standup')
             } finally {
                 rmSync(dir, { recursive: true, force: true })
@@ -236,7 +289,9 @@ describe('symlinked entry point', () => {
             symlinkSync(distCli, link)
 
             try {
-                const output = execFileSync('node', [link, 'instructions'], { encoding: 'utf8' })
+                const output = execFileSync('node', [link, 'instructions'], {
+                    encoding: 'utf8',
+                })
                 expect(output).toContain('# Standup Note')
                 expect(output).not.toContain('name: standup')
             } finally {
@@ -252,17 +307,28 @@ describe('instructions command failure', () => {
     } else {
         it('fails loudly, naming the path it looked for, when the skill file is missing', () => {
             const dir = mkdtempSync(join(tmpdir(), 'standup-mr-missing-skill-'))
-            cpSync(join(repoRoot, 'dist'), join(dir, 'dist'), { recursive: true })
-            writeFileSync(join(dir, 'package.json'), JSON.stringify({ type: 'module' }))
+            cpSync(join(repoRoot, 'dist'), join(dir, 'dist'), {
+                recursive: true,
+            })
+            writeFileSync(
+                join(dir, 'package.json'),
+                JSON.stringify({ type: 'module' })
+            )
             const fakeCli = join(dir, 'dist', 'cli.js')
 
             try {
-                execFileSync('node', [fakeCli, 'instructions'], { stdio: ['ignore', 'pipe', 'pipe'] })
-                throw new Error('expected `instructions` to exit non-zero when the skill file is missing')
+                execFileSync('node', [fakeCli, 'instructions'], {
+                    stdio: ['ignore', 'pipe', 'pipe'],
+                })
+                throw new Error(
+                    'expected `instructions` to exit non-zero when the skill file is missing'
+                )
             } catch (error) {
                 const failure = error as { status?: number; stderr?: Buffer }
                 expect(failure.status).toBe(1)
-                expect(String(failure.stderr)).toContain(join(dir, 'skills', 'standup', 'SKILL.md'))
+                expect(String(failure.stderr)).toContain(
+                    join(dir, 'skills', 'standup', 'SKILL.md')
+                )
             } finally {
                 rmSync(dir, { recursive: true, force: true })
             }
@@ -275,7 +341,9 @@ describe('mcp command', () => {
         it.skip('speaks MCP over stdio and writes nothing else to stdout (dist/cli.js missing and `bun run build` failed)', () => {})
     } else {
         it('speaks MCP over stdio and writes nothing else to stdout', async () => {
-            const child = spawn('node', [distCli, 'mcp'], { stdio: ['pipe', 'pipe', 'pipe'] })
+            const child = spawn('node', [distCli, 'mcp'], {
+                stdio: ['pipe', 'pipe', 'pipe'],
+            })
             const lines: string[] = []
             let buffer = ''
 
@@ -292,7 +360,10 @@ describe('mcp command', () => {
                 child.stdin.write(`${JSON.stringify(message)}\n`)
             }
 
-            function waitForLines(count: number, timeoutMs = 5000): Promise<void> {
+            function waitForLines(
+                count: number,
+                timeoutMs = 5000
+            ): Promise<void> {
                 return new Promise((resolve, reject) => {
                     const start = Date.now()
                     const timer = setInterval(() => {
@@ -301,7 +372,11 @@ describe('mcp command', () => {
                             resolve()
                         } else if (Date.now() - start > timeoutMs) {
                             clearInterval(timer)
-                            reject(new Error('timed out waiting for the mcp server to respond'))
+                            reject(
+                                new Error(
+                                    'timed out waiting for the mcp server to respond'
+                                )
+                            )
                         }
                     }, 20)
                 })
@@ -315,25 +390,35 @@ describe('mcp command', () => {
                     params: {
                         protocolVersion: '2024-11-05',
                         capabilities: {},
-                        clientInfo: { name: 'standup-mr-test', version: '1.0.0' },
+                        clientInfo: {
+                            name: 'standup-mr-test',
+                            version: '1.0.0',
+                        },
                     },
                 })
                 await waitForLines(1)
 
                 send({ jsonrpc: '2.0', method: 'notifications/initialized' })
-                send({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} })
+                send({
+                    jsonrpc: '2.0',
+                    id: 2,
+                    method: 'tools/list',
+                    params: {},
+                })
                 await waitForLines(2)
 
                 const initResponse = JSON.parse(lines[0]!)
                 expect(initResponse.result.serverInfo.name).toBe('standup-mr')
                 expect(initResponse.result.serverInfo.version).toBe(
-                    JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')).version
+                    JSON.parse(
+                        readFileSync(join(repoRoot, 'package.json'), 'utf8')
+                    ).version
                 )
 
                 const toolsResponse = JSON.parse(lines[1]!)
-                const toolNames = (toolsResponse.result.tools as Array<{ name: string }>).map(
-                    (tool) => tool.name
-                )
+                const toolNames = (
+                    toolsResponse.result.tools as Array<{ name: string }>
+                ).map(tool => tool.name)
                 expect(toolNames.sort()).toEqual([
                     'get_note_instructions',
                     'get_standup_data',
@@ -345,12 +430,10 @@ describe('mcp command', () => {
                         name: string
                         inputSchema: { properties?: Record<string, unknown> }
                     }>
-                ).find((row) => row.name === 'get_standup_data')!
-                expect(Object.keys(tool.inputSchema.properties ?? {}).sort()).toEqual([
-                    'host',
-                    'lang',
-                    'provider',
-                ])
+                ).find(row => row.name === 'get_standup_data')!
+                expect(
+                    Object.keys(tool.inputSchema.properties ?? {}).sort()
+                ).toEqual(['host', 'lang', 'provider'])
                 expect(JSON.stringify(tool.inputSchema)).not.toMatch(/token/i)
 
                 expect(lines).toHaveLength(2)

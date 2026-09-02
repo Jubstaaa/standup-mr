@@ -32,7 +32,9 @@ describe('getBlockers', () => {
             'h',
             't',
             routedFetch({
-                '/pipelines/99/jobs': [{ id: 2, name: 'quality', stage: 'test', status: 'failed' }],
+                '/pipelines/99/jobs': [
+                    { id: 2, name: 'quality', stage: 'test', status: 'failed' },
+                ],
                 '/trace': 'error: this must not be reported\n',
             })
         )
@@ -73,7 +75,9 @@ describe('getBlockers', () => {
             'h',
             't',
             routedFetch({
-                '/pipelines/99/jobs': [{ id: 1, name: 'lint', stage: 'test', status: 'success' }],
+                '/pipelines/99/jobs': [
+                    { id: 1, name: 'lint', stage: 'test', status: 'success' },
+                ],
             })
         )
 
@@ -81,15 +85,27 @@ describe('getBlockers', () => {
     })
 
     it('reports an undiagnosed blocker when the jobs endpoint stays unusable', async () => {
-        const gl = new GitLabProvider('h', 't', async () => new Response('nope', { status: 500 }))
+        const gl = new GitLabProvider(
+            'h',
+            't',
+            async () => new Response('nope', { status: 500 })
+        )
 
         const [blocker] = await gl.getBlockers([mr()])
-        expect(blocker).toMatchObject({ provider: 'gitlab', mr: 6, job: 'unknown' })
+        expect(blocker).toMatchObject({
+            provider: 'gitlab',
+            mr: 6,
+            job: 'unknown',
+        })
         expect(blocker!.errors[0]).toMatch(/diagnosis unavailable.*500/i)
     })
 
     it('never degrades a 401, so a revoked token still fails loudly', async () => {
-        const gl = new GitLabProvider('h', 't', async () => new Response('', { status: 401 }))
+        const gl = new GitLabProvider(
+            'h',
+            't',
+            async () => new Response('', { status: 401 })
+        )
 
         await expect(gl.getBlockers([mr()])).rejects.toThrow(/token/i)
     })
@@ -99,8 +115,12 @@ describe('getBlockers', () => {
             'h',
             't',
             routedFetch({
-                '/pipelines/99/jobs': [{ id: 2, name: 'quality', stage: 'test', status: 'failed' }],
-                '/pipelines/77/jobs': [{ id: 5, name: 'deps', stage: 'setup', status: 'failed' }],
+                '/pipelines/99/jobs': [
+                    { id: 2, name: 'quality', stage: 'test', status: 'failed' },
+                ],
+                '/pipelines/77/jobs': [
+                    { id: 5, name: 'deps', stage: 'setup', status: 'failed' },
+                ],
                 '/jobs/2/trace': 'error: first one broke\n',
                 '/jobs/5/trace': 'error: second one broke\n',
             })
@@ -108,10 +128,15 @@ describe('getBlockers', () => {
 
         const rows = await gl.getBlockers([
             mr(),
-            mr({ projectId: 2, iid: 4, project: 'acme/mobile', pipelineId: 77 }),
+            mr({
+                projectId: 2,
+                iid: 4,
+                project: 'acme/mobile',
+                pipelineId: 77,
+            }),
         ])
 
         expect(rows).toHaveLength(2)
-        expect(rows.map((r) => r.job).sort()).toEqual(['deps', 'quality'])
+        expect(rows.map(r => r.job).sort()).toEqual(['deps', 'quality'])
     })
 })

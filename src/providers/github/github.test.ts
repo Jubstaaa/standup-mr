@@ -44,20 +44,25 @@ describe('GitHubProvider transport', () => {
         const fetchImpl = recordingFetch([[]])
         const gh = new GitHubProvider('github.com', 'tok', fetchImpl)
 
-        await gh.getJson('repos/acme/web/actions/runs', { head_sha: 'abc123', per_page: 10 })
+        await gh.getJson('repos/acme/web/actions/runs', {
+            head_sha: 'abc123',
+            per_page: 10,
+        })
         expect(fetchImpl.calls[0]).toContain('head_sha=abc123')
         expect(fetchImpl.calls[0]).toContain('per_page=10')
     })
 
     it('returns null on a 404', async () => {
-        const missing: FetchLike = async () => new Response('{}', { status: 404 })
+        const missing: FetchLike = async () =>
+            new Response('{}', { status: 404 })
         const gh = new GitHubProvider('github.com', 'tok', missing)
 
         await expect(gh.getJson('repos/acme/web/pulls/9')).resolves.toBeNull()
     })
 
     it('throws on an invalid token instead of reporting an empty day', async () => {
-        const denied: FetchLike = async () => new Response('{}', { status: 401 })
+        const denied: FetchLike = async () =>
+            new Response('{}', { status: 401 })
         const gh = new GitHubProvider('github.com', 'tok', denied)
 
         await expect(gh.getJson('user')).rejects.toThrow(/token/i)
@@ -65,7 +70,10 @@ describe('GitHubProvider transport', () => {
 
     it('throws when the search rate limit is exhausted', async () => {
         const limited: FetchLike = async () =>
-            new Response('{}', { status: 403, headers: { 'x-ratelimit-remaining': '0' } })
+            new Response('{}', {
+                status: 403,
+                headers: { 'x-ratelimit-remaining': '0' },
+            })
         const gh = new GitHubProvider('github.com', 'tok', limited)
 
         await expect(gh.getJson('search/issues')).rejects.toThrow(/rate limit/i)
@@ -82,10 +90,14 @@ describe('GitHubProvider transport', () => {
     })
 
     it('unwraps the search envelope', async () => {
-        const fetchImpl = recordingFetch([{ total_count: 1, items: [{ number: 4 }] }])
+        const fetchImpl = recordingFetch([
+            { total_count: 1, items: [{ number: 4 }] },
+        ])
         const gh = new GitHubProvider('github.com', 'tok', fetchImpl)
 
-        const rows = await gh.getSearch<{ number: number }>('is:pr is:open author:dev')
+        const rows = await gh.getSearch<{ number: number }>(
+            'is:pr is:open author:dev'
+        )
         expect(rows).toEqual([{ number: 4 }])
         expect(fetchImpl.calls[0]).toContain('q=is%3Apr+is%3Aopen+author%3Adev')
     })
@@ -105,12 +117,17 @@ describe('GitHubProvider transport', () => {
             if (url.includes('/logs')) {
                 return new Response(null, {
                     status: 302,
-                    headers: { location: 'https://blob.example.com/log?sig=abc' },
+                    headers: {
+                        location: 'https://blob.example.com/log?sig=abc',
+                    },
                 })
             }
-            return new Response('2026-08-28T09:00:00.0000000Z npm ERR! code E404\n', {
-                status: 200,
-            })
+            return new Response(
+                '2026-08-28T09:00:00.0000000Z npm ERR! code E404\n',
+                {
+                    status: 200,
+                }
+            )
         }
         const gh = new GitHubProvider('github.com', 'tok', fetchImpl)
 
@@ -124,17 +141,22 @@ describe('GitHubProvider transport', () => {
     })
 
     it('returns an empty log when the job has none', async () => {
-        const missing: FetchLike = async () => new Response(null, { status: 404 })
+        const missing: FetchLike = async () =>
+            new Response(null, { status: 404 })
         const gh = new GitHubProvider('github.com', 'tok', missing)
 
-        await expect(gh.getLogText('repos/acme/web/actions/jobs/9/logs')).resolves.toBe('')
+        await expect(
+            gh.getLogText('repos/acme/web/actions/jobs/9/logs')
+        ).resolves.toBe('')
     })
 
     it('gives up on an opaque redirect rather than costing the whole note', async () => {
         const opaque: FetchLike = async () => Response.error()
         const gh = new GitHubProvider('github.com', 'tok', opaque)
 
-        await expect(gh.getLogText('repos/acme/web/actions/jobs/9/logs')).resolves.toBe('')
+        await expect(
+            gh.getLogText('repos/acme/web/actions/jobs/9/logs')
+        ).resolves.toBe('')
     })
 })
 
@@ -145,7 +167,10 @@ describe('getIdentity', () => {
             'tok',
             recordingFetch([{ id: 285, login: 'dev', name: 'Dev' }])
         )
-        await expect(gh.getIdentity()).resolves.toEqual({ id: 285, username: 'dev' })
+        await expect(gh.getIdentity()).resolves.toEqual({
+            id: 285,
+            username: 'dev',
+        })
     })
 
     it('reads /user only once', async () => {
@@ -175,7 +200,10 @@ describe('GitHubProvider transient failures', () => {
         }
         const gh = new GitHubProvider('github.com', 'tok', flaky)
 
-        await expect(gh.getJson('user')).resolves.toEqual({ id: 7, login: 'dev' })
+        await expect(gh.getJson('user')).resolves.toEqual({
+            id: 7,
+            login: 'dev',
+        })
         expect(calls).toBe(2)
     })
 

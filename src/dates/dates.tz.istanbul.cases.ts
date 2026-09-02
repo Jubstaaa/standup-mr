@@ -12,7 +12,9 @@ describe('localAt', () => {
     })
 
     it('keeps an offset-carrying timestamp on its own wall clock', () => {
-        expect(localAt('2026-08-27T10:57:00.000+03:00')).toBe('2026-08-27T10:57')
+        expect(localAt('2026-08-27T10:57:00.000+03:00')).toBe(
+            '2026-08-27T10:57'
+        )
     })
 
     it('pads single-digit fields', () => {

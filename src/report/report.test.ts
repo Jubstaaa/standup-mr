@@ -2,7 +2,13 @@ import { describe, expect, it } from 'bun:test'
 
 import type { Provider } from '../providers/base/base.types'
 import { buildReport } from './report'
-import type { ActivityEvent, Blocker, Identity, MergeRequest, Review } from '../types/standup.types'
+import type {
+    ActivityEvent,
+    Blocker,
+    Identity,
+    MergeRequest,
+    Review,
+} from '../types/standup.types'
 
 const TODAY = new Date(2026, 7, 28)
 
@@ -40,7 +46,7 @@ describe('buildReport', () => {
             new Date(2026, 7, 31)
         )
 
-        expect(report.previousDays.map((day) => day.date)).toEqual([
+        expect(report.previousDays.map(day => day.date)).toEqual([
             '2026-08-28',
             '2026-08-29',
         ])
@@ -52,12 +58,12 @@ describe('buildReport', () => {
     it('labels each day in the requested language', async () => {
         const provider = fakeProvider({ events: [event('2026-08-27T10:00')] })
 
-        expect((await buildReport(provider, TODAY)).previousDays[0]!.label).toBe(
-            'Thursday, 27 August'
-        )
-        expect((await buildReport(provider, TODAY, 'tr')).previousDays[0]!.label).toBe(
-            '27 Ağustos Perşembe'
-        )
+        expect(
+            (await buildReport(provider, TODAY)).previousDays[0]!.label
+        ).toBe('Thursday, 27 August')
+        expect(
+            (await buildReport(provider, TODAY, 'tr')).previousDays[0]!.label
+        ).toBe('27 Ağustos Perşembe')
     })
 
     it('excludes merge requests I approved from the pending count', async () => {
@@ -84,7 +90,10 @@ describe('buildReport', () => {
     it('carries the user and today label', async () => {
         const report = await buildReport(fakeProvider(), TODAY)
         expect(report.user).toBe('dev')
-        expect(report.today).toEqual({ date: '2026-08-28', label: 'Friday, 28 August' })
+        expect(report.today).toEqual({
+            date: '2026-08-28',
+            label: 'Friday, 28 August',
+        })
     })
 
     it('carries the provider kind into the report', async () => {

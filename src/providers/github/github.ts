@@ -3,7 +3,13 @@ import { MS_PER_DAY } from '../../dates/dates.constants'
 import { isoDay, localAt } from '../../dates/dates'
 import { extractErrors } from '../../trace/trace'
 import { degradable, undiagnosed } from '../base/diagnosis'
-import { ApiError, assertUsable, buildUrl, sendWithRetry, unreachable } from '../base/http'
+import {
+    ApiError,
+    assertUsable,
+    buildUrl,
+    sendWithRetry,
+    unreachable,
+} from '../base/http'
 import {
     API_VERSION,
     DOT_COM,
@@ -14,10 +20,29 @@ import {
     SEARCH_CAP,
 } from './github.constants'
 import { mapEvent, repoFromUrl } from './github.map'
-import { approvedBy, countChangesRequested, normalizeChecks } from './github.state'
+import {
+    approvedBy,
+    countChangesRequested,
+    normalizeChecks,
+} from './github.state'
 import type { Provider } from '../base/base.types'
-import type { ActivityEvent, Blocker, Identity, FetchLike, MergeRequest, Review } from '../../types/standup.types'
-import type { CheckRun, PullDetail, PullReview, RawEvent, SearchItem, WorkflowJob, WorkflowRun } from './github.types'
+import type {
+    ActivityEvent,
+    Blocker,
+    Identity,
+    FetchLike,
+    MergeRequest,
+    Review,
+} from '../../types/standup.types'
+import type {
+    CheckRun,
+    PullDetail,
+    PullReview,
+    RawEvent,
+    SearchItem,
+    WorkflowJob,
+    WorkflowRun,
+} from './github.types'
 
 type Params = Record<string, string | number>
 
@@ -31,15 +56,18 @@ export class GitHubProvider implements Provider {
 
     constructor(host: string, token: string, fetchImpl: FetchLike = fetch) {
         this.host = host
-        this.api = host === DOT_COM ? 'https://api.github.com' : `https://${host}/api/v3`
+        this.api =
+            host === DOT_COM
+                ? 'https://api.github.com'
+                : `https://${host}/api/v3`
         this.token = token
         this.fetchImpl = fetchImpl
     }
 
     private headers(): Record<string, string> {
         return {
-            authorization: `Bearer ${this.token}`,
-            accept: 'application/vnd.github+json',
+            'authorization': `Bearer ${this.token}`,
+            'accept': 'application/vnd.github+json',
             'x-github-api-version': API_VERSION,
         }
     }
@@ -64,7 +92,11 @@ export class GitHubProvider implements Provider {
         }
     }
 
-    async getPaged<T>(path: string, params: Params = {}, cap = 5): Promise<T[]> {
+    async getPaged<T>(
+        path: string,
+        params: Params = {},
+        cap = 5
+    ): Promise<T[]> {
         const rows: T[] = []
         for (let page = 1; page <= cap; page += 1) {
             const chunk = await this.getJson<T[]>(path, {
@@ -96,12 +128,18 @@ export class GitHubProvider implements Provider {
     }
 
     async getLogText(path: string): Promise<string> {
-        const first = await this.send(buildUrl(this.api, path), { redirect: 'manual' })
+        const first = await this.send(buildUrl(this.api, path), {
+            redirect: 'manual',
+        })
         if (first.status === 404) return ''
 
         const location = first.headers.get('location')
         if (!location) {
-            if (first.status === 0 || (first.status >= 300 && first.status < 400)) return ''
+            if (
+                first.status === 0 ||
+                (first.status >= 300 && first.status < 400)
+            )
+                return ''
             assertUsable(first, this.host)
             return first.ok ? await first.text() : ''
         }
@@ -147,7 +185,7 @@ export class GitHubProvider implements Provider {
         const floor = isoDay(since)
         return raw
             .map(mapEvent)
-            .filter((event) => event.at.slice(0, 10) >= floor)
+            .filter(event => event.at.slice(0, 10) >= floor)
             .sort((a, b) => a.at.localeCompare(b.at))
     }
 
@@ -155,7 +193,9 @@ export class GitHubProvider implements Provider {
         const project = repoFromUrl(item.repository_url)
         const iid = item.number
 
-        const pull = await this.getJson<PullDetail>(`repos/${project}/pulls/${iid}`)
+        const pull = await this.getJson<PullDetail>(
+            `repos/${project}/pulls/${iid}`
+        )
         if (!pull) return null
 
         const sha = pull.head?.sha ?? ''
@@ -167,10 +207,16 @@ export class GitHubProvider implements Provider {
                       { per_page: PAGE_SIZE }
                   )
                 : Promise.resolve(null),
-            this.getPaged<PullReview>(`repos/${project}/pulls/${iid}/reviews`, {}, 2),
+            this.getPaged<PullReview>(
+                `repos/${project}/pulls/${iid}/reviews`,
+                {},
+                2
+            ),
         ])
 
-        const { pipeline, pipelineId } = normalizeChecks(checks?.check_runs ?? [])
+        const { pipeline, pipelineId } = normalizeChecks(
+            checks?.check_runs ?? []
+        )
 
         return {
             provider: 'github',
@@ -198,7 +244,7 @@ export class GitHubProvider implements Provider {
             `is:pr is:open author:${login} archived:false`,
             SEARCH_CAP
         )
-        const shaped = await Promise.all(items.map((item) => this.shapePr(item)))
+        const shaped = await Promise.all(items.map(item => this.shapePr(item)))
         const rows = shaped.filter((row): row is MergeRequest => row !== null)
 
         markMissingPipelines(rows)
@@ -213,10 +259,12 @@ export class GitHubProvider implements Provider {
             `is:pr is:open review-requested:${identity.username}`,
             SEARCH_CAP
         )
-        const cutoff = isoDay(new Date(today.getTime() - FRESH_REVIEW_DAYS * MS_PER_DAY))
+        const cutoff = isoDay(
+            new Date(today.getTime() - FRESH_REVIEW_DAYS * MS_PER_DAY)
+        )
 
         const rows = await Promise.all(
-            items.map(async (item) => {
+            items.map(async item => {
                 const project = repoFromUrl(item.repository_url)
                 const reviews = await this.getPaged<PullReview>(
                     `repos/${project}/pulls/${item.number}/reviews`,
@@ -252,7 +300,9 @@ export class GitHubProvider implements Provider {
             { head_sha: sha, per_page: 10 }
         )
         const run = (runs?.workflow_runs ?? []).find(
-            (row) => row.conclusion !== null && FAILED_CONCLUSIONS.has(row.conclusion)
+            row =>
+                row.conclusion !== null &&
+                FAILED_CONCLUSIONS.has(row.conclusion)
         )
         if (!run) return null
 
@@ -261,7 +311,9 @@ export class GitHubProvider implements Provider {
             { per_page: PAGE_SIZE }
         )
         const job = (jobs?.jobs ?? []).find(
-            (row) => row.conclusion !== null && FAILED_CONCLUSIONS.has(row.conclusion)
+            row =>
+                row.conclusion !== null &&
+                FAILED_CONCLUSIONS.has(row.conclusion)
         )
         if (!job) return null
 
@@ -289,11 +341,16 @@ export class GitHubProvider implements Provider {
             { per_page: PAGE_SIZE }
         )
         const failed = (checks?.check_runs ?? []).find(
-            (run) => run.conclusion !== null && FAILED_CONCLUSIONS.has(run.conclusion)
+            run =>
+                run.conclusion !== null &&
+                FAILED_CONCLUSIONS.has(run.conclusion)
         )
         if (!failed) return null
 
-        const summary = [failed.output?.summary ?? '', failed.output?.text ?? '']
+        const summary = [
+            failed.output?.summary ?? '',
+            failed.output?.text ?? '',
+        ]
             .filter(Boolean)
             .join('\n')
         const errors = extractErrors(summary)
@@ -324,8 +381,8 @@ export class GitHubProvider implements Provider {
     }
 
     async getBlockers(mrs: MergeRequest[]): Promise<Blocker[]> {
-        const red = mrs.filter((mr) => mr.pipeline === 'failed')
-        const diagnosed = await Promise.all(red.map((mr) => this.tryDiagnose(mr)))
+        const red = mrs.filter(mr => mr.pipeline === 'failed')
+        const diagnosed = await Promise.all(red.map(mr => this.tryDiagnose(mr)))
         return diagnosed.filter((row): row is Blocker => row !== null)
     }
 

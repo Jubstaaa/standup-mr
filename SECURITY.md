@@ -13,10 +13,10 @@ Instead:
 
 1. Email your report to ilkerbalcilartr@gmail.com
 2. Include details about:
-   - Description of the vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Suggested fix (if you have one)
+    - Description of the vulnerability
+    - Steps to reproduce
+    - Potential impact
+    - Suggested fix (if you have one)
 
 ### What to Expect
 

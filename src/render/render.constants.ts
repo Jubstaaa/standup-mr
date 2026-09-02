@@ -41,7 +41,10 @@ export const REF_PREFIX: Record<ProviderKind, string> = {
     github: '#',
 }
 
-export const PROVIDER_STRINGS: Record<ProviderKind, Record<string, Partial<Strings>>> = {
+export const PROVIDER_STRINGS: Record<
+    ProviderKind,
+    Record<string, Partial<Strings>>
+> = {
     gitlab: {},
     github: {
         en: { unresolved: 'change request(s)' },

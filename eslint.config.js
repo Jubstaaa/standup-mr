@@ -11,7 +11,11 @@ export default defineConfig([
     globalIgnores(['**/dist', '**/node_modules']),
     {
         files: ['src/**/*.ts', 'mcp/**/*.ts'],
-        extends: [js.configs.recommended, tseslint.configs.recommended, prettierConfig],
+        extends: [
+            js.configs.recommended,
+            tseslint.configs.recommended,
+            prettierConfig,
+        ],
         plugins: {
             import: importPlugin,
             perfectionist: perfectionistPlugin,
@@ -48,15 +52,24 @@ export default defineConfig([
                 'error',
                 {
                     customGroups: [
-                        { elementNamePattern: '^(id|uuid)$', groupName: 'identity' },
-                        { elementNamePattern: '^on[A-Z]', groupName: 'callbacks' },
+                        {
+                            elementNamePattern: '^(id|uuid)$',
+                            groupName: 'identity',
+                        },
+                        {
+                            elementNamePattern: '^on[A-Z]',
+                            groupName: 'callbacks',
+                        },
                     ],
                     groups: ['identity', 'unknown', 'callbacks'],
                     order: 'asc',
                     type: 'alphabetical',
                 },
             ],
-            'perfectionist/sort-named-imports': ['warn', { order: 'asc', type: 'alphabetical' }],
+            'perfectionist/sort-named-imports': [
+                'warn',
+                { order: 'asc', type: 'alphabetical' },
+            ],
         },
     },
     {

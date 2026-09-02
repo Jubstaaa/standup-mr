@@ -19,7 +19,8 @@ export function mapEvent(raw: RawEvent): ActivityEvent {
         action:
             type === 'PullRequestEvent'
                 ? String(payload.action ?? 'updated')
-                : (EVENT_ACTIONS[type] ?? type.replace(/Event$/, '').toLowerCase()),
+                : (EVENT_ACTIONS[type] ??
+                  type.replace(/Event$/, '').toLowerCase()),
         project: raw.repo?.name ?? '',
         targetType: EVENT_TARGET_TYPES[type] ?? '',
         title: payload.pull_request?.title ?? payload.issue?.title ?? '',

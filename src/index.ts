@@ -17,7 +17,11 @@ export type { ProviderLabels } from './config/config'
 export { isoDay, label, localAt, previousActiveDays } from './dates/dates'
 export { inferWebhookKind, postWebhook } from './notify/notify'
 export type { Provider } from './providers/base/base.types'
-export { DIAGNOSIS_UNAVAILABLE, degradable, undiagnosed } from './providers/base/diagnosis'
+export {
+    DIAGNOSIS_UNAVAILABLE,
+    degradable,
+    undiagnosed,
+} from './providers/base/diagnosis'
 export {
     ApiError,
     RETRY_ATTEMPTS,

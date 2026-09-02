@@ -16,7 +16,9 @@ export function findPackageRoot(startDir: string): string {
 
 export function packageVersion(moduleUrl: string): string {
     const root = findPackageRoot(dirname(fileURLToPath(moduleUrl)))
-    const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
+    const manifest = JSON.parse(
+        readFileSync(join(root, 'package.json'), 'utf8')
+    ) as {
         version?: string
     }
     if (!manifest.version) {

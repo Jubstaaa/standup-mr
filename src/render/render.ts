@@ -1,4 +1,9 @@
-import { BUCKET_ORDER, PROVIDER_STRINGS, REF_PREFIX, STRINGS } from './render.constants'
+import {
+    BUCKET_ORDER,
+    PROVIDER_STRINGS,
+    REF_PREFIX,
+    STRINGS,
+} from './render.constants'
 import type { ActivityEvent, StandupReport } from '../types/standup.types'
 import type { Strings } from './render.types'
 
@@ -11,11 +16,19 @@ function eventLine(event: ActivityEvent): string {
 
 export function toMarkdown(report: StandupReport, lang = 'en'): string {
     const base = STRINGS[lang] ?? STRINGS.en!
-    const t: Strings = { ...base, ...(PROVIDER_STRINGS[report.provider][lang] ?? {}) }
+    const t: Strings = {
+        ...base,
+        ...(PROVIDER_STRINGS[report.provider][lang] ?? {}),
+    }
     const ref = REF_PREFIX[report.provider]
     const out: string[] = []
 
-    out.push(`# ${report.today.label} — ${report.user}`, '', `_${t.digest}_`, '')
+    out.push(
+        `# ${report.today.label} — ${report.user}`,
+        '',
+        `_${t.digest}_`,
+        ''
+    )
 
     if (report.previousDays.length === 0) {
         out.push(`## ${t.previous}`, '', `_${t.nothing}_`, '')
@@ -31,7 +44,7 @@ export function toMarkdown(report: StandupReport, lang = 'en'): string {
     }
 
     for (const bucket of BUCKET_ORDER) {
-        const rows = report.myMrs.filter((mr) => mr.bucket === bucket)
+        const rows = report.myMrs.filter(mr => mr.bucket === bucket)
         if (rows.length === 0) continue
 
         out.push(`## ${t[bucket]} (${rows.length})`, '')
@@ -45,9 +58,12 @@ export function toMarkdown(report: StandupReport, lang = 'en'): string {
         out.push('')
     }
 
-    const pending = report.reviews.filter((r) => !r.approvedByMe)
+    const pending = report.reviews.filter(r => !r.approvedByMe)
     if (pending.length > 0) {
-        out.push(`## ${t.reviews} (${report.reviewPendingCount} ${t.pending})`, '')
+        out.push(
+            `## ${t.reviews} (${report.reviewPendingCount} ${t.pending})`,
+            ''
+        )
         for (const review of pending) {
             out.push(
                 `- \`${review.project}\` ${ref}${review.iid} ${review.title} — ${review.author}`
@@ -59,8 +75,10 @@ export function toMarkdown(report: StandupReport, lang = 'en'): string {
     if (report.blockers.length > 0) {
         out.push(`## ${t.blockers}`, '')
         for (const blocker of report.blockers) {
-            out.push(`- \`${blocker.project}\` ${ref}${blocker.mr} — job \`${blocker.job}\``)
-            out.push(...blocker.errors.map((line) => `  - \`${line}\``))
+            out.push(
+                `- \`${blocker.project}\` ${ref}${blocker.mr} — job \`${blocker.job}\``
+            )
+            out.push(...blocker.errors.map(line => `  - \`${line}\``))
         }
         out.push('')
     }

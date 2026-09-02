@@ -23,9 +23,9 @@ describe('resolveHost', () => {
     })
 
     it('names every candidate when glab has several hosts', () => {
-        expect(() => resolveHost(undefined, undefined, ['a.com', 'b.com'])).toThrow(
-            /a\.com.*b\.com/
-        )
+        expect(() =>
+            resolveHost(undefined, undefined, ['a.com', 'b.com'])
+        ).toThrow(/a\.com.*b\.com/)
     })
 
     it('throws when no host is configured anywhere', () => {
@@ -37,17 +37,21 @@ describe('resolveToken', () => {
     it('follows cli, then env, then glab', () => {
         expect(resolveToken('h', 'cli', 'env', () => 'glab')).toBe('cli')
         expect(resolveToken('h', undefined, 'env', () => 'glab')).toBe('env')
-        expect(resolveToken('h', undefined, undefined, () => 'glab')).toBe('glab')
-    })
-
-    it('names the host when no token is found', () => {
-        expect(() => resolveToken('gitlab.example.com', undefined, undefined, () => '')).toThrow(
-            /gitlab\.example\.com/
+        expect(resolveToken('h', undefined, undefined, () => 'glab')).toBe(
+            'glab'
         )
     })
 
+    it('names the host when no token is found', () => {
+        expect(() =>
+            resolveToken('gitlab.example.com', undefined, undefined, () => '')
+        ).toThrow(/gitlab\.example\.com/)
+    })
+
     it('works without glab installed', () => {
-        expect(resolveToken('h', undefined, 'env-token', undefined)).toBe('env-token')
+        expect(resolveToken('h', undefined, 'env-token', undefined)).toBe(
+            'env-token'
+        )
     })
 })
 
@@ -70,25 +74,30 @@ describe('parseGlabHosts', () => {
             '  ✓ Logged in to b.example.com as dev',
         ].join('\n')
 
-        expect(parseGlabHosts(status)).toEqual(['a.example.com', 'b.example.com'])
+        expect(parseGlabHosts(status)).toEqual([
+            'a.example.com',
+            'b.example.com',
+        ])
     })
 
     it('returns nothing when no host is logged in', () => {
-        expect(parseGlabHosts('gitlab.com\n  x gitlab.com: API call failed: 401\n')).toEqual([])
+        expect(
+            parseGlabHosts('gitlab.com\n  x gitlab.com: API call failed: 401\n')
+        ).toEqual([])
     })
 })
 
 describe('resolveHost with github labels', () => {
     it('names the github env var when nothing is configured', () => {
-        expect(() => resolveHost(undefined, undefined, [], GITHUB_LABELS)).toThrow(
-            /GITHUB_HOST/
-        )
+        expect(() =>
+            resolveHost(undefined, undefined, [], GITHUB_LABELS)
+        ).toThrow(/GITHUB_HOST/)
     })
 
     it('points at the gh cli, not glab', () => {
-        expect(() => resolveHost(undefined, undefined, [], GITHUB_LABELS)).toThrow(
-            /gh auth login/
-        )
+        expect(() =>
+            resolveHost(undefined, undefined, [], GITHUB_LABELS)
+        ).toThrow(/gh auth login/)
     })
 
     it('names GitHub when several hosts are logged in', () => {
@@ -101,7 +110,13 @@ describe('resolveHost with github labels', () => {
 describe('resolveToken with github labels', () => {
     it('points at gh auth login for the given host', () => {
         expect(() =>
-            resolveToken('github.com', undefined, undefined, () => '', GITHUB_LABELS)
+            resolveToken(
+                'github.com',
+                undefined,
+                undefined,
+                () => '',
+                GITHUB_LABELS
+            )
         ).toThrow(/gh auth login --hostname github\.com/)
     })
 })
@@ -119,7 +134,9 @@ describe('parseLoggedInHosts', () => {
 
     it('reads the glab auth status wording', () => {
         expect(
-            parseLoggedInHosts('  ✓ Logged in to gitlab.example.com as dev (/p/c.yml)')
+            parseLoggedInHosts(
+                '  ✓ Logged in to gitlab.example.com as dev (/p/c.yml)'
+            )
         ).toEqual(['gitlab.example.com'])
     })
 

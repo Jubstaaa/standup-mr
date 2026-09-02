@@ -23,29 +23,37 @@ describe('extractErrors', () => {
     })
 
     it('strips section markers glued to the lines it keeps', () => {
-        const marked = 'section_start:1787644042:step_scripterror: npm ci failed'
+        const marked =
+            'section_start:1787644042:step_scripterror: npm ci failed'
         expect(extractErrors(marked)).toEqual(['npm ci failed'])
     })
 
     it('keeps the real error lines', () => {
         const errors = extractErrors(SAMPLE)
         expect(errors).toHaveLength(2)
-        expect(errors.every((line) => line.includes('404'))).toBe(true)
+        expect(errors.every(line => line.includes('404'))).toBe(true)
         expect(errors[0]).toContain('@acme/ui')
     })
 
     it('drops generic runner noise', () => {
         const errors = extractErrors(SAMPLE)
-        expect(errors.some((line) => line.includes('Job failed: exit status'))).toBe(false)
-        expect(errors.some((line) => line.startsWith('Cleaning up'))).toBe(false)
+        expect(
+            errors.some(line => line.includes('Job failed: exit status'))
+        ).toBe(false)
+        expect(errors.some(line => line.startsWith('Cleaning up'))).toBe(false)
     })
 
     it('deduplicates repeated lines', () => {
-        expect(extractErrors('error: boom\n'.repeat(5))).toEqual(['error: boom'])
+        expect(extractErrors('error: boom\n'.repeat(5))).toEqual([
+            'error: boom',
+        ])
     })
 
     it('returns the last lines within the limit', () => {
-        const trace = Array.from({ length: 20 }, (_, n) => `error: failure ${n}`).join('\n')
+        const trace = Array.from(
+            { length: 20 },
+            (_, n) => `error: failure ${n}`
+        ).join('\n')
         expect(extractErrors(trace, 3)).toEqual([
             'error: failure 17',
             'error: failure 18',
@@ -74,8 +82,11 @@ describe('extractErrors on github actions logs', () => {
     })
 
     it('strips the error marker from the line it keeps', () => {
-        const log = '2026-08-28T09:12:04.0000000Z ##[error]Process completed with exit code 1.\n'
-        expect(extractErrors(log)).toEqual(['Process completed with exit code 1.'])
+        const log =
+            '2026-08-28T09:12:04.0000000Z ##[error]Process completed with exit code 1.\n'
+        expect(extractErrors(log)).toEqual([
+            'Process completed with exit code 1.',
+        ])
     })
 
     it('drops group markers even when they mention an error', () => {
@@ -89,15 +100,15 @@ describe('extractErrors on github actions logs', () => {
             '2026-08-28T09:12:01.0000000Z $ npm ci',
             '2026-08-28T09:12:03.0000000Z ##[endgroup]',
             '2026-08-28T09:12:02.0000000Z npm ERR! code E404',
-            "2026-08-28T09:12:02.0000000Z npm ERR! 404 Not Found - GET https://npm.pkg.github.com/@acme%2fui",
+            '2026-08-28T09:12:02.0000000Z npm ERR! 404 Not Found - GET https://npm.pkg.github.com/@acme%2fui',
             '2026-08-28T09:12:04.0000000Z ##[error]Process completed with exit code 1.',
         ].join('\n')
 
         const errors = extractErrors(log)
         expect(errors).toHaveLength(3)
         expect(errors[0]).toBe('npm ERR! code E404')
-        expect(errors.some((line) => line.startsWith('##['))).toBe(false)
-        expect(errors.some((line) => line.startsWith('2026-'))).toBe(false)
+        expect(errors.some(line => line.startsWith('##['))).toBe(false)
+        expect(errors.some(line => line.startsWith('2026-'))).toBe(false)
     })
 
     it('does not report the command echo twice alongside the real error', () => {
@@ -117,7 +128,7 @@ describe('extractErrors on github actions logs', () => {
             'npm ERR! 404 Not Found - GET https://registry.example.com/@acme%2fui',
             'Process completed with exit code 1.',
         ])
-        expect(errors.some((line) => line.startsWith('echo '))).toBe(false)
+        expect(errors.some(line => line.startsWith('echo '))).toBe(false)
     })
 
     it('still scans a group whose header is not a Run step', () => {

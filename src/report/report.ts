@@ -16,7 +16,7 @@ export async function buildReport(
     const events = await provider.getEvents(since)
 
     const days = previousActiveDays(
-        new Set(events.map((e) => e.at.slice(0, 10))),
+        new Set(events.map(e => e.at.slice(0, 10))),
         today
     )
 
@@ -24,10 +24,10 @@ export async function buildReport(
         date,
         label: label(new Date(`${date}T00:00:00`), lang),
         gapDays,
-        events: events.filter((e) => e.at.slice(0, 10) === date),
+        events: events.filter(e => e.at.slice(0, 10) === date),
     }))
 
-    const todayEvents = events.filter((e) => e.at.slice(0, 10) === isoDay(today))
+    const todayEvents = events.filter(e => e.at.slice(0, 10) === isoDay(today))
 
     const myMrs = await provider.getMyMrs(today)
     const [reviews, blockers] = await Promise.all([
@@ -43,7 +43,7 @@ export async function buildReport(
         todayEvents,
         myMrs,
         reviews,
-        reviewPendingCount: reviews.filter((r) => !r.approvedByMe).length,
+        reviewPendingCount: reviews.filter(r => !r.approvedByMe).length,
         blockers,
     }
 }

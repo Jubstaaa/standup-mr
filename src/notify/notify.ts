@@ -23,7 +23,9 @@ export async function postWebhook(
     })
 
     if (!response.ok) {
-        throw new Error(`Webhook rejected the message: HTTP ${response.status}.`)
+        throw new Error(
+            `Webhook rejected the message: HTTP ${response.status}.`
+        )
     }
 }
 

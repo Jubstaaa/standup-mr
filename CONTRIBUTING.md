@@ -73,79 +73,79 @@ bun run build
 
 1. **Create a branch** with a descriptive name:
 
-   ```bash
-   git checkout -b feature/add-lang-support
-   # or
-   git checkout -b fix/dates-timezone-bug
-   ```
+    ```bash
+    git checkout -b feature/add-lang-support
+    # or
+    git checkout -b fix/dates-timezone-bug
+    ```
 
 2. **Make your changes** following the code style:
-   - TypeScript, ESM, no `.js` extension on relative imports
-   - No comments in source unless logic is genuinely non-obvious
-   - `src/` stays free of runtime dependencies - the CLI and library ship
-     with zero. The only dependency in the whole project is the optional
-     `@modelcontextprotocol/sdk` peer dependency used by the MCP server
-   - Kebab-case file names
+    - TypeScript, ESM, no `.js` extension on relative imports
+    - No comments in source unless logic is genuinely non-obvious
+    - `src/` stays free of runtime dependencies - the CLI and library ship
+      with zero. The only dependency in the whole project is the optional
+      `@modelcontextprotocol/sdk` peer dependency used by the MCP server
+    - Kebab-case file names
 
 3. **Test your changes**:
 
-   ```bash
-   bun test
-   bun run typecheck
-   bun run build
-   ```
+    ```bash
+    bun test
+    bun run typecheck
+    bun run build
+    ```
 
-   If you touch anything in `src/dates/` or anything that computes "today"
-   or "the previous day", run the suite under more than one timezone -
-   `TZ=America/Chicago bun test` and `TZ=Pacific/Kiritimati bun test` are good
-   choices for catching UTC-vs-local bugs.
+    If you touch anything in `src/dates/` or anything that computes "today"
+    or "the previous day", run the suite under more than one timezone -
+    `TZ=America/Chicago bun test` and `TZ=Pacific/Kiritimati bun test` are good
+    choices for catching UTC-vs-local bugs.
 
-   **Day-boundary tests belong in a `.cases.ts` file, not `.test.ts`.** Plain
-   `bun test` picks up every `.test.ts` file and runs with its internal clock
-   pinned to UTC unless `TZ` is set in the environment, so a fixed-timezone
-   assertion living in a `.test.ts` file will fail under plain `bun test` (and
-   therefore under CI). That's why the tests asserting a specific local-day
-   boundary live in `src/dates/dates.tz.istanbul.cases.ts` and
-   `src/dates/dates.tz.los-angeles.cases.ts` - named outside the `.test.ts`
-   glob on purpose - and run separately via:
+    **Day-boundary tests belong in a `.cases.ts` file, not `.test.ts`.** Plain
+    `bun test` picks up every `.test.ts` file and runs with its internal clock
+    pinned to UTC unless `TZ` is set in the environment, so a fixed-timezone
+    assertion living in a `.test.ts` file will fail under plain `bun test` (and
+    therefore under CI). That's why the tests asserting a specific local-day
+    boundary live in `src/dates/dates.tz.istanbul.cases.ts` and
+    `src/dates/dates.tz.los-angeles.cases.ts` - named outside the `.test.ts`
+    glob on purpose - and run separately via:
 
-   ```bash
-   bun run test:tz
-   ```
+    ```bash
+    bun run test:tz
+    ```
 
-   If you add a new file like this, you must also add it to the `test:tz`
-   chain in `package.json`, or it will silently never run - not in `bun test`,
-   not in `test:tz`, not in CI. Both GitHub Actions workflows invoke
-   `bun run test:tz` alongside `bun test`, so a file left out of the chain
-   stays uncovered everywhere.
+    If you add a new file like this, you must also add it to the `test:tz`
+    chain in `package.json`, or it will silently never run - not in `bun test`,
+    not in `test:tz`, not in CI. Both GitHub Actions workflows invoke
+    `bun run test:tz` alongside `bun test`, so a file left out of the chain
+    stays uncovered everywhere.
 
 4. **Commit with conventional commits**:
 
-   ```bash
-   git commit -m "feat(cli): add --since flag"
-   # or
-   git commit -m "fix(gitlab): paginate discussions past the first page"
-   ```
+    ```bash
+    git commit -m "feat(cli): add --since flag"
+    # or
+    git commit -m "fix(gitlab): paginate discussions past the first page"
+    ```
 
-   Format: `type(scope): description`
-   - `feat`: New feature
-   - `fix`: Bug fix
-   - `docs`: Documentation
-   - `style`: Formatting (no logic change)
-   - `refactor`: Code restructuring
-   - `perf`: Performance improvement
-   - `test`: Tests
-   - `build`: Build system / packaging
-   - `chore`: Everything else
+    Format: `type(scope): description`
+    - `feat`: New feature
+    - `fix`: Bug fix
+    - `docs`: Documentation
+    - `style`: Formatting (no logic change)
+    - `refactor`: Code restructuring
+    - `perf`: Performance improvement
+    - `test`: Tests
+    - `build`: Build system / packaging
+    - `chore`: Everything else
 
 5. **Push and create a Pull Request**:
 
-   ```bash
-   git push origin feature/your-feature-name
-   ```
+    ```bash
+    git push origin feature/your-feature-name
+    ```
 
-   - Describe what your PR does
-   - Reference any related issues
+    - Describe what your PR does
+    - Reference any related issues
 
 #### Project Structure
 

@@ -10,7 +10,9 @@ describe('routedFetch', () => {
         })
 
         const me = await fetchImpl('https://api.github.com/user')
-        const events = await fetchImpl('https://api.github.com/users/dev/events?page=1')
+        const events = await fetchImpl(
+            'https://api.github.com/users/dev/events?page=1'
+        )
 
         expect(await me.text()).toBe('{"id":1}')
         expect(await events.text()).toBe('[{"type":"PushEvent"}]')
@@ -22,7 +24,9 @@ describe('routedFetch', () => {
             '/pulls/11/reviews': [{ state: 'APPROVED' }],
         })
 
-        const pull = await fetchImpl('https://api.github.com/repos/acme/api/pulls/11')
+        const pull = await fetchImpl(
+            'https://api.github.com/repos/acme/api/pulls/11'
+        )
         const reviews = await fetchImpl(
             'https://api.github.com/repos/acme/api/pulls/11/reviews?per_page=100'
         )
@@ -32,7 +36,9 @@ describe('routedFetch', () => {
     })
 
     it('ignores the query string when matching a path key', async () => {
-        const fetchImpl = routedFetch({ '/actions/runs': { workflow_runs: [] } })
+        const fetchImpl = routedFetch({
+            '/actions/runs': { workflow_runs: [] },
+        })
         const runs = await fetchImpl(
             'https://api.github.com/repos/acme/web/actions/runs?head_sha=abc&per_page=10'
         )
@@ -43,8 +49,12 @@ describe('routedFetch', () => {
     it('matches a key holding an = against the query string instead', async () => {
         const fetchImpl = routedFetch({ 'scope=created_by_me': [{ iid: 7 }] })
 
-        const mine = await fetchImpl('https://h/api/v4/merge_requests?scope=created_by_me')
-        const other = await fetchImpl('https://h/api/v4/merge_requests?scope=all')
+        const mine = await fetchImpl(
+            'https://h/api/v4/merge_requests?scope=created_by_me'
+        )
+        const other = await fetchImpl(
+            'https://h/api/v4/merge_requests?scope=all'
+        )
 
         expect(await mine.text()).toBe('[{"iid":7}]')
         expect(await other.text()).toBe('[]')
@@ -57,7 +67,9 @@ describe('routedFetch', () => {
         )
 
         expect(response.status).toBe(302)
-        expect(response.headers.get('location')).toBe('https://blob.example.com/log')
+        expect(response.headers.get('location')).toBe(
+            'https://blob.example.com/log'
+        )
     })
 
     it('falls back to an empty array for an unrouted url', async () => {

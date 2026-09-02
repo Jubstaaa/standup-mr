@@ -11,11 +11,15 @@ describe('toChatText', () => {
     for (const kind of ['slack', 'google-chat'] as const) {
         describe(kind, () => {
             it('turns Markdown bold into the single-asterisk form', () => {
-                expect(toChatText('- **ready** today', kind)).toBe('- *ready* today')
+                expect(toChatText('- **ready** today', kind)).toBe(
+                    '- *ready* today'
+                )
             })
 
             it('turns a heading into a bold line, since there are no headings', () => {
-                expect(toChatText('## Dün — 1 Eylül', kind)).toBe('*Dün — 1 Eylül*')
+                expect(toChatText('## Dün — 1 Eylül', kind)).toBe(
+                    '*Dün — 1 Eylül*'
+                )
             })
 
             it('handles every heading level the note might use', () => {
@@ -23,7 +27,9 @@ describe('toChatText', () => {
             })
 
             it('leaves inline code alone', () => {
-                expect(toChatText('job `quality` failed', kind)).toBe('job `quality` failed')
+                expect(toChatText('job `quality` failed', kind)).toBe(
+                    'job `quality` failed'
+                )
             })
 
             it('leaves a fenced block and its contents alone', () => {
@@ -32,7 +38,9 @@ describe('toChatText', () => {
             })
 
             it('leaves bullets and links as they are', () => {
-                expect(toChatText('- [a](https://x/y)', kind)).toBe('- [a](https://x/y)')
+                expect(toChatText('- [a](https://x/y)', kind)).toBe(
+                    '- [a](https://x/y)'
+                )
             })
 
             it('does not touch an asterisk that is not a bold marker', () => {

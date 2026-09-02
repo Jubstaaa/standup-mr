@@ -12,7 +12,12 @@ import type {
 import { extractErrors } from '../../trace/trace'
 import type { Provider } from '../base/base.types'
 import { degradable, undiagnosed } from '../base/diagnosis'
-import { assertUsable, buildUrl, sendWithRetry, unreachable } from '../base/http'
+import {
+    assertUsable,
+    buildUrl,
+    sendWithRetry,
+    unreachable,
+} from '../base/http'
 import { FRESH_REVIEW_DAYS, PAGE_SIZE } from './gitlab.constants'
 
 type Params = Record<string, string | number>
@@ -58,7 +63,11 @@ export class GitLabProvider implements Provider {
         return await response.text()
     }
 
-    async getPaged<T>(path: string, params: Params = {}, cap = 5): Promise<T[]> {
+    async getPaged<T>(
+        path: string,
+        params: Params = {},
+        cap = 5
+    ): Promise<T[]> {
         const rows: T[] = []
         for (let page = 1; page <= cap; page += 1) {
             const chunk = await this.getJson<T[]>(path, {
@@ -95,15 +104,17 @@ export class GitLabProvider implements Provider {
             after: isoDay(since),
         })
 
-        const ids = [...new Set(raw.map((e) => e.project_id).filter(Boolean))] as number[]
+        const ids = [
+            ...new Set(raw.map(e => e.project_id).filter(Boolean)),
+        ] as number[]
         const paths = new Map(
             await Promise.all(
-                ids.map(async (id) => [id, await this.projectPath(id)] as const)
+                ids.map(async id => [id, await this.projectPath(id)] as const)
             )
         )
 
         return raw
-            .map((event) => {
+            .map(event => {
                 const push = event.push_data ?? {}
                 return {
                     at: String(event.created_at).slice(0, 16),
@@ -119,16 +130,22 @@ export class GitLabProvider implements Provider {
             .sort((a, b) => a.at.localeCompare(b.at))
     }
 
-    private async countUnresolved(projectId: number, iid: number): Promise<number> {
-        const discussions = await this.getJson<Array<{ notes?: Array<Record<string, any>> }>>(
-            `projects/${projectId}/merge_requests/${iid}/discussions`,
-            { per_page: PAGE_SIZE }
-        )
+    private async countUnresolved(
+        projectId: number,
+        iid: number
+    ): Promise<number> {
+        const discussions = await this.getJson<
+            Array<{ notes?: Array<Record<string, any>> }>
+        >(`projects/${projectId}/merge_requests/${iid}/discussions`, {
+            per_page: PAGE_SIZE,
+        })
         if (!discussions) return 0
 
-        return discussions.filter((discussion) => {
-            const notes = (discussion.notes ?? []).filter((n) => !n.system)
-            return notes.length > 0 && notes.some((n) => n.resolvable && !n.resolved)
+        return discussions.filter(discussion => {
+            const notes = (discussion.notes ?? []).filter(n => !n.system)
+            return (
+                notes.length > 0 && notes.some(n => n.resolvable && !n.resolved)
+            )
         }).length
     }
 
@@ -170,7 +187,7 @@ export class GitLabProvider implements Provider {
             scope: 'created_by_me',
             state: 'opened',
         })
-        const rows = await Promise.all(raw.map((mr) => this.shapeMr(mr)))
+        const rows = await Promise.all(raw.map(mr => this.shapeMr(mr)))
 
         markMissingPipelines(rows)
         for (const row of rows) {
@@ -188,7 +205,9 @@ export class GitLabProvider implements Provider {
             approved_by?: Array<{ user?: { id?: number } }>
         }>(`projects/${projectId}/merge_requests/${iid}/approvals`)
         if (!approvals) return false
-        return (approvals.approved_by ?? []).some((entry) => entry.user?.id === uid)
+        return (approvals.approved_by ?? []).some(
+            entry => entry.user?.id === uid
+        )
     }
 
     async getReviews(identity: Identity, today: Date): Promise<Review[]> {
@@ -197,10 +216,12 @@ export class GitLabProvider implements Provider {
             state: 'opened',
             reviewer_id: identity.id,
         })
-        const cutoff = isoDay(new Date(today.getTime() - FRESH_REVIEW_DAYS * MS_PER_DAY))
+        const cutoff = isoDay(
+            new Date(today.getTime() - FRESH_REVIEW_DAYS * MS_PER_DAY)
+        )
 
         const rows = await Promise.all(
-            raw.map(async (mr) => ({
+            raw.map(async mr => ({
                 provider: 'gitlab' as const,
                 project: String(mr.references.full).split('!')[0]!,
                 iid: mr.iid as number,
@@ -210,7 +231,11 @@ export class GitLabProvider implements Provider {
                 draft: mr.draft as boolean,
                 url: mr.web_url as string,
                 fresh: String(mr.updated_at).slice(0, 10) >= cutoff,
-                approvedByMe: await this.approvedByMe(mr.project_id, mr.iid, identity.id),
+                approvedByMe: await this.approvedByMe(
+                    mr.project_id,
+                    mr.iid,
+                    identity.id
+                ),
             }))
         )
 
@@ -223,10 +248,12 @@ export class GitLabProvider implements Provider {
                 `projects/${mr.projectId}/pipelines/${mr.pipelineId}/jobs`,
                 { per_page: PAGE_SIZE }
             )) ?? []
-        const job = jobs.find((j) => j.status === 'failed')
+        const job = jobs.find(j => j.status === 'failed')
         if (!job) return null
 
-        const trace = await this.getText(`projects/${mr.projectId}/jobs/${job.id}/trace`)
+        const trace = await this.getText(
+            `projects/${mr.projectId}/jobs/${job.id}/trace`
+        )
         return {
             provider: 'gitlab',
             project: mr.project,
@@ -249,8 +276,8 @@ export class GitLabProvider implements Provider {
     }
 
     async getBlockers(mrs: MergeRequest[]): Promise<Blocker[]> {
-        const red = mrs.filter((mr) => mr.pipeline === 'failed')
-        const diagnosed = await Promise.all(red.map((mr) => this.tryDiagnose(mr)))
+        const red = mrs.filter(mr => mr.pipeline === 'failed')
+        const diagnosed = await Promise.all(red.map(mr => this.tryDiagnose(mr)))
         return diagnosed.filter((row): row is Blocker => row !== null)
     }
 }

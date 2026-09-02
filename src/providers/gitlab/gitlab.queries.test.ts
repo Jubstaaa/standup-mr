@@ -12,7 +12,10 @@ describe('getIdentity', () => {
             't',
             routedFetch({ '/user': { id: 285, username: 'dev', name: 'Dev' } })
         )
-        await expect(gl.getIdentity()).resolves.toEqual({ id: 285, username: 'dev' })
+        await expect(gl.getIdentity()).resolves.toEqual({
+            id: 285,
+            username: 'dev',
+        })
     })
 
     it('throws a descriptive error when the api is unreachable', async () => {
@@ -92,17 +95,25 @@ describe('getMyMrs', () => {
             routedFetch({
                 'scope=created_by_me': [
                     {
-                        project_id: 1, iid: 7, title: 'refactor: loading state',
-                        draft: false, source_branch: 'refactor/loading',
-                        target_branch: 'main', updated_at: '2026-08-26T00:00:00Z',
+                        project_id: 1,
+                        iid: 7,
+                        title: 'refactor: loading state',
+                        draft: false,
+                        source_branch: 'refactor/loading',
+                        target_branch: 'main',
+                        updated_at: '2026-08-26T00:00:00Z',
                         web_url: 'https://h/acme/web/-/merge_requests/7',
                         references: { full: 'acme/web!7' },
                         detailed_merge_status: 'mergeable',
                     },
                     {
-                        project_id: 1, iid: 6, title: 'ci: release pipeline',
-                        draft: true, source_branch: 'ci/release',
-                        target_branch: 'main', updated_at: '2026-08-25T00:00:00Z',
+                        project_id: 1,
+                        iid: 6,
+                        title: 'ci: release pipeline',
+                        draft: true,
+                        source_branch: 'ci/release',
+                        target_branch: 'main',
+                        updated_at: '2026-08-25T00:00:00Z',
                         web_url: 'https://h/acme/web/-/merge_requests/6',
                         references: { full: 'acme/web!6' },
                         detailed_merge_status: 'draft_status',
@@ -110,12 +121,12 @@ describe('getMyMrs', () => {
                 ],
                 'merge_requests/7/pipelines': [],
                 'merge_requests/6/pipelines': [{ id: 99, status: 'failed' }],
-                discussions: [],
+                'discussions': [],
             })
         )
 
         const rows = await gl.getMyMrs(TODAY)
-        const byIid = Object.fromEntries(rows.map((r) => [r.iid, r]))
+        const byIid = Object.fromEntries(rows.map(r => [r.iid, r]))
 
         expect(byIid[6]!.bucket).toBe('draft')
         expect(byIid[7]!.bucket).toBe('ready')
@@ -130,18 +141,34 @@ describe('getMyMrs', () => {
             routedFetch({
                 'scope=created_by_me': [
                     {
-                        project_id: 1, iid: 49, title: 'fix: drop chips',
-                        draft: false, source_branch: 'fix/chips',
-                        target_branch: 'main', updated_at: '2026-08-27T00:00:00Z',
+                        project_id: 1,
+                        iid: 49,
+                        title: 'fix: drop chips',
+                        draft: false,
+                        source_branch: 'fix/chips',
+                        target_branch: 'main',
+                        updated_at: '2026-08-27T00:00:00Z',
                         web_url: 'https://h/acme/web/-/merge_requests/49',
                         references: { full: 'acme/web!49' },
                         detailed_merge_status: 'unchecked',
                     },
                 ],
-                pipelines: [{ id: 5, status: 'success' }],
-                discussions: [
-                    { notes: [{ system: false, resolvable: true, resolved: false }] },
-                    { notes: [{ system: false, resolvable: true, resolved: true }] },
+                'pipelines': [{ id: 5, status: 'success' }],
+                'discussions': [
+                    {
+                        notes: [
+                            {
+                                system: false,
+                                resolvable: true,
+                                resolved: false,
+                            },
+                        ],
+                    },
+                    {
+                        notes: [
+                            { system: false, resolvable: true, resolved: true },
+                        ],
+                    },
                     { notes: [{ system: true, resolvable: false }] },
                 ],
             })
@@ -187,19 +214,26 @@ describe('getReviews', () => {
             routedFetch({
                 'reviewer_id=': [
                     {
-                        project_id: 1, iid: 53, title: 'feat: refund limits',
-                        draft: false, updated_at: '2026-08-27T00:00:00Z',
+                        project_id: 1,
+                        iid: 53,
+                        title: 'feat: refund limits',
+                        draft: false,
+                        updated_at: '2026-08-27T00:00:00Z',
                         author: { name: 'Teammate' },
                         web_url: 'https://h/acme/web/-/merge_requests/53',
                         references: { full: 'acme/web!53' },
                     },
                 ],
-                approvals: { approved_by: [{ user: { id: 285 } }] },
+                'approvals': { approved_by: [{ user: { id: 285 } }] },
             })
         )
 
         const [row] = await gl.getReviews({ id: 285, username: 'dev' }, TODAY)
-        expect(row).toMatchObject({ approvedByMe: true, author: 'Teammate', fresh: true })
+        expect(row).toMatchObject({
+            approvedByMe: true,
+            author: 'Teammate',
+            fresh: true,
+        })
     })
 
     it('leaves unapproved merge requests pending', async () => {
@@ -209,14 +243,17 @@ describe('getReviews', () => {
             routedFetch({
                 'reviewer_id=': [
                     {
-                        project_id: 1, iid: 54, title: 'feat: balance inquiry',
-                        draft: false, updated_at: '2026-08-28T00:00:00Z',
+                        project_id: 1,
+                        iid: 54,
+                        title: 'feat: balance inquiry',
+                        draft: false,
+                        updated_at: '2026-08-28T00:00:00Z',
                         author: { name: 'Teammate' },
                         web_url: 'https://h/acme/web/-/merge_requests/54',
                         references: { full: 'acme/web!54' },
                     },
                 ],
-                approvals: { approved_by: [] },
+                'approvals': { approved_by: [] },
             })
         )
 
@@ -232,14 +269,17 @@ describe('getReviews', () => {
             routedFetch({
                 'reviewer_id=': [
                     {
-                        project_id: 1, iid: 12, title: 'chore: recent back then',
-                        draft: false, updated_at: '2020-01-14T00:00:00Z',
+                        project_id: 1,
+                        iid: 12,
+                        title: 'chore: recent back then',
+                        draft: false,
+                        updated_at: '2020-01-14T00:00:00Z',
                         author: { name: 'Teammate' },
                         web_url: 'https://h/acme/web/-/merge_requests/12',
                         references: { full: 'acme/web!12' },
                     },
                 ],
-                approvals: { approved_by: [] },
+                'approvals': { approved_by: [] },
             })
         )
 

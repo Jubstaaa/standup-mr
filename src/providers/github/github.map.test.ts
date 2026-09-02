@@ -5,11 +5,15 @@ import type { RawEvent } from './github.types'
 
 describe('repoFromUrl', () => {
     it('pulls owner and repo out of an api url', () => {
-        expect(repoFromUrl('https://api.github.com/repos/acme/web')).toBe('acme/web')
+        expect(repoFromUrl('https://api.github.com/repos/acme/web')).toBe(
+            'acme/web'
+        )
     })
 
     it('works for a github enterprise url', () => {
-        expect(repoFromUrl('https://git.acme.com/api/v3/repos/acme/web')).toBe('acme/web')
+        expect(repoFromUrl('https://git.acme.com/api/v3/repos/acme/web')).toBe(
+            'acme/web'
+        )
     })
 
     it('returns an empty string when the url has no repo', () => {
@@ -47,7 +51,10 @@ describe('mapEvent', () => {
             type: 'PullRequestEvent',
             created_at: '2026-08-27T11:00:00Z',
             repo: { name: 'acme/api' },
-            payload: { action: 'opened', pull_request: { title: 'feat: add stories endpoint' } },
+            payload: {
+                action: 'opened',
+                pull_request: { title: 'feat: add stories endpoint' },
+            },
         }
 
         expect(mapEvent(raw)).toMatchObject({
@@ -74,7 +81,10 @@ describe('mapEvent', () => {
         }
 
         expect(mapEvent(review).action).toBe('reviewed')
-        expect(mapEvent(comment)).toMatchObject({ action: 'commented on', targetType: 'Note' })
+        expect(mapEvent(comment)).toMatchObject({
+            action: 'commented on',
+            targetType: 'Note',
+        })
     })
 
     it('strips the refs/heads prefix and names branch creation', () => {
@@ -85,7 +95,10 @@ describe('mapEvent', () => {
             payload: { ref: 'release/0.2.0' },
         }
 
-        expect(mapEvent(raw)).toMatchObject({ action: 'created', branch: 'release/0.2.0' })
+        expect(mapEvent(raw)).toMatchObject({
+            action: 'created',
+            branch: 'release/0.2.0',
+        })
     })
 
     it('falls back to a readable verb for an unknown event type', () => {
@@ -99,7 +112,10 @@ describe('mapEvent', () => {
     })
 
     it('survives a payload with nothing in it', () => {
-        const raw: RawEvent = { type: 'PushEvent', created_at: '2026-08-27T15:00:00Z' }
+        const raw: RawEvent = {
+            type: 'PushEvent',
+            created_at: '2026-08-27T15:00:00Z',
+        }
 
         expect(mapEvent(raw)).toMatchObject({
             project: '',

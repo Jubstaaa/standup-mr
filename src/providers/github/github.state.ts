@@ -8,20 +8,22 @@ export function normalizeChecks(runs: CheckRun[]): {
     if (runs.length === 0) return { pipeline: null, pipelineId: null }
 
     const failed = runs.find(
-        (run) => run.conclusion !== null && FAILED_CONCLUSIONS.has(run.conclusion)
+        run => run.conclusion !== null && FAILED_CONCLUSIONS.has(run.conclusion)
     )
     if (failed) return { pipeline: 'failed', pipelineId: failed.id }
 
-    if (runs.some((run) => run.status !== 'completed')) {
+    if (runs.some(run => run.status !== 'completed')) {
         return { pipeline: 'running', pipelineId: null }
     }
-    if (runs.some((run) => run.conclusion === 'cancelled')) {
+    if (runs.some(run => run.conclusion === 'cancelled')) {
         return { pipeline: 'canceled', pipelineId: null }
     }
     return { pipeline: 'success', pipelineId: null }
 }
 
-export function latestStateByReviewer(reviews: PullReview[]): Map<string, string> {
+export function latestStateByReviewer(
+    reviews: PullReview[]
+): Map<string, string> {
     const latest = new Map<string, string>()
     for (const review of reviews) {
         const login = review.user?.login
@@ -34,7 +36,7 @@ export function latestStateByReviewer(reviews: PullReview[]): Map<string, string
 
 export function countChangesRequested(reviews: PullReview[]): number {
     return [...latestStateByReviewer(reviews).values()].filter(
-        (state) => state === 'CHANGES_REQUESTED'
+        state => state === 'CHANGES_REQUESTED'
     ).length
 }
 

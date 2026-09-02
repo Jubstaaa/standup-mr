@@ -18,13 +18,13 @@ Add this to the MCP settings file (for Cline,
 
 ```json
 {
-  "mcpServers": {
-    "standup": {
-      "command": "npx",
-      "args": ["-y", "standup-mr", "mcp"],
-      "env": {}
+    "mcpServers": {
+        "standup": {
+            "command": "npx",
+            "args": ["-y", "standup-mr", "mcp"],
+            "env": {}
+        }
     }
-  }
 }
 ```
 
@@ -35,12 +35,12 @@ That is the whole install when the user already has `gh` or `glab` logged in
 
 Add only the pair the user actually needs.
 
-| Variable | When |
-|---|---|
-| `GITHUB_TOKEN` | GitHub, no `gh` session |
-| `GITHUB_HOST` | GitHub Enterprise only; defaults to `github.com` |
-| `GITLAB_TOKEN` | GitLab, no `glab` session |
-| `GITLAB_HOST` | **Required for GitLab** — there is no default host |
+| Variable           | When                                                                       |
+| ------------------ | -------------------------------------------------------------------------- |
+| `GITHUB_TOKEN`     | GitHub, no `gh` session                                                    |
+| `GITHUB_HOST`      | GitHub Enterprise only; defaults to `github.com`                           |
+| `GITLAB_TOKEN`     | GitLab, no `glab` session                                                  |
+| `GITLAB_HOST`      | **Required for GitLab** — there is no default host                         |
 | `STANDUP_PROVIDER` | `github` or `gitlab`, when both are configured and the choice is ambiguous |
 
 Ask the user for a token; do not invent one, and do not put a token anywhere

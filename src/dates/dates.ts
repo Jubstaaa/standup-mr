@@ -19,7 +19,9 @@ export function label(day: Date, lang = 'en'): string {
     const weekday = DAYS[key]![day.getDay()]!
     const month = MONTHS[key]![day.getMonth()]!
     const date = day.getDate()
-    return key === 'tr' ? `${date} ${month} ${weekday}` : `${weekday}, ${date} ${month}`
+    return key === 'tr'
+        ? `${date} ${month} ${weekday}`
+        : `${weekday}, ${date} ${month}`
 }
 
 function isWeekday(day: string): boolean {
@@ -32,17 +34,18 @@ export function previousActiveDays(
     today: Date
 ): Array<{ date: string; gapDays: number }> {
     const cutoff = isoDay(today)
-    const past = [...eventDates].filter((day) => day < cutoff).sort()
+    const past = [...eventDates].filter(day => day < cutoff).sort()
     if (past.length === 0) return []
 
     const anchor = past.filter(isWeekday).pop() ?? past[0]!
 
     return past
-        .filter((day) => day >= anchor)
-        .map((day) => ({
+        .filter(day => day >= anchor)
+        .map(day => ({
             date: day,
             gapDays: Math.round(
-                (Date.parse(`${cutoff}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`)) /
+                (Date.parse(`${cutoff}T00:00:00Z`) -
+                    Date.parse(`${day}T00:00:00Z`)) /
                     MS_PER_DAY
             ),
         }))

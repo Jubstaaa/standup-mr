@@ -33,7 +33,8 @@ function remaining(response: Response): string | null {
 
 function resetAt(response: Response): string {
     const reset =
-        response.headers.get('x-ratelimit-reset') ?? response.headers.get('ratelimit-reset')
+        response.headers.get('x-ratelimit-reset') ??
+        response.headers.get('ratelimit-reset')
     if (!reset) return ''
     const seconds = Number(reset)
     if (!Number.isFinite(seconds) || seconds <= 0) return ''
@@ -44,7 +45,8 @@ function retryAfter(response: Response): string {
     const value = response.headers.get('retry-after')
     if (!value) return ''
     const seconds = Number(value)
-    if (!Number.isFinite(seconds) || seconds <= 0) return `; retry after ${value}`
+    if (!Number.isFinite(seconds) || seconds <= 0)
+        return `; retry after ${value}`
     return `; retry after ${seconds}s`
 }
 
@@ -53,10 +55,17 @@ export function assertUsable(response: Response, host: string): void {
 
     if (response.status === 403 || response.status === 429) {
         if (remaining(response) === '0') {
-            throw new ApiError(`${host} rate limit reached${resetAt(response)}.`, response.status)
+            throw new ApiError(
+                `${host} rate limit reached${resetAt(response)}.`,
+                response.status
+            )
         }
         const retry = retryAfter(response)
-        if (retry) throw new ApiError(`${host} rate limit reached${retry}.`, response.status)
+        if (retry)
+            throw new ApiError(
+                `${host} rate limit reached${retry}.`,
+                response.status
+            )
     }
 
     if (response.status === 401) {
@@ -86,7 +95,7 @@ export const RETRY_BACKOFF_MS = [250, 750]
 
 export type Sleep = (ms: number) => Promise<void>
 
-const wait: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const wait: Sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 export async function sendWithRetry(
     fetchImpl: FetchLike,

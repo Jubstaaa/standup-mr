@@ -40,7 +40,11 @@ export async function main(argv: string[]): Promise<number> {
                 },
             })
 
-            const report = await buildReport(connect(values), new Date(), values.lang)
+            const report = await buildReport(
+                connect(values),
+                new Date(),
+                values.lang
+            )
             const output = values.markdown
                 ? toMarkdown(report, values.lang)
                 : JSON.stringify(report, null, 1)
@@ -53,7 +57,10 @@ export async function main(argv: string[]): Promise<number> {
                 args: rest,
                 options: {
                     ...Object.fromEntries(
-                        WEBHOOK_KINDS.map((kind) => [kind, { type: 'string' as const }])
+                        WEBHOOK_KINDS.map(kind => [
+                            kind,
+                            { type: 'string' as const },
+                        ])
                     ),
                     text: { type: 'string', default: '-' },
                 },
@@ -62,9 +69,11 @@ export async function main(argv: string[]): Promise<number> {
             // parseArgs cannot type options built from a list, so read the urls back
             // through one narrow assertion rather than one per flag.
             const urls = values as Record<string, string | undefined>
-            const kind = WEBHOOK_KINDS.find((candidate) => urls[candidate])
+            const kind = WEBHOOK_KINDS.find(candidate => urls[candidate])
             if (!kind) {
-                const flags = WEBHOOK_KINDS.map((candidate) => `--${candidate} URL`).join(' | ')
+                const flags = WEBHOOK_KINDS.map(
+                    candidate => `--${candidate} URL`
+                ).join(' | ')
                 process.stderr.write(`Pass one of: ${flags}.\n`)
                 return 1
             }
@@ -82,7 +91,12 @@ export async function main(argv: string[]): Promise<number> {
 
         if (command === 'mcp') {
             const moduleDir = dirname(fileURLToPath(import.meta.url))
-            const serverPath = join(findPackageRoot(moduleDir), 'dist', 'mcp', 'server.js')
+            const serverPath = join(
+                findPackageRoot(moduleDir),
+                'dist',
+                'mcp',
+                'server.js'
+            )
             const serverUrl = pathToFileURL(serverPath).href
             const { main: startMcpServer } = (await import(serverUrl)) as {
                 main: () => Promise<void>
@@ -116,7 +130,7 @@ try {
     entryUrl = undefined
 }
 if (entryUrl && import.meta.url === entryUrl) {
-    main(process.argv.slice(2)).then((code) => {
+    main(process.argv.slice(2)).then(code => {
         process.exitCode = code
     })
 }

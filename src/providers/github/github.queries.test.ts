@@ -15,13 +15,20 @@ describe('getEvents', () => {
                         type: 'PullRequestEvent',
                         created_at: '2026-08-27T11:00:00Z',
                         repo: { name: 'acme/api' },
-                        payload: { action: 'opened', pull_request: { title: 'feat: stories' } },
+                        payload: {
+                            action: 'opened',
+                            pull_request: { title: 'feat: stories' },
+                        },
                     },
                     {
                         type: 'PushEvent',
                         created_at: '2026-08-27T09:00:00Z',
                         repo: { name: 'acme/web' },
-                        payload: { ref: 'refs/heads/main', size: 3, commits: [{ message: 'fix: a' }] },
+                        payload: {
+                            ref: 'refs/heads/main',
+                            size: 3,
+                            commits: [{ message: 'fix: a' }],
+                        },
                     },
                 ],
                 '/user': { id: 1, login: 'dev' },
@@ -66,7 +73,10 @@ describe('getEvents', () => {
             const gh = new GitHubProvider(
                 'github.com',
                 't',
-                routedFetch({ '/users/dev/events': [], '/user': { id: 1, login: 'dev' } })
+                routedFetch({
+                    '/users/dev/events': [],
+                    '/user': { id: 1, login: 'dev' },
+                })
             )
             await gh.getEvents(new Date(2026, 7, 21))
         } finally {
@@ -86,7 +96,9 @@ describe('getEvents', () => {
         }))
         const fetchImpl: FetchLike = async (url: string) => {
             if (new URL(url).pathname === '/user') {
-                return new Response(JSON.stringify({ id: 1, login: 'dev' }), { status: 200 })
+                return new Response(JSON.stringify({ id: 1, login: 'dev' }), {
+                    status: 200,
+                })
             }
             pages.push(url)
             return new Response(JSON.stringify(full), { status: 200 })
@@ -115,7 +127,8 @@ describe('getMyMrs', () => {
                             title: 'feat: add stories endpoint',
                             html_url: 'https://github.com/acme/api/pull/11',
                             updated_at: '2026-08-27T09:00:00Z',
-                            repository_url: 'https://api.github.com/repos/acme/api',
+                            repository_url:
+                                'https://api.github.com/repos/acme/api',
                         },
                     ],
                 },
@@ -135,7 +148,12 @@ describe('getMyMrs', () => {
                 '/commits/abc123/check-runs': {
                     total_count: 1,
                     check_runs: [
-                        { id: 7, name: 'build', status: 'completed', conclusion: 'success' },
+                        {
+                            id: 7,
+                            name: 'build',
+                            status: 'completed',
+                            conclusion: 'success',
+                        },
                     ],
                 },
             })
@@ -170,7 +188,8 @@ describe('getMyMrs', () => {
                             title: 'feat: add timeout job',
                             html_url: 'https://github.com/acme/api/pull/12',
                             updated_at: '2026-08-27T09:00:00Z',
-                            repository_url: 'https://api.github.com/repos/acme/api',
+                            repository_url:
+                                'https://api.github.com/repos/acme/api',
                         },
                     ],
                 },
@@ -188,7 +207,12 @@ describe('getMyMrs', () => {
                 '/commits/def456/check-runs': {
                     total_count: 1,
                     check_runs: [
-                        { id: 8, name: 'slow', status: 'completed', conclusion: 'cancelled' },
+                        {
+                            id: 8,
+                            name: 'slow',
+                            status: 'completed',
+                            conclusion: 'cancelled',
+                        },
                     ],
                 },
             })
@@ -206,14 +230,16 @@ describe('getMyMrs', () => {
         const fetchImpl: FetchLike = async (url: string) => {
             urls.push(url)
             if (url.includes('/user')) {
-                return new Response(JSON.stringify({ id: 1, login: 'dev' }), { status: 200 })
+                return new Response(JSON.stringify({ id: 1, login: 'dev' }), {
+                    status: 200,
+                })
             }
             return new Response(JSON.stringify({ items: [] }), { status: 200 })
         }
         const gh = new GitHubProvider('github.com', 't', fetchImpl)
 
         await gh.getMyMrs(TODAY)
-        const search = urls.find((url) => url.includes('search/issues'))!
+        const search = urls.find(url => url.includes('search/issues'))!
         expect(decodeURIComponent(search).replace(/\+/g, ' ')).toContain(
             'is:pr is:open author:dev archived:false'
         )
@@ -232,14 +258,16 @@ describe('getMyMrs', () => {
                             title: 'with ci',
                             html_url: 'u1',
                             updated_at: '2026-08-27T09:00:00Z',
-                            repository_url: 'https://api.github.com/repos/acme/web',
+                            repository_url:
+                                'https://api.github.com/repos/acme/web',
                         },
                         {
                             number: 2,
                             title: 'without ci',
                             html_url: 'u2',
                             updated_at: '2026-08-27T09:00:00Z',
-                            repository_url: 'https://api.github.com/repos/acme/web',
+                            repository_url:
+                                'https://api.github.com/repos/acme/web',
                         },
                     ],
                 },
@@ -265,7 +293,12 @@ describe('getMyMrs', () => {
                 },
                 '/commits/sha1/check-runs': {
                     check_runs: [
-                        { id: 1, name: 'build', status: 'completed', conclusion: 'success' },
+                        {
+                            id: 1,
+                            name: 'build',
+                            status: 'completed',
+                            conclusion: 'success',
+                        },
                     ],
                 },
                 '/commits/sha2/check-runs': { check_runs: [] },
@@ -273,14 +306,16 @@ describe('getMyMrs', () => {
         )
 
         const rows = await gh.getMyMrs(TODAY)
-        expect(rows.find((row) => row.iid === 1)!.pipelineMissing).toBe(false)
-        expect(rows.find((row) => row.iid === 2)!.pipelineMissing).toBe(true)
+        expect(rows.find(row => row.iid === 1)!.pipelineMissing).toBe(false)
+        expect(rows.find(row => row.iid === 2)!.pipelineMissing).toBe(true)
     })
 
     it('drops a pull request whose detail fetch 404s, keeping the rest', async () => {
         const fetchImpl: FetchLike = async (url: string) => {
             if (url.includes('/user')) {
-                return new Response(JSON.stringify({ id: 1, login: 'dev' }), { status: 200 })
+                return new Response(JSON.stringify({ id: 1, login: 'dev' }), {
+                    status: 200,
+                })
             }
             if (url.includes('search/issues')) {
                 return new Response(
@@ -291,14 +326,16 @@ describe('getMyMrs', () => {
                                 title: 'gone',
                                 html_url: 'u3',
                                 updated_at: '2026-08-27T09:00:00Z',
-                                repository_url: 'https://api.github.com/repos/acme/web',
+                                repository_url:
+                                    'https://api.github.com/repos/acme/web',
                             },
                             {
                                 number: 4,
                                 title: 'still open',
                                 html_url: 'u4',
                                 updated_at: '2026-08-27T09:00:00Z',
-                                repository_url: 'https://api.github.com/repos/acme/web',
+                                repository_url:
+                                    'https://api.github.com/repos/acme/web',
                             },
                         ],
                     }),
@@ -329,7 +366,9 @@ describe('getMyMrs', () => {
                 )
             }
             if (url.includes('/commits/sha4/check-runs')) {
-                return new Response(JSON.stringify({ check_runs: [] }), { status: 200 })
+                return new Response(JSON.stringify({ check_runs: [] }), {
+                    status: 200,
+                })
             }
             return new Response('[]', { status: 200 })
         }
@@ -356,7 +395,8 @@ describe('getReviews', () => {
                             title: 'feat: balance inquiry',
                             html_url: 'https://github.com/acme/web/pull/54',
                             updated_at: '2026-08-28T08:00:00Z',
-                            repository_url: 'https://api.github.com/repos/acme/web',
+                            repository_url:
+                                'https://api.github.com/repos/acme/web',
                             user: { login: 'teammate' },
                         },
                     ],
@@ -401,7 +441,8 @@ describe('getReviews', () => {
                             title: 'chore: bump deps',
                             html_url: 'u',
                             updated_at: '2026-08-01T08:00:00Z',
-                            repository_url: 'https://api.github.com/repos/acme/web',
+                            repository_url:
+                                'https://api.github.com/repos/acme/web',
                             user: { login: 'teammate' },
                         },
                     ],
@@ -426,7 +467,8 @@ describe('getReviews', () => {
                             title: 'older',
                             html_url: 'u',
                             updated_at: '2026-08-25T08:00:00Z',
-                            repository_url: 'https://api.github.com/repos/acme/web',
+                            repository_url:
+                                'https://api.github.com/repos/acme/web',
                             user: { login: 'teammate' },
                         },
                         {
@@ -434,7 +476,8 @@ describe('getReviews', () => {
                             title: 'newer',
                             html_url: 'u',
                             updated_at: '2026-08-27T08:00:00Z',
-                            repository_url: 'https://api.github.com/repos/acme/web',
+                            repository_url:
+                                'https://api.github.com/repos/acme/web',
                             user: { login: 'teammate' },
                         },
                     ],
@@ -444,6 +487,6 @@ describe('getReviews', () => {
         )
 
         const rows = await gh.getReviews(me, TODAY)
-        expect(rows.map((row) => row.iid)).toEqual([2, 1])
+        expect(rows.map(row => row.iid)).toEqual([2, 1])
     })
 })

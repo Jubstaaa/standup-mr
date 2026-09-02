@@ -17,7 +17,9 @@ function mr(overrides: Record<string, unknown> = {}) {
 
 describe('classify', () => {
     it('puts draft ahead of everything', () => {
-        expect(classify(mr({ draft: true, pipeline: 'failed' }), TODAY)).toBe('draft')
+        expect(classify(mr({ draft: true, pipeline: 'failed' }), TODAY)).toBe(
+            'draft'
+        )
     })
 
     it('treats a failed pipeline as blocked', () => {
@@ -59,7 +61,11 @@ describe('markMissingPipelines', () => {
         ]
         markMissingPipelines(rows)
         expect(
-            rows.every((r) => (r as { pipelineMissing?: boolean }).pipelineMissing === false)
+            rows.every(
+                r =>
+                    (r as { pipelineMissing?: boolean }).pipelineMissing ===
+                    false
+            )
         ).toBe(true)
     })
 

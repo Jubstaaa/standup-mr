@@ -5,7 +5,11 @@ import { inferWebhookKind, postWebhook } from './notify'
 import type { FetchLike } from '../types/standup.types'
 
 function recordingFetch() {
-    const sent: Array<{ url: string; body: unknown; contentType: string | null }> = []
+    const sent: Array<{
+        url: string
+        body: unknown
+        contentType: string | null
+    }> = []
     const impl: FetchLike = async (url, init) => {
         sent.push({
             url,
@@ -28,7 +32,12 @@ describe('postWebhook', () => {
 
     it('uses the content field for Discord', async () => {
         const { impl, sent } = recordingFetch()
-        await postWebhook('https://discord.example.com/b', 'hello', 'discord', impl)
+        await postWebhook(
+            'https://discord.example.com/b',
+            'hello',
+            'discord',
+            impl
+        )
 
         expect(sent[0]!.body).toEqual({ content: 'hello' })
     })
@@ -48,19 +57,28 @@ describe('postWebhook', () => {
     })
 
     it('rejects when the webhook returns an error status', async () => {
-        const failing: FetchLike = async () => new Response('no', { status: 403 })
-        await expect(postWebhook('https://x', 'hi', 'slack', failing)).rejects.toThrow(/403/)
+        const failing: FetchLike = async () =>
+            new Response('no', { status: 403 })
+        await expect(
+            postWebhook('https://x', 'hi', 'slack', failing)
+        ).rejects.toThrow(/403/)
     })
 })
 
 describe('inferWebhookKind', () => {
     it('recognises a Slack webhook by its host', () => {
-        expect(inferWebhookKind('https://hooks.slack.com/services/T0/B0/xxx')).toBe('slack')
+        expect(
+            inferWebhookKind('https://hooks.slack.com/services/T0/B0/xxx')
+        ).toBe('slack')
     })
 
     it('recognises a Discord webhook by its host', () => {
-        expect(inferWebhookKind('https://discord.com/api/webhooks/1/xxx')).toBe('discord')
-        expect(inferWebhookKind('https://discordapp.com/api/webhooks/1/xxx')).toBe('discord')
+        expect(inferWebhookKind('https://discord.com/api/webhooks/1/xxx')).toBe(
+            'discord'
+        )
+        expect(
+            inferWebhookKind('https://discordapp.com/api/webhooks/1/xxx')
+        ).toBe('discord')
     })
 
     it('returns null for a host it does not know, rather than guessing', () => {
@@ -75,46 +93,63 @@ describe('inferWebhookKind', () => {
 describe('Google Chat support', () => {
     it('sends the text field Google Chat expects', async () => {
         let body = ''
-        await postWebhook('https://chat.googleapis.com/v1/spaces/A/messages?key=k', 'note',
+        await postWebhook(
+            'https://chat.googleapis.com/v1/spaces/A/messages?key=k',
+            'note',
             'google-chat',
             async (_url, init) => {
                 body = String(init?.body)
                 return new Response('', { status: 200 })
-            })
+            }
+        )
 
         expect(JSON.parse(body)).toEqual({ text: 'note' })
     })
 
     it('recognises a Google Chat webhook by its host', () => {
-        expect(inferWebhookKind('https://chat.googleapis.com/v1/spaces/A/messages?key=k')).toBe(
-            'google-chat'
-        )
+        expect(
+            inferWebhookKind(
+                'https://chat.googleapis.com/v1/spaces/A/messages?key=k'
+            )
+        ).toBe('google-chat')
     })
 
     it('lists every implemented kind, so callers and the CLI stay in step', () => {
-        expect([...WEBHOOK_KINDS].sort()).toEqual(['discord', 'google-chat', 'slack'])
+        expect([...WEBHOOK_KINDS].sort()).toEqual([
+            'discord',
+            'google-chat',
+            'slack',
+        ])
     })
 })
 
 describe('postWebhook formatting', () => {
     it('rewrites Markdown bold for Slack, which does not render **', async () => {
         let body = ''
-        await postWebhook('https://hooks.slack.com/x', '## Dün\n- **ready**', 'slack',
+        await postWebhook(
+            'https://hooks.slack.com/x',
+            '## Dün\n- **ready**',
+            'slack',
             async (_u, init) => {
                 body = String(init?.body)
                 return new Response('', { status: 200 })
-            })
+            }
+        )
 
         expect(JSON.parse(body).text).toBe('*Dün*\n- *ready*')
     })
 
     it('sends Discord the Markdown untouched', async () => {
         let body = ''
-        await postWebhook('https://discord.com/api/webhooks/1/x', '## Dün\n- **ready**', 'discord',
+        await postWebhook(
+            'https://discord.com/api/webhooks/1/x',
+            '## Dün\n- **ready**',
+            'discord',
             async (_u, init) => {
                 body = String(init?.body)
                 return new Response('', { status: 200 })
-            })
+            }
+        )
 
         expect(JSON.parse(body).content).toBe('## Dün\n- **ready**')
     })

@@ -9,16 +9,16 @@ GitLab:
 
 ```json
 {
-  "mcpServers": {
-    "standup": {
-      "command": "npx",
-      "args": ["-y", "standup-mr", "mcp"],
-      "env": {
-        "GITLAB_HOST": "gitlab.example.com",
-        "GITLAB_TOKEN": "glpat-..."
-      }
+    "mcpServers": {
+        "standup": {
+            "command": "npx",
+            "args": ["-y", "standup-mr", "mcp"],
+            "env": {
+                "GITLAB_HOST": "gitlab.example.com",
+                "GITLAB_TOKEN": "glpat-..."
+            }
+        }
     }
-  }
 }
 ```
 
@@ -26,16 +26,16 @@ GitHub:
 
 ```json
 {
-  "mcpServers": {
-    "standup": {
-      "command": "npx",
-      "args": ["-y", "standup-mr", "mcp"],
-      "env": {
-        "GITHUB_HOST": "github.com",
-        "GITHUB_TOKEN": "ghp_..."
-      }
+    "mcpServers": {
+        "standup": {
+            "command": "npx",
+            "args": ["-y", "standup-mr", "mcp"],
+            "env": {
+                "GITHUB_HOST": "github.com",
+                "GITHUB_TOKEN": "ghp_..."
+            }
+        }
     }
-  }
 }
 ```
 
@@ -46,16 +46,16 @@ If you're working from a local clone instead of the published package, point
 
 ```json
 {
-  "mcpServers": {
-    "standup": {
-      "command": "node",
-      "args": ["/absolute/path/to/standup-mr/dist/mcp/server.js"],
-      "env": {
-        "GITHUB_HOST": "github.com",
-        "GITHUB_TOKEN": "ghp_..."
-      }
+    "mcpServers": {
+        "standup": {
+            "command": "node",
+            "args": ["/absolute/path/to/standup-mr/dist/mcp/server.js"],
+            "env": {
+                "GITHUB_HOST": "github.com",
+                "GITHUB_TOKEN": "ghp_..."
+            }
+        }
     }
-  }
 }
 ```
 

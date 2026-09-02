@@ -12,13 +12,13 @@ pipeline is red, it opens the job log and tells you **why**.
 
 ## What makes it different
 
-|  | commit-log tools | standup-mr |
-|---|---|---|
-| Source | local `git log` | GitLab or GitHub API |
-| Merge request state | ✗ | ready / blocked / draft / stale |
-| Review queue | ✗ | pending only, approvals filtered out |
-| Failed pipeline | ✗ | error lines from the job trace or the Actions job log |
-| Self-hosted (GitLab CE/EE, GitHub Enterprise) | varies | first class |
+|                                               | commit-log tools | standup-mr                                            |
+| --------------------------------------------- | ---------------- | ----------------------------------------------------- |
+| Source                                        | local `git log`  | GitLab or GitHub API                                  |
+| Merge request state                           | ✗                | ready / blocked / draft / stale                       |
+| Review queue                                  | ✗                | pending only, approvals filtered out                  |
+| Failed pipeline                               | ✗                | error lines from the job trace or the Actions job log |
+| Self-hosted (GitLab CE/EE, GitHub Enterprise) | varies           | first class                                           |
 
 ## Use
 
@@ -36,10 +36,10 @@ npx standup-mr fetch --markdown | npx standup-mr post --google-chat "$URL"
 
 ### Identity
 
-| | GitHub | GitLab |
-|---|---|---|
-| Flags | `--host` / `--token` | `--host` / `--token` |
-| Env | `GITHUB_HOST` / `GITHUB_TOKEN` | `GITLAB_HOST` / `GITLAB_TOKEN` |
+|             | GitHub                                      | GitLab                                                  |
+| ----------- | ------------------------------------------- | ------------------------------------------------------- |
+| Flags       | `--host` / `--token`                        | `--host` / `--token`                                    |
+| Env         | `GITHUB_HOST` / `GITHUB_TOKEN`              | `GITLAB_HOST` / `GITLAB_TOKEN`                          |
 | CLI session | [`gh`](https://cli.github.com/) auth config | [`glab`](https://gitlab.com/gitlab-org/cli) auth config |
 
 GitHub defaults to `github.com` when no host is given. GitLab has no default —
@@ -93,15 +93,15 @@ paste in the note-writing rules separately.
 
 ```json
 {
-  "mcpServers": {
-    "standup": {
-      "command": "npx",
-      "args": ["-y", "standup-mr", "mcp"],
-      "env": {
-        "GITHUB_TOKEN": "ghp_..."
-      }
+    "mcpServers": {
+        "standup": {
+            "command": "npx",
+            "args": ["-y", "standup-mr", "mcp"],
+            "env": {
+                "GITHUB_TOKEN": "ghp_..."
+            }
+        }
     }
-  }
 }
 ```
 
@@ -123,11 +123,11 @@ documentation for the current format rather than trusting this file blindly.
 
 The server exposes three tools:
 
-| Tool | What it does |
-|---|---|
-| `get_standup_data` | Reads the provider and returns the report as JSON. Optional `provider`, `host`, `lang`. |
+| Tool                    | What it does                                                                                 |
+| ----------------------- | -------------------------------------------------------------------------------------------- |
+| `get_standup_data`      | Reads the provider and returns the report as JSON. Optional `provider`, `host`, `lang`.      |
 | `get_note_instructions` | Returns the note-writing rules, so the assistant can write the note the way the skill would. |
-| `post_standup_note` | Posts a finished note to a Slack, Discord or Google Chat webhook. |
+| `post_standup_note`     | Posts a finished note to a Slack, Discord or Google Chat webhook.                            |
 
 `post_standup_note` reads the webhook URL from `STANDUP_WEBHOOK_URL` and never
 takes it as an argument — anyone holding that URL can post to the channel, so
@@ -196,8 +196,8 @@ _Structured digest — not a written note._
 ## Blockers
 
 - `acme/mobile` !6 — job `quality`
-  - `npm ERR! code E404`
-  - `npm ERR! 404 Not Found - GET https://registry.example.com/@acme%2fui`
+    - `npm ERR! code E404`
+    - `npm ERR! 404 Not Found - GET https://registry.example.com/@acme%2fui`
 ```
 
 The last section is the point of the tool. Every other standup tool can tell you
@@ -232,7 +232,7 @@ pipe `standup fetch` into anything, or import the package, read
   returns `null` with no error.
 - `MergeRequest`, `Review` and `Blocker` carry a required `provider` field, and
   `Provider.getReviews` takes an `Identity` rather than a numeric id.
-- The MCP `CollectOptions.provider` is now a provider *name*; inject a
+- The MCP `CollectOptions.provider` is now a provider _name_; inject a
   `Provider` instance through `providerImpl`.
 
 Claude Code plugin users should run `/plugin marketplace update standup-mr` —

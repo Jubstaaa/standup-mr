@@ -16,7 +16,7 @@ export function toChatText(markdown: string, kind: WebhookKind): string {
     let fenced = false
     return markdown
         .split('\n')
-        .map((line) => {
+        .map(line => {
             if (FENCE.test(line)) {
                 fenced = !fenced
                 return line

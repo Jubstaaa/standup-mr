@@ -35,7 +35,12 @@ function hostFrom(
     if (cliHost) return cliHost
     if (envHost) return envHost
     const found = probe()
-    return resolveHost(undefined, undefined, found.length > 0 ? found : fallback, labels)
+    return resolveHost(
+        undefined,
+        undefined,
+        found.length > 0 ? found : fallback,
+        labels
+    )
 }
 
 export function chooseKind(options: SelectOptions = {}): ProviderKind {
@@ -58,7 +63,10 @@ export function chooseKind(options: SelectOptions = {}): ProviderKind {
     }
 
     if (env.STANDUP_PROVIDER) {
-        if (env.STANDUP_PROVIDER === 'github' || env.STANDUP_PROVIDER === 'gitlab') {
+        if (
+            env.STANDUP_PROVIDER === 'github' ||
+            env.STANDUP_PROVIDER === 'gitlab'
+        ) {
             return env.STANDUP_PROVIDER
         }
         throw new ConfigError(
@@ -100,7 +108,13 @@ export function connect(options: SelectOptions = {}): Provider {
     const probe = options.probe ?? DEFAULT_PROBE
 
     if (chooseKind(options) === 'github') {
-        const host = hostFrom(options.host, env.GITHUB_HOST, probe.github, [DOT_COM], GITHUB_LABELS)
+        const host = hostFrom(
+            options.host,
+            env.GITHUB_HOST,
+            probe.github,
+            [DOT_COM],
+            GITHUB_LABELS
+        )
         const token = resolveToken(
             host,
             options.token,
@@ -111,7 +125,13 @@ export function connect(options: SelectOptions = {}): Provider {
         return new GitHubProvider(host, token)
     }
 
-    const host = hostFrom(options.host, env.GITLAB_HOST, probe.gitlab, [], GITLAB_LABELS)
+    const host = hostFrom(
+        options.host,
+        env.GITLAB_HOST,
+        probe.gitlab,
+        [],
+        GITLAB_LABELS
+    )
     const token = resolveToken(
         host,
         options.token,

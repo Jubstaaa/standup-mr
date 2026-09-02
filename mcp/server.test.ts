@@ -43,13 +43,23 @@ describe('collect', () => {
 
 describe('STANDUP_TOOL_SCHEMA', () => {
     it('offers the three options a caller can actually choose', () => {
-        expect(Object.keys(STANDUP_TOOL_SCHEMA).sort()).toEqual(['host', 'lang', 'provider'])
+        expect(Object.keys(STANDUP_TOOL_SCHEMA).sort()).toEqual([
+            'host',
+            'lang',
+            'provider',
+        ])
     })
 
     it('constrains provider to the two implemented providers', () => {
-        expect(STANDUP_TOOL_SCHEMA.provider.safeParse('github').success).toBe(true)
-        expect(STANDUP_TOOL_SCHEMA.provider.safeParse('gitlab').success).toBe(true)
-        expect(STANDUP_TOOL_SCHEMA.provider.safeParse('bitbucket').success).toBe(false)
+        expect(STANDUP_TOOL_SCHEMA.provider.safeParse('github').success).toBe(
+            true
+        )
+        expect(STANDUP_TOOL_SCHEMA.provider.safeParse('gitlab').success).toBe(
+            true
+        )
+        expect(
+            STANDUP_TOOL_SCHEMA.provider.safeParse('bitbucket').success
+        ).toBe(false)
     })
 
     it('constrains lang to the two languages with date labels', () => {
@@ -73,21 +83,29 @@ describe('STANDUP_TOOL_SCHEMA', () => {
 describe('runStandupTool', () => {
     it('forwards the caller options to the collector', async () => {
         let seen: Record<string, unknown> | undefined
-        await runStandupTool({ provider: 'github', host: 'gh.example.com', lang: 'tr' }, async (
-            options
-        ) => {
-            seen = options as Record<string, unknown>
-            return await collect({ providerImpl: fakeProvider })
-        })
+        await runStandupTool(
+            { provider: 'github', host: 'gh.example.com', lang: 'tr' },
+            async options => {
+                seen = options as Record<string, unknown>
+                return await collect({ providerImpl: fakeProvider })
+            }
+        )
 
-        expect(seen).toEqual({ provider: 'github', host: 'gh.example.com', lang: 'tr' })
+        expect(seen).toEqual({
+            provider: 'github',
+            host: 'gh.example.com',
+            lang: 'tr',
+        })
     })
 
     it('never forwards a token, so a credential cannot arrive as a tool argument', async () => {
         let seen: Record<string, unknown> | undefined
         await runStandupTool(
-            { provider: 'github', token: 'glpat-secret' } as Record<string, string>,
-            async (options) => {
+            { provider: 'github', token: 'glpat-secret' } as Record<
+                string,
+                string
+            >,
+            async options => {
                 seen = options as Record<string, unknown>
                 return await collect({ providerImpl: fakeProvider })
             }
@@ -98,8 +116,9 @@ describe('runStandupTool', () => {
     })
 
     it('returns the report as MCP text content', async () => {
-        const result = await runStandupTool({}, async () =>
-            await collect({ providerImpl: fakeProvider })
+        const result = await runStandupTool(
+            {},
+            async () => await collect({ providerImpl: fakeProvider })
         )
 
         expect(result.content[0]!.type).toBe('text')
@@ -109,7 +128,13 @@ describe('runStandupTool', () => {
 
 describe('STANDUP_TOOL_DESCRIPTION', () => {
     it('names every collection the report actually returns', () => {
-        for (const key of ['previousDays', 'todayEvents', 'myMrs', 'reviews', 'blockers']) {
+        for (const key of [
+            'previousDays',
+            'todayEvents',
+            'myMrs',
+            'reviews',
+            'blockers',
+        ]) {
             expect(STANDUP_TOOL_DESCRIPTION).toContain(key)
         }
     })
@@ -139,8 +164,12 @@ describe('STANDUP_TOOL_DESCRIPTION', () => {
 
 describe('STANDUP_TOOL_SCHEMA parameter semantics', () => {
     it('says GitLab needs a host and GitHub does not', () => {
-        expect(STANDUP_TOOL_SCHEMA.host.description).toMatch(/required for gitlab/i)
-        expect(STANDUP_TOOL_SCHEMA.host.description).toMatch(/defaults to github\.com/i)
+        expect(STANDUP_TOOL_SCHEMA.host.description).toMatch(
+            /required for gitlab/i
+        )
+        expect(STANDUP_TOOL_SCHEMA.host.description).toMatch(
+            /defaults to github\.com/i
+        )
     })
 
     it('warns that an ambiguous provider fails rather than being guessed', () => {
@@ -197,49 +226,63 @@ describe('runPostTool', () => {
 
     it('posts the text to the url from the environment', async () => {
         const seen: Array<[string, string, string]> = []
-        const result = await runPostTool({ text: 'note' }, {
-            env: env('https://hooks.slack.com/services/T0/B0/x'),
-            post: async (url, text, kind) => {
-                seen.push([url, text, kind])
-            },
-        })
+        const result = await runPostTool(
+            { text: 'note' },
+            {
+                env: env('https://hooks.slack.com/services/T0/B0/x'),
+                post: async (url, text, kind) => {
+                    seen.push([url, text, kind])
+                },
+            }
+        )
 
-        expect(seen).toEqual([['https://hooks.slack.com/services/T0/B0/x', 'note', 'slack']])
+        expect(seen).toEqual([
+            ['https://hooks.slack.com/services/T0/B0/x', 'note', 'slack'],
+        ])
         expect(result.isError).toBeUndefined()
     })
 
     it('infers discord from the url when kind is omitted', async () => {
         let kind = ''
-        await runPostTool({ text: 'note' }, {
-            env: env('https://discord.com/api/webhooks/1/x'),
-            post: async (_u, _t, k) => {
-                kind = k
-            },
-        })
+        await runPostTool(
+            { text: 'note' },
+            {
+                env: env('https://discord.com/api/webhooks/1/x'),
+                post: async (_u, _t, k) => {
+                    kind = k
+                },
+            }
+        )
 
         expect(kind).toBe('discord')
     })
 
     it('lets an explicit kind win over the inferred one', async () => {
         let kind = ''
-        await runPostTool({ text: 'note', kind: 'slack' }, {
-            env: env('https://discord.com/api/webhooks/1/x'),
-            post: async (_u, _t, k) => {
-                kind = k
-            },
-        })
+        await runPostTool(
+            { text: 'note', kind: 'slack' },
+            {
+                env: env('https://discord.com/api/webhooks/1/x'),
+                post: async (_u, _t, k) => {
+                    kind = k
+                },
+            }
+        )
 
         expect(kind).toBe('slack')
     })
 
     it('fails loudly when the environment carries no webhook url', async () => {
         let called = false
-        const result = await runPostTool({ text: 'note' }, {
-            env: env(),
-            post: async () => {
-                called = true
-            },
-        })
+        const result = await runPostTool(
+            { text: 'note' },
+            {
+                env: env(),
+                post: async () => {
+                    called = true
+                },
+            }
+        )
 
         expect(called).toBe(false)
         expect(result.isError).toBe(true)
@@ -248,12 +291,15 @@ describe('runPostTool', () => {
 
     it('asks for a kind rather than guessing when the host is unknown', async () => {
         let called = false
-        const result = await runPostTool({ text: 'note' }, {
-            env: env('https://hooks.example.com/abc'),
-            post: async () => {
-                called = true
-            },
-        })
+        const result = await runPostTool(
+            { text: 'note' },
+            {
+                env: env('https://hooks.example.com/abc'),
+                post: async () => {
+                    called = true
+                },
+            }
+        )
 
         expect(called).toBe(false)
         expect(result.isError).toBe(true)
@@ -261,12 +307,15 @@ describe('runPostTool', () => {
     })
 
     it('reports a rejected webhook instead of claiming the note was posted', async () => {
-        const result = await runPostTool({ text: 'note' }, {
-            env: env('https://hooks.slack.com/services/T0/B0/x'),
-            post: async () => {
-                throw new Error('Webhook rejected the message: HTTP 404.')
-            },
-        })
+        const result = await runPostTool(
+            { text: 'note' },
+            {
+                env: env('https://hooks.slack.com/services/T0/B0/x'),
+                post: async () => {
+                    throw new Error('Webhook rejected the message: HTTP 404.')
+                },
+            }
+        )
 
         expect(result.isError).toBe(true)
         expect(result.content[0]!.text).toContain('404')
@@ -274,10 +323,13 @@ describe('runPostTool', () => {
 
     it('never echoes the webhook url back to the caller', async () => {
         const url = 'https://hooks.slack.com/services/T0/B0/supersecret'
-        const result = await runPostTool({ text: 'note' }, {
-            env: env(url),
-            post: async () => {},
-        })
+        const result = await runPostTool(
+            { text: 'note' },
+            {
+                env: env(url),
+                post: async () => {},
+            }
+        )
 
         expect(JSON.stringify(result)).not.toContain('supersecret')
     })

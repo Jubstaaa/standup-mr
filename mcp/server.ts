@@ -22,10 +22,16 @@ export interface CollectOptions {
     providerImpl?: Provider
 }
 
-export async function collect(options: CollectOptions = {}): Promise<StandupReport> {
+export async function collect(
+    options: CollectOptions = {}
+): Promise<StandupReport> {
     const provider =
         options.providerImpl ??
-        connect({ provider: options.provider, host: options.host, token: options.token })
+        connect({
+            provider: options.provider,
+            host: options.host,
+            token: options.token,
+        })
     return buildReport(provider, new Date(), options.lang ?? 'en')
 }
 
@@ -39,7 +45,7 @@ export const STANDUP_TOOL_DESCRIPTION =
     'back than the previous working day, or filter by project.\n\n' +
     'Read-only, and credentials never come from an argument — they come from the ' +
     'environment or a logged-in gh / glab session. A rejected token, a refused resource ' +
-    'or a rate limit fails the call with the host\'s own message, after two retries on ' +
+    "or a rate limit fails the call with the host's own message, after two retries on " +
     'transient server errors. A blocker whose diagnosis could not be fetched is still ' +
     'returned, with `job: "unknown"`, so a red pipeline is never silently dropped.'
 
@@ -89,7 +95,9 @@ export async function runStandupTool(
         host: args.host,
         lang: args.lang,
     })
-    return { content: [{ type: 'text' as const, text: JSON.stringify(report) }] }
+    return {
+        content: [{ type: 'text' as const, text: JSON.stringify(report) }],
+    }
 }
 
 export const WEBHOOK_URL_ENV = 'STANDUP_WEBHOOK_URL'
@@ -134,7 +142,10 @@ export const INSTRUCTIONS_TOOL_DESCRIPTION =
 
 export type PostToolArgs = z.infer<z.ZodObject<typeof POST_TOOL_SCHEMA>>
 
-type ToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: true }
+type ToolResult = {
+    content: Array<{ type: 'text'; text: string }>
+    isError?: true
+}
 
 function text(body: string): ToolResult {
     return { content: [{ type: 'text' as const, text: body }] }
@@ -187,21 +198,30 @@ export async function runInstructionsTool(): Promise<ToolResult> {
 }
 
 export async function main(): Promise<void> {
-    const server = new McpServer({ name: 'standup-mr', version: packageVersion(import.meta.url) })
+    const server = new McpServer({
+        name: 'standup-mr',
+        version: packageVersion(import.meta.url),
+    })
 
     server.tool(
         'get_standup_data',
         STANDUP_TOOL_DESCRIPTION,
         STANDUP_TOOL_SCHEMA,
-        async (args) => await runStandupTool(args)
+        async args => await runStandupTool(args)
     )
 
-    server.tool('post_standup_note', POST_TOOL_DESCRIPTION, POST_TOOL_SCHEMA, async (args) =>
-        await runPostTool(args)
+    server.tool(
+        'post_standup_note',
+        POST_TOOL_DESCRIPTION,
+        POST_TOOL_SCHEMA,
+        async args => await runPostTool(args)
     )
 
-    server.tool('get_note_instructions', INSTRUCTIONS_TOOL_DESCRIPTION, {}, async () =>
-        await runInstructionsTool()
+    server.tool(
+        'get_note_instructions',
+        INSTRUCTIONS_TOOL_DESCRIPTION,
+        {},
+        async () => await runInstructionsTool()
     )
 
     await server.connect(new StdioServerTransport())
@@ -216,7 +236,9 @@ try {
 }
 if (entryUrl && import.meta.url === entryUrl) {
     main().catch((error: unknown) => {
-        process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
+        process.stderr.write(
+            `${error instanceof Error ? error.message : String(error)}\n`
+        )
         process.exitCode = 1
     })
 }

@@ -27,7 +27,9 @@ describe('GitLabProvider transport', () => {
         const gl = new GitLabProvider('gitlab.example.com', 'tok', fetchImpl)
 
         await expect(gl.getJson('user')).resolves.toEqual({ id: 7 })
-        expect(fetchImpl.calls[0]).toBe('https://gitlab.example.com/api/v4/user')
+        expect(fetchImpl.calls[0]).toBe(
+            'https://gitlab.example.com/api/v4/user'
+        )
     })
 
     it('encodes query parameters', async () => {
@@ -45,12 +47,16 @@ describe('GitLabProvider transport', () => {
         }
         const gl = new GitLabProvider('gitlab.example.com', 'tok', boom)
 
-        await expect(gl.getJson('user')).rejects.toThrow(/gitlab\.example\.com.*boom/)
+        await expect(gl.getJson('user')).rejects.toThrow(
+            /gitlab\.example\.com.*boom/
+        )
     })
 
     it('returns null on a non-ok status', async () => {
         const notFound: FetchLike = async () =>
-            new Response(JSON.stringify({ message: '404 Not Found' }), { status: 404 })
+            new Response(JSON.stringify({ message: '404 Not Found' }), {
+                status: 404,
+            })
         const gl = new GitLabProvider('gitlab.example.com', 'tok', notFound)
 
         await expect(gl.getJson('user')).resolves.toBeNull()
