@@ -1,6 +1,6 @@
 {
     "name": "standup-mr",
-    "version": "0.4.1",
+    "version": "0.5.0",
     "mcpName": "io.github.Jubstaaa/standup-mr",
     "description": "Standup notes from merge request state, not commit logs.",
     "keywords": [

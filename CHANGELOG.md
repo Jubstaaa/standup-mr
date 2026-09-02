@@ -4,6 +4,25 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-02
+
+### Added
+
+- **`post_standup_note`** — posts a finished note to a Slack or Discord
+  webhook, so an MCP client can deliver the note it just wrote instead of
+  handing it back as text. The webhook URL comes from `STANDUP_WEBHOOK_URL`
+  and is never a tool argument: anyone holding that URL can post to the
+  channel, which makes it a credential. The payload shape is inferred from the
+  URL host, so `kind` is only needed when a proxy hides it. A missing URL, an
+  unrecognisable host, or a webhook that rejects the message is reported as an
+  error — a note is never announced as sent when it was not — and the error
+  text never repeats the URL.
+- **`get_note_instructions`** — returns the note-writing rules the Claude Code
+  skill carries, so a non-Claude assistant can write the note the same way
+  instead of inventing a format. Same content as `standup instructions`.
+
+Both were already in the CLI. Only the MCP server was missing them.
+
 ## [0.4.1] - 2026-09-02
 
 ### Changed
