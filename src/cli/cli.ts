@@ -7,6 +7,7 @@ import { USAGE } from './cli.constants'
 import { findPackageRoot } from '../manifest/manifest'
 import { readStandupSkillBody } from '../skill/skill'
 import { ConfigError } from '../config/config'
+import { WEBHOOK_KINDS } from '../notify/notify.constants'
 import { postWebhook } from '../notify/notify'
 import { connect } from '../providers/select'
 import { toMarkdown } from '../render/render'
@@ -51,17 +52,23 @@ export async function main(argv: string[]): Promise<number> {
             const { values } = parseArgs({
                 args: rest,
                 options: {
-                    slack: { type: 'string' },
-                    discord: { type: 'string' },
+                    ...Object.fromEntries(
+                        WEBHOOK_KINDS.map((kind) => [kind, { type: 'string' as const }])
+                    ),
                     text: { type: 'string', default: '-' },
                 },
             })
 
-            const url = values.slack ?? values.discord
-            if (!url) {
-                process.stderr.write('Pass --slack URL or --discord URL.\n')
+            // parseArgs cannot type options built from a list, so read the urls back
+            // through one narrow assertion rather than one per flag.
+            const urls = values as Record<string, string | undefined>
+            const kind = WEBHOOK_KINDS.find((candidate) => urls[candidate])
+            if (!kind) {
+                const flags = WEBHOOK_KINDS.map((candidate) => `--${candidate} URL`).join(' | ')
+                process.stderr.write(`Pass one of: ${flags}.\n`)
                 return 1
             }
+            const url = urls[kind]!
 
             const text = values.text === '-' ? await readStdin() : values.text
             if (!text.trim()) {
@@ -69,7 +76,7 @@ export async function main(argv: string[]): Promise<number> {
                 return 1
             }
 
-            await postWebhook(url, text, values.slack ? 'slack' : 'discord')
+            await postWebhook(url, text, kind)
             return 0
         }
 

@@ -30,6 +30,10 @@ npx standup-mr fetch --markdown                 # structured digest
 npx standup-mr fetch --lang tr                  # Turkish date labels
 ```
 
+```bash
+npx standup-mr fetch --markdown | npx standup-mr post --google-chat "$URL"
+```
+
 ### Identity
 
 | | GitHub | GitLab |
@@ -123,12 +127,17 @@ The server exposes three tools:
 |---|---|
 | `get_standup_data` | Reads the provider and returns the report as JSON. Optional `provider`, `host`, `lang`. |
 | `get_note_instructions` | Returns the note-writing rules, so the assistant can write the note the way the skill would. |
-| `post_standup_note` | Posts a finished note to a Slack or Discord webhook. |
+| `post_standup_note` | Posts a finished note to a Slack, Discord or Google Chat webhook. |
 
 `post_standup_note` reads the webhook URL from `STANDUP_WEBHOOK_URL` and never
 takes it as an argument — anyone holding that URL can post to the channel, so
 it belongs with the tokens, not in a transcript. The payload shape is inferred
 from the URL host; `kind` is only needed when a proxy hides it.
+
+Three shapes are implemented: `slack` and `google-chat` both post `{"text"}`,
+`discord` posts `{"content"}`. Anything else that accepts a Slack-shaped body —
+Mattermost, Rocket.Chat, an n8n or Zapier endpoint — works today by passing
+`kind: "slack"`, or `--slack URL` on the CLI.
 
 Outside MCP, the same rules are available on stdout:
 

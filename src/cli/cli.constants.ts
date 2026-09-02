@@ -3,7 +3,7 @@ export const USAGE = `standup — standup notes from merge request state
 Usage:
   standup fetch [--provider github|gitlab] [--host H] [--token T]
                 [--lang en|tr] [--markdown]
-  standup post (--slack URL | --discord URL) [--text TEXT]
+  standup post (--slack URL | --discord URL | --google-chat URL) [--text TEXT]
   standup mcp
   standup instructions
 

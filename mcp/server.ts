@@ -101,7 +101,7 @@ export const POST_TOOL_DESCRIPTION =
     'argument — a webhook URL is a credential, since anyone holding it can post to the ' +
     'channel. Slack and Discord payload shapes are supported; the shape is inferred from ' +
     'the URL host, and `kind` is only needed for a proxied or self-hosted endpoint whose ' +
-    'host gives nothing away. A missing URL, an unrecognised host, or a webhook that ' +
+    'host gives nothing away — Mattermost and Rocket.Chat take the slack shape. A missing URL, an unrecognised host, or a webhook that ' +
     'rejects the message comes back as an error rather than a silent success.'
 
 export const POST_TOOL_SCHEMA = {
@@ -114,11 +114,12 @@ export const POST_TOOL_SCHEMA = {
                 'get_standup_data.'
         ),
     kind: z
-        .enum(['slack', 'discord'])
+        .enum(['slack', 'discord', 'google-chat'])
         .optional()
         .describe(
-            'Which payload shape to send: slack posts {"text"}, discord posts ' +
-                '{"content"}. Omit it — the shape is inferred from the webhook host. ' +
+            'Which payload shape to send: slack and google-chat post {"text"}, discord ' +
+                'posts {"content"}. Omit it — the shape is inferred from the webhook ' +
+                'host. ' +
                 'Pass it only when the host is not recognisable, e.g. a proxy in front of ' +
                 'the real webhook.'
         ),

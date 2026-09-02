@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
+import { WEBHOOK_KINDS } from './notify.constants'
 import { inferWebhookKind, postWebhook } from './notify'
 import type { FetchLike } from '../types/standup.types'
 
@@ -68,5 +69,29 @@ describe('inferWebhookKind', () => {
 
     it('returns null for something that is not a url at all', () => {
         expect(inferWebhookKind('not a url')).toBeNull()
+    })
+})
+
+describe('Google Chat support', () => {
+    it('sends the text field Google Chat expects', async () => {
+        let body = ''
+        await postWebhook('https://chat.googleapis.com/v1/spaces/A/messages?key=k', 'note',
+            'google-chat',
+            async (_url, init) => {
+                body = String(init?.body)
+                return new Response('', { status: 200 })
+            })
+
+        expect(JSON.parse(body)).toEqual({ text: 'note' })
+    })
+
+    it('recognises a Google Chat webhook by its host', () => {
+        expect(inferWebhookKind('https://chat.googleapis.com/v1/spaces/A/messages?key=k')).toBe(
+            'google-chat'
+        )
+    })
+
+    it('lists every implemented kind, so callers and the CLI stay in step', () => {
+        expect([...WEBHOOK_KINDS].sort()).toEqual(['discord', 'google-chat', 'slack'])
     })
 })

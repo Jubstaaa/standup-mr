@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
+import { WEBHOOK_KINDS } from '../src/notify/notify.constants'
 import type { Provider } from '../src/providers/base/base.types'
 import {
     INSTRUCTIONS_TOOL_DESCRIPTION,
@@ -161,9 +162,17 @@ describe('POST_TOOL_SCHEMA', () => {
         expect(POST_TOOL_SCHEMA.text.safeParse('note').success).toBe(true)
     })
 
-    it('constrains kind to the two payload shapes that are implemented', () => {
-        expect(POST_TOOL_SCHEMA.kind.safeParse('slack').success).toBe(true)
-        expect(POST_TOOL_SCHEMA.kind.safeParse('discord').success).toBe(true)
+    it('offers exactly the kinds the notifier implements, no more and no fewer', () => {
+        for (const kind of WEBHOOK_KINDS) {
+            expect(POST_TOOL_SCHEMA.kind.safeParse(kind).success).toBe(true)
+        }
+        expect(POST_TOOL_SCHEMA.kind.safeParse('teams').success).toBe(false)
+        expect(Object.keys(POST_TOOL_SCHEMA.kind.unwrap().enum).sort()).toEqual(
+            [...WEBHOOK_KINDS].sort()
+        )
+    })
+
+    it('rejects a kind that is not implemented', () => {
         expect(POST_TOOL_SCHEMA.kind.safeParse('teams').success).toBe(false)
     })
 

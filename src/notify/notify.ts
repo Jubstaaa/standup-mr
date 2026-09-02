@@ -28,6 +28,7 @@ export async function postWebhook(
 
 const WEBHOOK_HOSTS: Record<string, WebhookKind> = {
     'hooks.slack.com': 'slack',
+    'chat.googleapis.com': 'google-chat',
     'discord.com': 'discord',
     'discordapp.com': 'discord',
     'ptb.discord.com': 'discord',
