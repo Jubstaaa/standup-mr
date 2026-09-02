@@ -4,6 +4,27 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-09-02
+
+### Added
+
+- **Google Chat webhooks.** `--google-chat URL` on the CLI, `kind:
+  "google-chat"` in `post_standup_note`, and `chat.googleapis.com` added to
+  host inference so neither is usually needed. Google Chat takes the same
+  `{"text"}` body as Slack, so this was only ever a naming gap — but telling
+  someone to pass `--slack` for a Google Chat webhook is a hack, not a
+  feature.
+
+  Anything else that accepts a Slack-shaped body — Mattermost, Rocket.Chat, an
+  n8n or Zapier endpoint — already works by passing the slack kind.
+
+### Changed
+
+- `standup post` builds its flags and its error message from the list of
+  implemented channels instead of a hand-written pair, so adding a channel is
+  one map entry. The MCP tool's `kind` enum is now tested against that same
+  list: a channel can no longer reach the CLI and quietly miss MCP.
+
 ## [0.5.0] - 2026-09-02
 
 ### Added

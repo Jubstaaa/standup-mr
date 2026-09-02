@@ -1,6 +1,6 @@
 {
     "name": "standup-mr",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "description": "Standup notes from merge request state, not commit logs.",
     "author": {
         "name": "İlker Balcılar",
