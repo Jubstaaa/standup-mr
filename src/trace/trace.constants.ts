@@ -1,3 +1,5 @@
+// The escape character is exactly what this pattern exists to strip.
+// eslint-disable-next-line no-control-regex
 export const ANSI = /\x1b\[[0-9;]*[a-zA-Z]/g
 export const SECTION = /section_(start|end):\d+:\S*/g
 export const SIGNAL = /(\berror\b|Error:|fatal:|npm ERR!|\bfailed\b)/i
