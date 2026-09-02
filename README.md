@@ -1,6 +1,7 @@
 # standup-mr
 
 [![standup-mr MCP server](https://glama.ai/mcp/servers/Jubstaaa/standup-mr/badges/score.svg)](https://glama.ai/mcp/servers/Jubstaaa/standup-mr)
+[![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/jubstaaa/standup-mr)
 
 Standup notes from **merge request state**, not commit logs.
 
