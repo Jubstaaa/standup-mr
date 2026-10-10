@@ -1,3 +1,5 @@
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { describe, expect, it } from 'bun:test'
 
 import { WEBHOOK_KINDS } from '../src/notify/notify.constants'
@@ -5,6 +7,7 @@ import type { Provider } from '../src/providers/base/base.types'
 
 import {
     collect,
+    createServer,
     INSTRUCTIONS_TOOL_DESCRIPTION,
     POST_TOOL_DESCRIPTION,
     POST_TOOL_SCHEMA,
@@ -346,5 +349,42 @@ describe('runInstructionsTool', () => {
 
     it('says the rules are the note-writing playbook, not data', () => {
         expect(INSTRUCTIONS_TOOL_DESCRIPTION).toMatch(/rules|playbook/i)
+    })
+})
+
+describe('createServer', () => {
+    it('declares all four hints on every tool', async () => {
+        const [clientTransport, serverTransport] =
+            InMemoryTransport.createLinkedPair()
+        const client = new Client({ name: 'test', version: '0.0.0' })
+        await createServer().connect(serverTransport)
+        await client.connect(clientTransport)
+
+        const { tools } = await client.listTools()
+        const hints = Object.fromEntries(
+            tools.map(tool => [tool.name, tool.annotations])
+        )
+
+        expect(hints).toEqual({
+            get_standup_data: {
+                readOnlyHint: true,
+                destructiveHint: false,
+                idempotentHint: true,
+                openWorldHint: true,
+            },
+            post_standup_note: {
+                readOnlyHint: false,
+                destructiveHint: false,
+                idempotentHint: false,
+                openWorldHint: true,
+            },
+            get_note_instructions: {
+                readOnlyHint: true,
+                destructiveHint: false,
+                idempotentHint: true,
+                openWorldHint: false,
+            },
+        })
+        await client.close()
     })
 })

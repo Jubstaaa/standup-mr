@@ -197,34 +197,61 @@ export async function runInstructionsTool(): Promise<ToolResult> {
     return text(readStandupSkillBody())
 }
 
-export async function main(): Promise<void> {
+export function createServer(): McpServer {
     const server = new McpServer({
         name: 'standup-mr',
         version: packageVersion(import.meta.url),
     })
 
-    server.tool(
+    server.registerTool(
         'get_standup_data',
-        STANDUP_TOOL_DESCRIPTION,
-        STANDUP_TOOL_SCHEMA,
+        {
+            description: STANDUP_TOOL_DESCRIPTION,
+            inputSchema: STANDUP_TOOL_SCHEMA,
+            annotations: {
+                readOnlyHint: true,
+                destructiveHint: false,
+                idempotentHint: true,
+                openWorldHint: true,
+            },
+        },
         async args => await runStandupTool(args)
     )
 
-    server.tool(
+    server.registerTool(
         'post_standup_note',
-        POST_TOOL_DESCRIPTION,
-        POST_TOOL_SCHEMA,
+        {
+            description: POST_TOOL_DESCRIPTION,
+            inputSchema: POST_TOOL_SCHEMA,
+            annotations: {
+                readOnlyHint: false,
+                destructiveHint: false,
+                idempotentHint: false,
+                openWorldHint: true,
+            },
+        },
         async args => await runPostTool(args)
     )
 
-    server.tool(
+    server.registerTool(
         'get_note_instructions',
-        INSTRUCTIONS_TOOL_DESCRIPTION,
-        {},
+        {
+            description: INSTRUCTIONS_TOOL_DESCRIPTION,
+            annotations: {
+                readOnlyHint: true,
+                destructiveHint: false,
+                idempotentHint: true,
+                openWorldHint: false,
+            },
+        },
         async () => await runInstructionsTool()
     )
 
-    await server.connect(new StdioServerTransport())
+    return server
+}
+
+export async function main(): Promise<void> {
+    await createServer().connect(new StdioServerTransport())
 }
 
 const entry = process.argv[1]
