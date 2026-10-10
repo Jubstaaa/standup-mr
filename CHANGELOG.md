@@ -4,6 +4,21 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-10-10
+
+### Added
+
+- **Tool annotations.** Every MCP tool now declares `readOnlyHint`,
+  `destructiveHint`, `idempotentHint` and `openWorldHint`, so a host can tell
+  the read-only `get_standup_data` and `get_note_instructions` apart from
+  `post_standup_note`, which sends a message other people will see, and warn
+  before invoking it.
+
+### Changed
+
+- The MCP server registers its tools with `registerTool`, which needs
+  `@modelcontextprotocol/sdk` 1.30.0 or later.
+
 ## [0.6.1] - 2026-09-02
 
 ### Fixed
