@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +55,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the registry manifest version matches package.json
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          SERVER=$(node -p "require('./server.json').version")
+          if [ "$SERVER" != "$PKG" ]; then
+            echo "server.json version $SERVER does not match package.json version $PKG"
+            exit 1
+          fi
+
       - name: Verify the built binary runs through its bin symlink
         run: |
           mkdir -p /tmp/binlink
@@ -75,6 +85,26 @@ jobs:
           npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # The registry validates the npm package, which can take a few minutes
+      # to become visible after publishing.
+      - name: Publish to the MCP registry
+        run: |
+          NAME=$(node -p "require('./server.json').name")
+          VER=$(node -p "require('./package.json').version")
+          if curl -fsS "https://registry.modelcontextprotocol.io/v0/servers?search=$NAME" \
+            | node -e 'const d=JSON.parse(require("fs").readFileSync(0));process.exit(d.servers.some(s=>s.server.version===process.argv[1])?0:1)' "$VER"; then
+            echo "$NAME@$VER is already in the MCP registry; nothing to publish."
+            exit 0
+          fi
+          for i in $(seq 1 30); do
+            npm view "standup-mr@$VER" version >/dev/null 2>&1 && break
+            sleep 10
+          done
+          curl -fsSL https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz \
+            | tar xz mcp-publisher
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
 
       - name: Publish the GitHub release
         env:
