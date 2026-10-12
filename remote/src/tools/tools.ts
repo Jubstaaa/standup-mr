@@ -6,12 +6,15 @@ import {
     failure,
     INSTRUCTIONS_TOOL_ANNOTATIONS,
     INSTRUCTIONS_TOOL_DESCRIPTION,
+    INSTRUCTIONS_TOOL_TITLE,
     POST_TOOL_ANNOTATIONS,
     POST_TOOL_SCHEMA,
+    POST_TOOL_TITLE,
     runInstructionsTool,
     SERVER_ICONS,
     STANDUP_TOOL_ANNOTATIONS,
     STANDUP_TOOL_SCHEMA,
+    STANDUP_TOOL_TITLE,
     text,
 } from '../../../mcp/server'
 import type { ToolResult } from '../../../mcp/server'
@@ -110,6 +113,7 @@ export function createRemoteServer(context: ToolContext): McpServer {
     server.registerTool(
         'get_standup_data',
         {
+            title: STANDUP_TOOL_TITLE,
             description: REMOTE_STANDUP_TOOL_DESCRIPTION,
             inputSchema: REMOTE_STANDUP_SCHEMA,
             annotations: STANDUP_TOOL_ANNOTATIONS,
@@ -120,6 +124,7 @@ export function createRemoteServer(context: ToolContext): McpServer {
     server.registerTool(
         'post_standup_note',
         {
+            title: POST_TOOL_TITLE,
             description: REMOTE_POST_TOOL_DESCRIPTION,
             inputSchema: { text: POST_TOOL_SCHEMA.text },
             annotations: POST_TOOL_ANNOTATIONS,
@@ -130,6 +135,7 @@ export function createRemoteServer(context: ToolContext): McpServer {
     server.registerTool(
         'get_note_instructions',
         {
+            title: INSTRUCTIONS_TOOL_TITLE,
             description: INSTRUCTIONS_TOOL_DESCRIPTION,
             annotations: INSTRUCTIONS_TOOL_ANNOTATIONS,
         },
