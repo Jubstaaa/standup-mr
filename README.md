@@ -10,6 +10,8 @@ which is not what anyone asks in a standup. This one reads GitLab or GitHub:
 what is ready to merge, what is blocked, what is waiting on you — and when a
 pipeline is red, it opens the job log and tells you **why**.
 
+![standup-mr reading a GitLab project: ready, blocked, draft, and the error line from a failed job](assets/demo.gif)
+
 ## What makes it different
 
 |                                               | commit-log tools | standup-mr                                            |
