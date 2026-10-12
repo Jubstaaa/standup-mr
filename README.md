@@ -66,17 +66,34 @@ So if you already use `gh` or `glab`, there is nothing to configure.
 npx standup-mr fetch --markdown | npx standup-mr post --slack "$SLACK_WEBHOOK_URL"
 ```
 
-## claude.ai (web and mobile)
+## Hosted connector: Claude, Cursor, VS Code, Gemini, Codex
 
-No token, no config file — sign in instead. In claude.ai open **Settings →
-Connectors → Add custom connector** and paste:
+No token, no config file — sign in instead. The hosted server speaks the
+standard MCP OAuth flow, so any assistant that supports remote MCP servers can
+use it: add the URL, and a browser page opens where you sign in.
 
 ```
 https://standup.ilkerbalcilar.com/mcp
 ```
 
-Press **Connect**. A page opens where you link the accounts the note should
-read:
+[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=standup&config=eyJ1cmwiOiJodHRwczovL3N0YW5kdXAuaWxrZXJiYWxjaWxhci5jb20vbWNwIn0%3D)
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_standup-0098FF?logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=standup&config=%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fstandup.ilkerbalcilar.com%2Fmcp%22%7D)
+
+| Assistant                            | How                                                                                                                  |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| **claude.ai** (web, mobile, Desktop) | Settings → Connectors → Add custom connector → paste the URL → Connect                                               |
+| **Claude Code**                      | `claude mcp add --scope user --transport http standup https://standup.ilkerbalcilar.com/mcp`, then `/mcp` to sign in |
+| **Cursor**                           | The button above, or `"standup": { "url": "https://standup.ilkerbalcilar.com/mcp" }` in `~/.cursor/mcp.json`         |
+| **VS Code** (Copilot)                | The button above, or `"standup": { "type": "http", "url": "https://standup.ilkerbalcilar.com/mcp" }` in `mcp.json`   |
+| **Gemini CLI**                       | `gemini extensions install https://github.com/Jubstaaa/standup-mr`, then `/mcp auth standup`                         |
+| **Codex CLI**                        | `codex mcp add standup --url https://standup.ilkerbalcilar.com/mcp`, then `codex mcp login standup`                  |
+| **ChatGPT**                          | With developer mode on: Settings → Apps → Create → paste the URL, OAuth                                              |
+
+claude.ai and Claude Code are tested end to end; the others use the same
+standard flow. If one of them doesn't sign in, please
+[open an issue](https://github.com/Jubstaaa/standup-mr/issues).
+
+On the sign-in page you link the accounts the note should read:
 
 - **GitHub** — sign in through the standup-mr GitHub App. It only sees the
   repositories it is installed on, so install it on your org too; if the org
@@ -94,7 +111,8 @@ Link as many as you like — say, GitHub for side projects and your company's
 GitLab for work — then ask for "my standup" or "my work standup". With
 several accounts linked, Claude asks which one you mean.
 
-The connector then works from the claude.ai mobile app as well.
+Added in claude.ai, the connector works from the mobile app too: ask for your
+standup on the way to the meeting.
 
 **What is stored.** Your provider tokens and webhook URL, encrypted with
 AES-256-GCM, and only to read your merge requests and post your note. The
@@ -114,7 +132,7 @@ below on your own machine — the token never leaves it.
 or any MCP client that runs a local process. See [`mcp/README.md`](mcp/README.md).
 
 **Remote MCP server** (`remote/`) — the same tools over HTTPS with sign-in, for
-claude.ai on the web and on mobile. See [above](#claudeai-web-and-mobile).
+claude.ai on the web and on mobile. See [above](#hosted-connector-claude-cursor-vs-code-gemini-codex).
 
 **Claude Code plugin** — the note-writing playbook, shipped as the `standup`
 skill. From inside Claude Code:

@@ -1,0 +1,12 @@
+{
+    "name": "standup-mr",
+    "version": "1.0.1",
+    "description": "Standup notes from GitLab or GitHub merge request state, with the error lines from a failed pipeline's job log.",
+    "contextFileName": "GEMINI.md",
+    "mcpServers": {
+        "standup": {
+            "httpUrl": "https://standup.ilkerbalcilar.com/mcp",
+            "oauth": { "enabled": true }
+        }
+    }
+}
