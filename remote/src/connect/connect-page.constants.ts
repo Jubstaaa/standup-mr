@@ -134,21 +134,30 @@ code { font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; background: 
 
 .disclosure { border-top: 1px solid var(--rule); }
 .disclosure-last { border-bottom: 1px solid var(--rule); }
-.disclosure summary {
+.disclosure > summary, .nested > summary {
     display: flex; align-items: center; gap: 8px;
     min-height: 48px; cursor: pointer; list-style: none; font-weight: 600;
 }
-.disclosure summary::-webkit-details-marker { display: none; }
-.disclosure summary::after {
+.disclosure > summary::-webkit-details-marker, .nested > summary::-webkit-details-marker { display: none; }
+.disclosure > summary::after, .nested > summary::after {
     content: ""; margin-left: auto; width: 8px; height: 8px;
     border-right: 2px solid var(--slate); border-bottom: 2px solid var(--slate);
     transform: rotate(45deg) translate(-2px, -2px);
 }
-.disclosure[open] summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.disclosure[open] > summary::after, .nested[open] > summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
 .optional { color: var(--slate); font-weight: 400; font-size: 13px; }
 .fields { display: grid; gap: 12px; padding-bottom: 16px; }
 .fields .fields { padding-bottom: 0; }
 .saved { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.panel { display: grid; gap: 14px; }
+.setup { border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px; display: grid; gap: 12px; }
+h3 { font-size: 14px; font-weight: 650; margin: 0; overflow-wrap: anywhere; }
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: 13px; }
+.steps a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.copy { display: block; margin-top: 4px; padding: 6px 8px; overflow-wrap: anywhere; user-select: all; }
+.nested > summary { min-height: 32px; font-size: 13px; }
+.nested[open] > summary { margin-bottom: 6px; }
+.panel .quiet { justify-self: start; text-decoration: none; }
 
 label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
 input, select {
