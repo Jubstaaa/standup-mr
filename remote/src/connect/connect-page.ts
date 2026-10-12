@@ -5,6 +5,7 @@ import type { Account } from '../accounts/accounts.types'
 import type { Webhook } from '../store/store.types'
 import { GITHUB_HOST } from '../upstream/upstream.constants'
 
+import type { ClientIdentity } from './client-identity'
 import { PAGE_STYLE } from './connect-page.constants'
 import {
     CHECK_ICON,
@@ -33,12 +34,11 @@ export interface SelfHostedPanel {
 
 export interface ConnectPageModel {
     accounts: Account[]
-    clientName: string
+    client: ClientIdentity
     error?: string
     githubInstallUrl?: string
     pendingId: string
     providers: ProviderLink[]
-    redirectHost: string
     selfHosted?: SelfHostedPanel
     webhook?: Webhook
 }
@@ -71,16 +71,18 @@ export function renderDocument(title: string, body: string): string {
 </html>`
 }
 
-function clientTile(clientName: string): string {
-    const mark = /claude/i.test(clientName)
-        ? CLAUDE_ICON
-        : `<span class="monogram">${escapeHtml(clientName.slice(0, 1).toUpperCase())}</span>`
+function clientTile(client: ClientIdentity): string {
+    const clientName = client.name
+    const mark =
+        client.isRecognized && /claude/i.test(clientName)
+            ? CLAUDE_ICON
+            : `<span class="monogram">${escapeHtml(clientName.slice(0, 1).toUpperCase())}</span>`
     return `<span class="tile tile-client" title="${escapeHtml(clientName)}">${mark}</span>`
 }
 
-function lockup(clientName: string): string {
+function lockup(client: ClientIdentity): string {
     return `<div class="lockup" aria-hidden="true">
-        ${clientTile(clientName)}
+        ${clientTile(client)}
         ${MERGE_LINE}
         <span class="tile tile-standup"><img src="/icon.png" alt="" width="56" height="56"></span>
     </div>`
@@ -234,15 +236,19 @@ function webhookForm(base: string, webhook?: Webhook): string {
 
 export function renderConnectPage(model: ConnectPageModel): string {
     const base = `/connect/${encodeURIComponent(model.pendingId)}`
-    const client = escapeHtml(model.clientName)
+    const client = escapeHtml(model.client.name)
     const canFinish = model.accounts.length > 0
 
     return renderDocument(
-        `Connect standup-mr to ${model.clientName}`,
-        `${lockup(model.clientName)}
+        `Connect standup-mr to ${model.client.name}`,
+        `${lockup(model.client)}
         <h1>Connect standup-mr to ${client}</h1>
         <p class="lede">${client} will read your merge requests to write your standup.</p>
-        <p class="return">You'll return to <strong>${escapeHtml(model.redirectHost)}</strong>. Didn't start this there? Close this page.</p>
+        ${
+            model.client.isRecognized
+                ? `<p class="return">You'll return to <strong>${escapeHtml(model.client.redirectHost)}</strong>. Didn't start this there? Close this page.</p>`
+                : `<p class="warning" role="alert"><strong>standup-mr doesn't recognize this app.</strong> Anything you link here goes to <strong>${escapeHtml(model.client.redirectHost)}</strong>. Only continue if you set that app up yourself; if someone sent you this link, close this page.</p>`
+        }
         ${model.error ? `<p class="error" role="alert">${escapeHtml(model.error)}</p>` : ''}
         ${scopeList()}
         <section class="block" aria-labelledby="accounts-title">

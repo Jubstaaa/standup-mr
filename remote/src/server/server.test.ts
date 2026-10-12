@@ -355,3 +355,43 @@ describe('claude.ai connect flow', () => {
         expect(body.result.content[0]!.text).toContain('No webhook is saved')
     })
 })
+
+describe('a client borrowing a trusted name', () => {
+    test('is shown as unrecognized with a warning', async () => {
+        const registered = await fetch(`${base}/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                redirect_uris: ['https://attacker-alpha.example.com/cb'],
+                token_endpoint_auth_method: 'none',
+                client_name: 'Claude',
+            }),
+        })
+        const { client_id } = (await registered.json()) as {
+            client_id: string
+        }
+        const url = new URL(`${base}/authorize`)
+        url.search = new URLSearchParams({
+            response_type: 'code',
+            client_id,
+            redirect_uri: 'https://attacker-alpha.example.com/cb',
+            code_challenge: challenge,
+            code_challenge_method: 'S256',
+        }).toString()
+        const authorized = await fetch(url, { redirect: 'manual' })
+        const page = await (
+            await fetch(`${base}${authorized.headers.get('location')}`, {
+                headers: {
+                    Cookie: authorized.headers
+                        .get('set-cookie')!
+                        .split(';')[0]!,
+                },
+            })
+        ).text()
+
+        expect(page).toContain('Connect standup-mr to An unrecognized app')
+        expect(page).toContain("standup-mr doesn't recognize this app")
+        expect(page).toContain('attacker-alpha.example.com')
+        expect(page).not.toContain('class="mark mark-claude"')
+    })
+})

@@ -90,6 +90,12 @@ h1 { font-size: 21px; line-height: 1.3; font-weight: 650; letter-spacing: -0.01e
 .return strong { color: var(--ink); font-weight: 600; }
 .lede strong { color: var(--ink); font-weight: 600; }
 
+.warning {
+    margin: 0 0 24px; padding: 12px 14px;
+    border-radius: 10px; border: 1px solid var(--error);
+    color: var(--error); overflow-wrap: anywhere; text-align: left;
+}
+.warning strong { color: inherit; }
 .error {
     margin: 0 0 20px; padding: 10px 12px;
     border-radius: 10px; border: 1px solid var(--error);
