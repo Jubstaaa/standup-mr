@@ -49,13 +49,21 @@ export function callbackUrl(
     return new URL(`/connect/callback/${appPath(kind, host)}`, baseUrl).href
 }
 
-function endpoints(kind: ProviderKind, host: string) {
+// GitHub returns an `iss` parameter on the callback (RFC 9207) naming
+// https://<host>/login/oauth, not the bare host, and the callback is
+// rejected unless the issuer matches it exactly.
+export function authorizationServer(
+    kind: ProviderKind,
+    host: string
+): oauth.AuthorizationServer {
     return kind === 'github'
         ? {
+              issuer: `https://${host}/login/oauth`,
               authorization_endpoint: `https://${host}/login/oauth/authorize`,
               token_endpoint: `https://${host}/login/oauth/access_token`,
           }
         : {
+              issuer: `https://${host}`,
               authorization_endpoint: `https://${host}/oauth/authorize`,
               token_endpoint: `https://${host}/oauth/token`,
           }
@@ -124,10 +132,7 @@ export function createUpstream(deps: UpstreamDeps) {
     const options = { [oauth.customFetch]: deps.fetchImpl }
 
     function server(app: UpstreamApp): oauth.AuthorizationServer {
-        return {
-            issuer: `https://${app.host}`,
-            ...endpoints(app.kind, app.host),
-        }
+        return authorizationServer(app.kind, app.host)
     }
 
     function client(app: UpstreamApp) {
