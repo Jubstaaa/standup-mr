@@ -26,23 +26,23 @@ export function renderPrivacyPage(): string {
             <li>The accounts you link: provider, host and username.</li>
             <li>The access and refresh tokens for those accounts, encrypted with AES-256-GCM.</li>
             <li>The chat webhook URL, if you add one, encrypted the same way.</li>
-            <li>The tokens Claude uses to reach this server, stored only as SHA-256 hashes, and the client registration Claude sends.</li>
+            <li>The tokens your AI assistant uses to reach this server, stored only as SHA-256 hashes, and the client registration it sends.</li>
             <li>If you set up sign-in for a self-hosted GitLab or GitHub Enterprise: its host, application ID and secret, the secret encrypted.</li>
             <li>When a connection was created and last used.</li>
         </ul>
 
         <h2>What is not stored</h2>
-        <p>Your merge requests, reviews, pipeline logs and standup notes. They are read from your host when Claude asks for them, returned to Claude, and not kept. The web server keeps standard access logs (IP address, time and path) to run and protect the service; tokens and webhook URLs never appear in them.</p>
+        <p>Your merge requests, reviews, pipeline logs and standup notes. They are read from your host when your assistant asks for them, returned to it, and not kept. The web server keeps standard access logs (IP address, time and path) to run and protect the service; tokens and webhook URLs never appear in them.</p>
 
         <h2>How it is used</h2>
-        <p>Only to do what you ask Claude to do: read your merge requests, reviews and pipeline logs, and post a note to your chat webhook when you ask for it. The connector asks your host for read-only access and never writes to your repositories. There are no analytics, no advertising and no tracking.</p>
+        <p>Only to do what you ask your assistant to do: read your merge requests, reviews and pipeline logs, and post a note to your chat webhook when you ask for it. The connector asks your host for read-only access and never writes to your repositories. There are no analytics, no advertising and no tracking.</p>
 
         <h2>Who else sees it</h2>
         <p>Nobody is sold or given your data. Requests go to the GitHub or GitLab host you linked and to your chat webhook. The server runs on DigitalOcean behind Cloudflare, which handle the traffic as infrastructure providers.</p>
 
         <h2>How long it is kept</h2>
         <ul>
-            <li>Disconnecting the connector in Claude deletes the connection, its accounts, tokens and webhook at once.</li>
+            <li>Disconnecting standup-mr in your assistant deletes the connection, its accounts, tokens and webhook at once.</li>
             <li>Connections unused for 30 days are deleted.</li>
             <li>An unfinished connect page is deleted after 15 minutes.</li>
             <li>A self-hosted sign-in setup that nobody signs in with is deleted after a day.</li>
@@ -63,11 +63,11 @@ export function renderSupportPage(): string {
 
         <h2>Common fixes</h2>
         <ul>
-            <li><strong>"Reconnect the connector".</strong> A login expired or was revoked. In Claude, open the connector, disconnect, and connect again.</li>
+            <li><strong>"Reconnect the connector".</strong> A login expired or was revoked. In your assistant's MCP or connector settings, disconnect standup-mr and connect again.</li>
             <li><strong>Organization repositories are missing.</strong> The GitHub App only sees repositories it is installed on. Install it on your organization, or link github.com with a fine-grained token instead.</li>
             <li><strong>Your company's GitLab isn't listed.</strong> Type its host on the connect page. If nobody has set up sign-in yet, the page shows the redirect URI and scopes to register an OAuth application once.</li>
             <li><strong>A GitLab behind a VPN.</strong> The hosted connector can't reach private networks. Run the local server with <code>npx standup-mr mcp</code> instead.</li>
-            <li><strong>"Several accounts are linked".</strong> Tell Claude which one: "my GitHub standup", "my work standup".</li>
+            <li><strong>"Several accounts are linked".</strong> Tell your assistant which one: "my GitHub standup", "my work standup".</li>
         </ul>
 
         <h2>Data</h2>
