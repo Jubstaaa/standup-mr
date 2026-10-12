@@ -16,7 +16,8 @@ function recordingFetch(pages: unknown[]): FetchLike & { calls: string[] } {
     const impl = mock(async (url: string, init?: RequestInit) => {
         calls.push(url)
         const headers = new Headers(init?.headers)
-        expect(headers.get('private-token')).toBe('tok')
+        expect(headers.get('authorization')).toBe('Bearer tok')
+        expect(headers.get('private-token')).toBeNull()
         return jsonResponse(pages[Math.min(calls.length - 1, pages.length - 1)])
     })
     return Object.assign(impl as unknown as FetchLike, { calls })

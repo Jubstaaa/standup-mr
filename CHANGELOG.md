@@ -17,6 +17,13 @@ All notable changes to standup-mr are recorded here. The format follows
 - `server.json` lists the remote endpoint, so registries show both the npm
   package and the hosted server.
 
+### Fixed
+
+- GitLab requests send the token as `Authorization: Bearer` instead of
+  `PRIVATE-TOKEN`. Personal access tokens work either way, but OAuth tokens —
+  from `glab`'s browser login or from the remote server's sign-in — were
+  rejected with 401.
+
 ## [0.7.0] - 2026-10-10
 
 ### Added
