@@ -139,7 +139,7 @@ describe('claude.ai connect flow', () => {
 
         const page = await (await browser(pagePath)).text()
         expect(page).toContain('No account linked yet')
-        expect(page).toContain('<strong>Claude</strong> is asking for access')
+        expect(page).toContain('Connect standup-mr to Claude')
         expect(page).toContain('<strong>claude.ai</strong>')
     })
 
@@ -151,6 +151,13 @@ describe('claude.ai connect flow', () => {
             redirect: 'manual',
         })
         expect(finish.status).toBe(410)
+    })
+
+    test('serves the project icon to other sites', async () => {
+        const response = await fetch(`${base}/favicon.ico`)
+        expect(response.status).toBe(200)
+        expect(response.headers.get('content-type')).toBe('image/png')
+        expect(response.headers.get('cross-origin-resource-policy')).toBeNull()
     })
 
     test('sends security headers', async () => {
@@ -177,7 +184,9 @@ describe('claude.ai connect flow', () => {
         )
         expect(response.headers.get('location')).toBe(pagePath)
         const page = await (await browser(pagePath)).text()
-        expect(page).toContain('gitlab · git.example.com · ilker')
+        expect(page).toContain(
+            '<strong>ilker</strong><span>git.example.com</span>'
+        )
         expect(page).not.toContain('glpat-x')
     })
 

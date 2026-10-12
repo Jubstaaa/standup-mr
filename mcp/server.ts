@@ -218,10 +218,24 @@ export const INSTRUCTIONS_TOOL_ANNOTATIONS = {
     openWorldHint: false,
 }
 
+export const SERVER_ICONS = [
+    {
+        src: 'https://raw.githubusercontent.com/Jubstaaa/standup-mr/main/assets/icon-512.png',
+        mimeType: 'image/png',
+        sizes: ['512x512'],
+    },
+    {
+        src: 'https://raw.githubusercontent.com/Jubstaaa/standup-mr/main/assets/icon.svg',
+        mimeType: 'image/svg+xml',
+        sizes: ['any'],
+    },
+]
+
 export function createServer(): McpServer {
     const server = new McpServer({
         name: 'standup-mr',
         version: packageVersion(import.meta.url),
+        icons: SERVER_ICONS,
     })
 
     server.registerTool(

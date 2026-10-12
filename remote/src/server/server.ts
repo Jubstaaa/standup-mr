@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url'
+
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js'
 import {
     getOAuthProtectedResourceMetadataUrl,
@@ -26,7 +28,13 @@ import type { Store } from '../store/store'
 import { createRemoteServer } from '../tools/tools'
 import { upstreamApps } from '../upstream/upstream'
 
-import { MCP_CALLS_PER_MINUTE } from './server.constants'
+import {
+    ICON_CACHE,
+    ICON_ROUTES,
+    MCP_CALLS_PER_MINUTE,
+} from './server.constants'
+
+const ASSETS_DIR = fileURLToPath(new URL('../../../assets/', import.meta.url))
 
 export interface AppOptions {
     fetchImpl?: FetchLike
@@ -54,6 +62,14 @@ export function createApp(
     // form-action directive would block; the page itself runs no script.
     // The opener policy stays off: a client that runs the login in a popup
     // may need window.opener to learn that it finished.
+    // Before helmet: its same-origin resource policy would stop other sites,
+    // claude.ai among them, from showing the icon.
+    for (const [route, file] of Object.entries(ICON_ROUTES)) {
+        app.get(route, (_req, res) => {
+            res.sendFile(file, { root: ASSETS_DIR, maxAge: ICON_CACHE })
+        })
+    }
+
     app.use(
         helmet({
             contentSecurityPolicy: {

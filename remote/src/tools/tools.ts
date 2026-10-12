@@ -9,6 +9,7 @@ import {
     POST_TOOL_ANNOTATIONS,
     POST_TOOL_SCHEMA,
     runInstructionsTool,
+    SERVER_ICONS,
     STANDUP_TOOL_ANNOTATIONS,
     STANDUP_TOOL_SCHEMA,
     text,
@@ -103,6 +104,7 @@ export function createRemoteServer(context: ToolContext): McpServer {
         version: packageVersion(
             new URL('../../../mcp/server.ts', import.meta.url).href
         ),
+        icons: SERVER_ICONS,
     })
 
     server.registerTool(
