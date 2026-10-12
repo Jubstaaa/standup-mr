@@ -13,6 +13,7 @@ import helmet from 'helmet'
 
 import type { FetchLike } from '../../../src/types/standup.types'
 import { createTokenRefresher } from '../accounts/accounts'
+import type { TokenRefresher } from '../accounts/accounts'
 import type { RemoteConfig } from '../config/config.types'
 import { createConnectRouter } from '../connect/connect'
 import { renderLandingPage } from '../connect/connect-page'
@@ -25,10 +26,11 @@ import {
     createGuardedLookup,
     createHostCheck,
 } from '../ssrf/ssrf'
-import type { Lookup } from '../ssrf/ssrf'
+import type { HostCheck, Lookup } from '../ssrf/ssrf'
 import type { Store } from '../store/store'
 import { createRemoteServer } from '../tools/tools'
 import { createUpstream } from '../upstream/upstream'
+import type { Upstream } from '../upstream/upstream'
 
 import {
     ICON_CACHE,
@@ -44,13 +46,21 @@ export interface AppOptions {
     now?: () => number
 }
 
-export function createApp(
+// Shared by the web app and the scheduler, so both go through the same
+// SSRF guard and never refresh one account's token twice at once.
+export interface Services {
+    fetchImpl: FetchLike
+    freshAccessToken: TokenRefresher
+    hostCheck: HostCheck
+    now: () => number
+    upstream: Upstream
+}
+
+export function createServices(
     config: RemoteConfig,
     store: Store,
     options: AppOptions = {}
-): Express {
-    const app = express()
-    const now = options.now ?? Date.now
+): Services {
     const blocked = blockedSet(config.blockedAddresses)
     const lookup = createGuardedLookup(blocked, options.lookup)
     const fetchImpl = options.fetchImpl ?? createGuardedFetch(lookup, blocked)
@@ -60,7 +70,22 @@ export function createApp(
         fetchImpl,
         store,
     })
-    const freshAccessToken = createTokenRefresher(upstream, store)
+    return {
+        fetchImpl,
+        freshAccessToken: createTokenRefresher(upstream, store),
+        hostCheck: createHostCheck(lookup),
+        now: options.now ?? Date.now,
+        upstream,
+    }
+}
+
+export function createApp(
+    config: RemoteConfig,
+    store: Store,
+    services: Services = createServices(config, store)
+): Express {
+    const app = express()
+    const { fetchImpl, freshAccessToken, now, upstream } = services
     const mcpUrl = new URL('/mcp', config.baseUrl)
     const provider = new StandupOAuthProvider(store, { mcpUrl, now })
     const authLimit = { keyGenerator: clientKey }
@@ -123,8 +148,9 @@ export function createApp(
         createConnectRouter({
             baseUrl: config.baseUrl,
             fetchImpl,
+            freshAccessToken,
             githubAppSlug: config.githubAppSlug,
-            hostCheck: createHostCheck(lookup),
+            hostCheck: services.hostCheck,
             now,
             store,
             upstream,

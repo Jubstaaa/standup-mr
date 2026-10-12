@@ -6,6 +6,20 @@ export interface Webhook {
     url: string
 }
 
+// days is a cron day-of-week list (0 is Sunday), time is HH:MM in timezone.
+export interface ScheduleSettings {
+    days: string
+    time: string
+    timezone: string
+}
+
+export interface Schedule extends ScheduleSettings {
+    connectionId: string
+    lastError: string | null
+    lastSentAt: number | null
+    nextRunAt: number
+}
+
 export interface PendingAuthorization {
     id: string
     clientId: string
