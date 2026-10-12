@@ -31,6 +31,13 @@ beforeAll(async () => {
         databasePath: ':memory:',
         encryptionKey: randomBytes(32),
         port: 0,
+        gitlabInstances: [
+            {
+                host: 'git.example.com',
+                clientId: 'instance-id',
+                clientSecret: 'instance-secret',
+            },
+        ],
     }
     store = new Store(':memory:', config.encryptionKey)
     const app = createApp(config, store, {
@@ -141,6 +148,21 @@ describe('claude.ai connect flow', () => {
         expect(page).toContain('No account linked yet')
         expect(page).toContain('Connect standup-mr to Claude')
         expect(page).toContain('<strong>claude.ai</strong>')
+    })
+
+    test('a configured self-hosted GitLab gets its own sign-in', async () => {
+        const page = await (await browser(pagePath)).text()
+        expect(page).toContain('Link a git.example.com account')
+
+        const response = await browser(
+            `${pagePath}/link/gitlab/git.example.com`
+        )
+        const target = new URL(response.headers.get('location')!)
+        expect(target.origin).toBe('https://git.example.com')
+        expect(target.searchParams.get('client_id')).toBe('instance-id')
+        expect(target.searchParams.get('redirect_uri')).toBe(
+            'http://localhost/connect/callback/gitlab/git.example.com'
+        )
     })
 
     test('a forwarded link is useless in another browser', async () => {

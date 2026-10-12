@@ -3,7 +3,7 @@ import { GitHubProvider } from '../../../src/providers/github/github'
 import { GitLabProvider } from '../../../src/providers/gitlab/gitlab'
 import type { FetchLike, ProviderKind } from '../../../src/types/standup.types'
 import type { Store } from '../store/store'
-import { toUpstreamTokens } from '../upstream/upstream'
+import { findApp, toUpstreamTokens } from '../upstream/upstream'
 import type { UpstreamApps } from '../upstream/upstream'
 
 import { REFRESH_MARGIN_MS } from './accounts.constants'
@@ -61,7 +61,7 @@ export function createTokenRefresher(apps: UpstreamApps, store: Store) {
     const inFlight = new Map<string, Promise<string>>()
 
     async function refresh(account: Account): Promise<string> {
-        const app = apps[account.provider]
+        const app = findApp(apps, account.provider, account.host)
         if (!app || !account.refreshToken) {
             throw new AccountError(
                 `The ${describeAccount(account)} login has expired. Reconnect the connector.`

@@ -19,7 +19,7 @@ beforeEach(() => {
     posted = []
     context = {
         connectionId,
-        freshAccessToken: createTokenRefresher({}, store),
+        freshAccessToken: createTokenRefresher([], store),
         now: () => 0,
         store,
         fetchImpl: async (url, init) => {

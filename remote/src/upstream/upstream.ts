@@ -2,52 +2,86 @@ import { GitHub, GitLab } from 'arctic'
 import type { OAuth2Tokens } from 'arctic'
 
 import type { ProviderKind } from '../../../src/types/standup.types'
-import type { RemoteConfig } from '../config/config.types'
+import type { AppCredentials, RemoteConfig } from '../config/config.types'
 
-import { GITLAB_SCOPES } from './upstream.constants'
+import { GITHUB_HOST, GITLAB_HOST, GITLAB_SCOPES } from './upstream.constants'
 import type { UpstreamTokens } from './upstream.types'
 
 export interface UpstreamApp {
     client: GitHub | GitLab
     host: string
     kind: ProviderKind
+    // Route segment for the link and callback URLs: "github", "gitlab", or
+    // "gitlab/<host>" for a self-hosted instance registered in the config.
+    path: string
     scopes: string[]
 }
 
-export type UpstreamApps = Partial<Record<ProviderKind, UpstreamApp>>
+export type UpstreamApps = UpstreamApp[]
 
-export function callbackUrl(baseUrl: URL, kind: ProviderKind): string {
-    return new URL(`/connect/callback/${kind}`, baseUrl).href
+export function callbackUrl(baseUrl: URL, path: string): string {
+    return new URL(`/connect/callback/${path}`, baseUrl).href
+}
+
+export function findApp(
+    apps: UpstreamApps,
+    kind: ProviderKind,
+    host: string
+): UpstreamApp | undefined {
+    return apps.find(app => app.kind === kind && app.host === host)
+}
+
+function gitlabApp(
+    baseUrl: URL,
+    host: string,
+    path: string,
+    credentials: AppCredentials
+): UpstreamApp {
+    return {
+        kind: 'gitlab',
+        host,
+        path,
+        scopes: GITLAB_SCOPES,
+        client: new GitLab(
+            `https://${host}`,
+            credentials.clientId,
+            credentials.clientSecret,
+            callbackUrl(baseUrl, path)
+        ),
+    }
 }
 
 export function upstreamApps(config: RemoteConfig): UpstreamApps {
-    const apps: UpstreamApps = {}
+    const apps: UpstreamApps = []
     if (config.github) {
         // A GitHub App's user tokens carry the app's own read-only
         // permissions; it takes no scopes.
-        apps.github = {
+        apps.push({
             kind: 'github',
-            host: 'github.com',
+            host: GITHUB_HOST,
+            path: 'github',
             scopes: [],
             client: new GitHub(
                 config.github.clientId,
                 config.github.clientSecret,
                 callbackUrl(config.baseUrl, 'github')
             ),
-        }
+        })
     }
     if (config.gitlab) {
-        apps.gitlab = {
-            kind: 'gitlab',
-            host: 'gitlab.com',
-            scopes: GITLAB_SCOPES,
-            client: new GitLab(
-                'https://gitlab.com',
-                config.gitlab.clientId,
-                config.gitlab.clientSecret,
-                callbackUrl(config.baseUrl, 'gitlab')
-            ),
-        }
+        apps.push(
+            gitlabApp(config.baseUrl, GITLAB_HOST, 'gitlab', config.gitlab)
+        )
+    }
+    for (const instance of config.gitlabInstances) {
+        apps.push(
+            gitlabApp(
+                config.baseUrl,
+                instance.host,
+                `gitlab/${instance.host}`,
+                instance
+            )
+        )
     }
     return apps
 }

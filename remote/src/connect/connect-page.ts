@@ -1,7 +1,9 @@
 import escapeHtml from 'escape-html'
 
+import type { ProviderKind } from '../../../src/types/standup.types'
 import type { Account } from '../accounts/accounts.types'
 import type { Webhook } from '../store/store.types'
+import { GITHUB_HOST } from '../upstream/upstream.constants'
 
 import { PAGE_STYLE } from './connect-page.constants'
 import {
@@ -13,14 +15,19 @@ import {
     PROVIDER_ICONS,
 } from './connect-page.icons'
 
+export interface ProviderLink {
+    host: string
+    href: string
+    kind: ProviderKind
+}
+
 export interface ConnectPageModel {
     accounts: Account[]
     clientName: string
     error?: string
-    githubAvailable: boolean
     githubInstallUrl?: string
-    gitlabAvailable: boolean
     pendingId: string
+    providers: ProviderLink[]
     redirectHost: string
     webhook?: Webhook
 }
@@ -94,20 +101,26 @@ function accountRows(base: string, accounts: Account[]): string {
     return `<ul class="accounts">${rows}</ul>`
 }
 
-function providerButtons(base: string, model: ConnectPageModel): string {
-    const buttons = [
-        model.githubAvailable
-            ? `<a class="provider" href="${base}/link/github">${PROVIDER_ICONS.github}<span>Link a GitHub account</span></a>`
-            : '',
-        model.gitlabAvailable
-            ? `<a class="provider" href="${base}/link/gitlab">${PROVIDER_ICONS.gitlab}<span>Link a gitlab.com account</span></a>`
-            : '',
-    ].join('')
-    return buttons ? `<div class="providers">${buttons}</div>` : ''
+function providerLabel(link: ProviderLink): string {
+    return link.host === GITHUB_HOST
+        ? 'Link a GitHub account'
+        : `Link a ${escapeHtml(link.host)} account`
+}
+
+function providerButtons(model: ConnectPageModel): string {
+    if (model.providers.length === 0) return ''
+    const buttons = model.providers
+        .map(
+            link =>
+                `<a class="provider" href="${escapeHtml(link.href)}">${PROVIDER_ICONS[link.kind]}<span>${providerLabel(link)}</span></a>`
+        )
+        .join('')
+    return `<div class="providers">${buttons}</div>`
 }
 
 function githubHint(model: ConnectPageModel): string {
-    if (!model.githubAvailable || !model.githubInstallUrl) return ''
+    const hasGithubApp = model.providers.some(link => link.kind === 'github')
+    if (!hasGithubApp || !model.githubInstallUrl) return ''
     return `<p class="hint">Org repositories missing? <a href="${escapeHtml(model.githubInstallUrl)}" target="_blank" rel="noopener">Install the GitHub App on your org</a>, or add github.com with a fine-grained token below.</p>`
 }
 
@@ -166,7 +179,7 @@ export function renderConnectPage(model: ConnectPageModel): string {
         <section class="block" aria-labelledby="accounts-title">
             <h2 id="accounts-title">Accounts</h2>
             ${accountRows(base, model.accounts)}
-            ${providerButtons(base, model)}
+            ${providerButtons(model)}
             ${githubHint(model)}
             ${tokenForm(base)}
         </section>

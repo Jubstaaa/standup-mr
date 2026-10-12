@@ -63,10 +63,11 @@ describe('createTokenRefresher', () => {
     let refreshCalls: number
     let refreshResult: () => Promise<OAuth2Tokens>
 
-    const apps = (): UpstreamApps => ({
-        github: {
+    const apps = (): UpstreamApps => [
+        {
             kind: 'github',
             host: 'github.com',
+            path: 'github',
             scopes: [],
             client: {
                 refreshAccessToken: async () => {
@@ -75,7 +76,7 @@ describe('createTokenRefresher', () => {
                 },
             } as unknown as GitHub,
         },
-    })
+    ]
 
     beforeEach(() => {
         store = new Store(':memory:', randomBytes(32))
@@ -131,7 +132,7 @@ describe('createTokenRefresher', () => {
     })
 
     test('never refreshes a pasted token', async () => {
-        const fresh = createTokenRefresher({}, store)
+        const fresh = createTokenRefresher([], store)
         const pat = account({ source: 'pat', expiresAt: 1 })
         expect(await fresh(pat, 10)).toBe('token')
     })

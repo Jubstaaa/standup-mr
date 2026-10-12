@@ -3,6 +3,10 @@ export interface AppCredentials {
     clientSecret: string
 }
 
+export interface GitLabInstance extends AppCredentials {
+    host: string
+}
+
 export interface RemoteConfig {
     baseUrl: URL
     blockedAddresses: string[]
@@ -11,5 +15,6 @@ export interface RemoteConfig {
     github?: AppCredentials
     githubAppSlug?: string
     gitlab?: AppCredentials
+    gitlabInstances: GitLabInstance[]
     port: number
 }

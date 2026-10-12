@@ -1,11 +1,39 @@
 import { z } from 'zod'
 
-import type { RemoteConfig } from './config.types'
+import type { GitLabInstance, RemoteConfig } from './config.types'
 
 const optional = z
     .string()
     .optional()
     .transform(value => value || undefined)
+
+const INSTANCE_FORMAT = /^([a-z0-9.-]+):([^:\s]+):([^:\s]+)$/i
+
+// "git.example.com:<client id>:<secret>", comma separated: one OAuth
+// application registered on each self-hosted GitLab.
+function parseInstances(
+    value: string,
+    context: z.RefinementCtx
+): GitLabInstance[] {
+    const instances: GitLabInstance[] = []
+    for (const entry of value.split(',').map(item => item.trim())) {
+        if (!entry) continue
+        const match = entry.match(INSTANCE_FORMAT)
+        if (!match) {
+            context.addIssue({
+                code: 'custom',
+                message: `"${entry.split(':')[0]}" must be host:client_id:secret`,
+            })
+            continue
+        }
+        instances.push({
+            host: match[1]!.toLowerCase(),
+            clientId: match[2]!,
+            clientSecret: match[3]!,
+        })
+    }
+    return instances
+}
 
 const envSchema = z.object({
     PUBLIC_URL: z.url(),
@@ -22,6 +50,10 @@ const envSchema = z.object({
     GITHUB_APP_SLUG: optional,
     GITLAB_CLIENT_ID: optional,
     GITLAB_CLIENT_SECRET: optional,
+    GITLAB_INSTANCES: z
+        .string()
+        .default('')
+        .transform((value, context) => parseInstances(value, context)),
     BLOCKED_ADDRESSES: z.string().default(''),
 })
 
@@ -53,6 +85,7 @@ export function loadConfig(
             values.GITLAB_CLIENT_ID,
             values.GITLAB_CLIENT_SECRET
         ),
+        gitlabInstances: values.GITLAB_INSTANCES,
         blockedAddresses: values.BLOCKED_ADDRESSES.split(',')
             .map(address => address.trim())
             .filter(Boolean),

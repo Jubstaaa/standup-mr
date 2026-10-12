@@ -43,6 +43,12 @@ function isProviderKind(value: unknown): value is ProviderKind {
     return value === 'github' || value === 'gitlab'
 }
 
+function appForRoute(apps: UpstreamApps, req: Request) {
+    const { kind, host } = req.params
+    const path = host ? `${kind}/${host}` : kind
+    return apps.find(app => app.path === path)
+}
+
 function field(req: Request, name: string): string {
     const value: unknown = req.body?.[name]
     return typeof value === 'string' ? value.trim() : ''
@@ -139,11 +145,14 @@ export function createConnectRouter(deps: ConnectDeps): Router {
                 accounts: store.listAccounts(pending.connectionId),
                 webhook: store.getWebhook(pending.connectionId),
                 error,
-                githubAvailable: Boolean(apps.github),
+                providers: apps.map(app => ({
+                    kind: app.kind,
+                    host: app.host,
+                    href: `${pageUrl(pending.id)}/link/${app.path}`,
+                })),
                 githubInstallUrl: deps.githubAppSlug
                     ? `https://github.com/apps/${deps.githubAppSlug}/installations/new`
                     : undefined,
-                gitlabAvailable: Boolean(apps.gitlab),
             })
         )
     }
@@ -151,8 +160,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
     // The upstream round trip gets its own single-use state instead of the
     // page id, so the page id never leaves this site.
     const startUpstreamLogin: PendingHandler = (pending, req, res) => {
-        const kind = req.params.kind
-        const app = isProviderKind(kind) ? apps[kind] : undefined
+        const app = appForRoute(apps, req)
         if (!app) return res.redirect(pageUrl(pending.id))
         const state = randomToken()
         store.setUpstreamState(pending, state)
@@ -160,8 +168,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
     }
 
     const finishUpstreamLogin: RequestHandler = async (req, res) => {
-        const kind = req.params.kind
-        const app = isProviderKind(kind) ? apps[kind] : undefined
+        const app = appForRoute(apps, req)
         const state = typeof req.query.state === 'string' ? req.query.state : ''
         const code = typeof req.query.code === 'string' ? req.query.code : ''
         const pending = state
@@ -277,9 +284,12 @@ export function createConnectRouter(deps: ConnectDeps): Router {
     })
 
     // Registered before /:pendingId, which would otherwise match "callback".
-    router.get('/callback/:kind', finishUpstreamLogin)
+    router.get('/callback/:kind{/:host}', finishUpstreamLogin)
     router.get('/:pendingId', withPending(showPage))
-    router.get('/:pendingId/link/:kind', withPending(startUpstreamLogin))
+    router.get(
+        '/:pendingId/link/:kind{/:host}',
+        withPending(startUpstreamLogin)
+    )
     router.post('/:pendingId/token', tokenLimit, withPending(addPastedToken))
     router.post(
         '/:pendingId/accounts/:accountId/remove',

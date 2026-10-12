@@ -83,7 +83,11 @@ read:
   won't approve it, add github.com with a fine-grained token instead.
 - **gitlab.com** — sign in with GitLab.
 - **Self-hosted GitLab or GitHub Enterprise** — host plus a read-only token
-  (`read_api` is enough on GitLab).
+  (`read_api` is enough on GitLab). A self-hosted GitLab can get its own
+  sign-in button instead: register an OAuth application on it (redirect URI
+  `https://standup.ilkerbalcilar.com/connect/callback/gitlab/<your host>`,
+  scopes `read_api read_user`) and
+  [open an issue](https://github.com/Jubstaaa/standup-mr/issues) with the host.
 - **Chat webhook** _(optional)_ — Slack, Discord or Google Chat, so Claude can
   post the finished note when you ask it to.
 
