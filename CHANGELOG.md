@@ -4,6 +4,19 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Remote MCP server for claude.ai.** Add
+  `https://standup.ilkerbalcilar.com/mcp` as a custom connector, sign in with
+  GitHub or gitlab.com — or paste a token for a self-hosted host — and use
+  standup-mr from claude.ai on the web and on mobile, with no environment
+  variables. One connector can hold several accounts and an optional chat
+  webhook. The server lives in `remote/` and is not part of the npm package.
+- `server.json` lists the remote endpoint, so registries show both the npm
+  package and the hosted server.
+
 ## [0.7.0] - 2026-10-10
 
 ### Added

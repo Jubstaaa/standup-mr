@@ -66,12 +66,52 @@ So if you already use `gh` or `glab`, there is nothing to configure.
 npx standup-mr fetch --markdown | npx standup-mr post --slack "$SLACK_WEBHOOK_URL"
 ```
 
-## The three surfaces
+## claude.ai (web and mobile)
+
+No token, no config file — sign in instead. In claude.ai open **Settings →
+Connectors → Add custom connector** and paste:
+
+```
+https://standup.ilkerbalcilar.com/mcp
+```
+
+Press **Connect**. A page opens where you link the accounts the note should
+read:
+
+- **GitHub** — sign in through the standup-mr GitHub App. It only sees the
+  repositories it is installed on, so install it on your org too; if the org
+  won't approve it, add github.com with a fine-grained token instead.
+- **gitlab.com** — sign in with GitLab.
+- **Self-hosted GitLab or GitHub Enterprise** — host plus a read-only token
+  (`read_api` is enough on GitLab).
+- **Chat webhook** _(optional)_ — Slack, Discord or Google Chat, so Claude can
+  post the finished note when you ask it to.
+
+Link as many as you like — say, GitHub for side projects and your company's
+GitLab for work — then ask for "my standup" or "my work standup". With
+several accounts linked, Claude asks which one you mean.
+
+The connector then works from the claude.ai mobile app as well.
+
+**What is stored.** Your provider tokens and webhook URL, encrypted with
+AES-256-GCM, and only to read your merge requests and post your note. The
+access tokens Claude holds are stored as hashes. Disconnecting the connector
+deletes everything; connections unused for 90 days are deleted. The server is
+the code in [`remote/`](remote/).
+
+**When to use the local server instead.** A GitLab behind a VPN or on a
+private network is out of reach of a hosted server. Run the stdio server
+below on your own machine — the token never leaves it.
+
+## The four surfaces
 
 **CLI** — the core. Emits JSON; zero runtime dependencies.
 
-**MCP server** (`mcp/`) — one tool, `get_standup_data`, for Claude Desktop,
-Cursor, or any MCP client. See [`mcp/README.md`](mcp/README.md).
+**MCP server** (`mcp/`) — three tools for Claude Desktop, Claude Code, Cursor,
+or any MCP client that runs a local process. See [`mcp/README.md`](mcp/README.md).
+
+**Remote MCP server** (`remote/`) — the same tools over HTTPS with sign-in, for
+claude.ai on the web and on mobile. See [above](#claudeai-web-and-mobile).
 
 **Claude Code plugin** — the note-writing playbook, shipped as the `standup`
 skill. From inside Claude Code:
