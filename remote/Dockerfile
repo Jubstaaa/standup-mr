@@ -11,10 +11,11 @@ COPY package.json bun.lock ./
 COPY remote/package.json remote/package.json
 RUN bun install --frozen-lockfile --production
 
-# skills/ is read at runtime by get_note_instructions.
+# skills/ is read at runtime by get_note_instructions; assets/ holds the icon.
 COPY src src
 COPY mcp mcp
 COPY skills skills
+COPY assets assets
 COPY remote/src remote/src
 
 ENV NODE_ENV=production

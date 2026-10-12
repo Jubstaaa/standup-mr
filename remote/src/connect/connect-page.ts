@@ -67,6 +67,9 @@ export function renderConnectPage(model: ConnectPageModel): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>Connect standup-mr</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/icon.png" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>${PAGE_STYLE}</style>
 </head>
 <body>
