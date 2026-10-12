@@ -15,6 +15,7 @@ import type { FetchLike } from '../../../src/types/standup.types'
 import { createTokenRefresher } from '../accounts/accounts'
 import type { RemoteConfig } from '../config/config.types'
 import { createConnectRouter } from '../connect/connect'
+import { renderLandingPage } from '../connect/connect-page'
 import { StandupOAuthProvider } from '../oauth/oauth'
 import { clientKey } from '../rate-limit/rate-limit'
 import {
@@ -84,9 +85,7 @@ export function createApp(
     })
 
     app.get('/', (_req, res) => {
-        res.redirect(
-            'https://github.com/Jubstaaa/standup-mr#claudeai-web-and-mobile'
-        )
+        res.send(renderLandingPage(mcpUrl.href))
     })
 
     app.use(
