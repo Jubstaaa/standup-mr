@@ -13,5 +13,5 @@
         "forceConsistentCasingInFileNames": true,
         "outDir": "dist"
     },
-    "include": ["src", "mcp"]
+    "include": ["src", "mcp", "remote/src"]
 }

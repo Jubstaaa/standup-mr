@@ -10,7 +10,7 @@ import tseslint from 'typescript-eslint'
 export default defineConfig([
     globalIgnores(['**/dist', '**/node_modules']),
     {
-        files: ['src/**/*.ts', 'mcp/**/*.ts'],
+        files: ['src/**/*.ts', 'mcp/**/*.ts', 'remote/src/**/*.ts'],
         extends: [
             js.configs.recommended,
             tseslint.configs.recommended,
