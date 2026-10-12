@@ -8,6 +8,14 @@ All notable changes to standup-mr are recorded here. The format follows
 
 ### Added
 
+- **A compact chat digest for scheduled posts.** Scheduled and test posts now
+  send `toChatDigest` instead of the full Markdown report: one line per piece
+  of work from the last active day (repeated pushes collapsed, merges marked,
+  branch-deletion and merge-commit noise dropped), ready MRs grouped by
+  project, the reason each blocked MR is stuck, and a one-line count of
+  drafts, stale MRs and waiting reviews. The CLI's `--markdown` output is
+  unchanged.
+
 - **Scheduled posting on the hosted connector.** Once a webhook is saved, the
   connect page can post the digest automatically at a chosen time, time zone
   and weekdays, with one section per linked account, and send a test right

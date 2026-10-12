@@ -2,7 +2,7 @@ import { Cron } from 'croner'
 
 import { collect } from '../../../mcp/server'
 import { postWebhook } from '../../../src/notify/notify'
-import { toMarkdown } from '../../../src/render/render'
+import { toChatDigest } from '../../../src/render/digest'
 import { describeAccount, providerFor } from '../accounts/accounts'
 import { errorMessage } from '../errors/errors'
 import type { Schedule, ScheduleSettings } from '../store/store.types'
@@ -79,11 +79,11 @@ export async function composeDigest(
                 deps.fetchImpl
             ),
         })
-        const markdown = toMarkdown(report)
+        const digest = toChatDigest(report)
         sections.push(
             accounts.length === 1
-                ? markdown
-                : `**${describeAccount(account)}**\n\n${markdown}`
+                ? digest
+                : `**${describeAccount(account)}**\n${digest}`
         )
     }
     return sections.join('\n')
