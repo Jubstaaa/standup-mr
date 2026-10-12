@@ -105,7 +105,7 @@ function sendExpired(res: Response): void {
     res.status(410).send(
         renderMessagePage(
             'This link has expired',
-            'Connect links work once, for 15 minutes, and only in the browser that started them. Go back to Claude and press Connect again.'
+            'Connect links work once, for 15 minutes, and only in the browser that started them. Go back to your app and connect again.'
         )
     )
 }

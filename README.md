@@ -69,7 +69,7 @@ So if you already use `gh` or `glab`, there is nothing to configure.
 npx standup-mr fetch --markdown | npx standup-mr post --slack "$SLACK_WEBHOOK_URL"
 ```
 
-## Hosted connector: Claude, Cursor, VS Code, Gemini, Codex
+## Hosted connector: any AI assistant
 
 No token, no config file — sign in instead. The hosted server speaks the
 standard MCP OAuth flow, so any assistant that supports remote MCP servers can
@@ -107,19 +107,19 @@ On the sign-in page you link the accounts the note should read:
   Otherwise set it up once: the page shows the exact redirect URI and scopes
   for an OAuth application on your host, you paste its ID and secret, and
   everyone at that host can sign in from then on. A read-only token works too.
-- **Chat webhook** _(optional)_ — Slack, Discord or Google Chat, so Claude can
-  post the finished note when you ask it to.
+- **Chat webhook** _(optional)_ — Slack, Discord or Google Chat, so your assistant
+  can post the finished note when you ask it to.
 
 Link as many as you like — say, GitHub for side projects and your company's
 GitLab for work — then ask for "my standup" or "my work standup". With
-several accounts linked, Claude asks which one you mean.
+several accounts linked, the assistant asks which one you mean.
 
-Added in claude.ai, the connector works from the mobile app too: ask for your
-standup on the way to the meeting.
+Added in an assistant with a mobile app — Claude or ChatGPT — it works from
+your phone too: ask for your standup on the way to the meeting.
 
 **What is stored.** Your provider tokens and webhook URL, encrypted with
 AES-256-GCM, and only to read your merge requests and post your note. The
-access tokens Claude holds are stored as hashes. Disconnecting the connector
+access tokens your assistant holds are stored as hashes. Disconnecting it
 deletes everything; connections unused for 30 days are deleted. The server is
 the code in [`remote/`](remote/).
 
@@ -135,7 +135,8 @@ below on your own machine — the token never leaves it.
 or any MCP client that runs a local process. See [`mcp/README.md`](mcp/README.md).
 
 **Remote MCP server** (`remote/`) — the same tools over HTTPS with sign-in, for
-claude.ai on the web and on mobile. See [above](#hosted-connector-claude-cursor-vs-code-gemini-codex).
+any assistant that supports remote MCP servers, including the web and mobile
+apps. See [above](#hosted-connector-any-ai-assistant).
 
 **Claude Code plugin** — the note-writing playbook, shipped as the `standup`
 skill. From inside Claude Code:

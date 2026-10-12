@@ -223,7 +223,7 @@ function webhookForm(base: string, webhook?: Webhook): string {
     return `<details class="disclosure disclosure-last"${webhook ? ' open' : ''}>
         <summary>Post notes to a chat channel <span class="optional">Optional</span></summary>
         <div class="fields">
-            <p class="hint">Paste a Slack, Discord or Google Chat webhook. Claude posts there only when you ask it to.</p>
+            <p class="hint">Paste a Slack, Discord or Google Chat webhook. Your assistant posts there only when you ask it to.</p>
             ${saved}
             <form method="post" action="${base}/webhook" class="fields">
                 <label>Webhook URL <input name="url" type="password" placeholder="https://hooks.slack.com/services/…" autocomplete="off"></label>
@@ -288,8 +288,8 @@ export function renderLandingPage(mcpUrl: string): string {
         'standup-mr',
         `<div class="lockup lockup-solo" aria-hidden="true"><span class="tile tile-standup"><img src="/icon.png" alt="" width="56" height="56"></span></div>
         <h1>standup-mr</h1>
-        <p class="lede">Standup notes from merge request state, for Claude.</p>
-        <p class="return">In claude.ai, open Settings, Connectors, Add custom connector, and paste <strong>${escapeHtml(mcpUrl)}</strong></p>
+        <p class="lede">Your standup from merge request state, in any AI assistant.</p>
+        <p class="return">Add <strong>${escapeHtml(mcpUrl)}</strong> as a remote MCP server in Claude, ChatGPT, Cursor, VS Code, Gemini CLI or Codex, then sign in.</p>
         <footer class="trust"><p><a href="${SOURCE_URL}">Source and docs</a> · <a href="/privacy">Privacy</a> · <a href="/support">Support</a></p></footer>`
     )
 }
