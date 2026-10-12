@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/shared/auth.js'
 import { Database } from 'bun:sqlite'
 
+import type { ProviderKind } from '../../../src/types/standup.types'
 import type { Account, NewAccount } from '../accounts/accounts.types'
 import { hashToken, open, seal } from '../crypto/crypto'
 import type { UpstreamTokens } from '../upstream/upstream.types'
@@ -13,12 +14,15 @@ import {
     CONNECTION_IDLE_MS,
     PENDING_TTL_MS,
     SCHEMA,
+    UNVERIFIED_INSTANCE_TTL_MS,
 } from './store.constants'
 import type {
     AuthCode,
+    Instance,
     NewPending,
     PendingAuthorization,
     StoredToken,
+    UpstreamLogin,
     Webhook,
 } from './store.types'
 
@@ -46,6 +50,14 @@ interface PendingRow {
     scopes: string
     state: string | null
     upstream_return: string | null
+}
+
+interface InstanceRow {
+    client_id: string
+    client_secret: string
+    host: string
+    kind: ProviderKind
+    verified_at: number | null
 }
 
 interface CodeRow {
@@ -144,26 +156,27 @@ export class Store {
         return this.toPending(pendingId, row, browserSecret, now)
     }
 
-    // The callback only gets `state` back, so the page id it returns to is
-    // kept beside it, sealed like any other secret.
-    setUpstreamState(pending: PendingAuthorization, state: string): void {
+    // The callback only gets `state` back, so the page id it returns to and
+    // the PKCE verifier for the upstream login are kept beside it, sealed.
+    setUpstreamLogin(
+        pending: PendingAuthorization,
+        state: string,
+        codeVerifier: string
+    ): void {
+        const login = JSON.stringify({ pendingId: pending.id, codeVerifier })
         this.db
             .query(
                 'UPDATE pending SET upstream_state = ?, upstream_return = ? WHERE id = ?'
             )
-            .run(
-                hashToken(state),
-                seal(this.key, pending.id),
-                hashToken(pending.id)
-            )
+            .run(hashToken(state), seal(this.key, login), hashToken(pending.id))
     }
 
     // The upstream state is single-use: it is cleared as soon as it is read.
-    takePendingByUpstreamState(
+    takeUpstreamLogin(
         state: string,
         browserSecret: string | undefined,
         now: number
-    ): PendingAuthorization | undefined {
+    ): UpstreamLogin | undefined {
         const row = this.db
             .query<PendingRow & { id: string }, [string]>(
                 'SELECT * FROM pending WHERE upstream_state = ?'
@@ -175,12 +188,61 @@ export class Store {
                 'UPDATE pending SET upstream_state = NULL, upstream_return = NULL WHERE id = ?'
             )
             .run(row.id)
-        return this.toPending(
-            open(this.key, row.upstream_return),
-            row,
-            browserSecret,
-            now
-        )
+        const login = JSON.parse(open(this.key, row.upstream_return)) as {
+            codeVerifier: string
+            pendingId: string
+        }
+        const pending = this.toPending(login.pendingId, row, browserSecret, now)
+        return pending
+            ? { pending, codeVerifier: login.codeVerifier }
+            : undefined
+    }
+
+    getInstance(kind: ProviderKind, host: string): Instance | undefined {
+        const row = this.db
+            .query<InstanceRow, [string, string]>(
+                'SELECT * FROM instances WHERE kind = ? AND host = ?'
+            )
+            .get(kind, host)
+        if (!row) return undefined
+        return {
+            kind: row.kind,
+            host: row.host,
+            clientId: row.client_id,
+            clientSecret: open(this.key, row.client_secret),
+            verifiedAt: row.verified_at,
+        }
+    }
+
+    // Anyone may register an instance's OAuth application, and replace it
+    // while it is unproven. The first successful sign-in locks it, so a
+    // working setup cannot be swapped out from the page.
+    saveInstance(instance: Omit<Instance, 'verifiedAt'>, now: number): boolean {
+        const result = this.db
+            .query(
+                `INSERT INTO instances (kind, host, client_id, client_secret, created_at)
+                 VALUES (?, ?, ?, ?, ?)
+                 ON CONFLICT (kind, host) DO UPDATE SET
+                 client_id = excluded.client_id, client_secret = excluded.client_secret,
+                 created_at = excluded.created_at
+                 WHERE instances.verified_at IS NULL`
+            )
+            .run(
+                instance.kind,
+                instance.host,
+                instance.clientId,
+                seal(this.key, instance.clientSecret),
+                now
+            )
+        return result.changes > 0
+    }
+
+    markInstanceVerified(kind: ProviderKind, host: string, now: number): void {
+        this.db
+            .query(
+                'UPDATE instances SET verified_at = ? WHERE kind = ? AND host = ? AND verified_at IS NULL'
+            )
+            .run(now, kind, host)
     }
 
     // The page stays readable after Finish so a second click is answered
@@ -440,6 +502,11 @@ export class Store {
                 .run(now - PENDING_TTL_MS)
             this.db.query('DELETE FROM codes WHERE expires_at < ?').run(now)
             this.db.query('DELETE FROM tokens WHERE expires_at < ?').run(now)
+            this.db
+                .query(
+                    'DELETE FROM instances WHERE verified_at IS NULL AND created_at < ?'
+                )
+                .run(now - UNVERIFIED_INSTANCE_TTL_MS)
             // Dynamic registration is open, so clients nobody uses go too.
             this.db
                 .query(

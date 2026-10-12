@@ -1,7 +1,9 @@
 import escapeHtml from 'escape-html'
 
+import type { ProviderKind } from '../../../src/types/standup.types'
 import type { Account } from '../accounts/accounts.types'
 import type { Webhook } from '../store/store.types'
+import { GITHUB_HOST } from '../upstream/upstream.constants'
 
 import { PAGE_STYLE } from './connect-page.constants'
 import {
@@ -13,15 +15,31 @@ import {
     PROVIDER_ICONS,
 } from './connect-page.icons'
 
+export interface ProviderLink {
+    host: string
+    href: string
+    kind: ProviderKind
+}
+
+// The self-hosted panel, open once someone has typed a host.
+export interface SelfHostedPanel {
+    callbackUrl: string
+    canSetUp: boolean
+    host: string
+    kind: ProviderKind
+    setupUrl: string
+    signInHref?: string
+}
+
 export interface ConnectPageModel {
     accounts: Account[]
     clientName: string
     error?: string
-    githubAvailable: boolean
     githubInstallUrl?: string
-    gitlabAvailable: boolean
     pendingId: string
+    providers: ProviderLink[]
     redirectHost: string
+    selfHosted?: SelfHostedPanel
     webhook?: Webhook
 }
 
@@ -94,38 +112,102 @@ function accountRows(base: string, accounts: Account[]): string {
     return `<ul class="accounts">${rows}</ul>`
 }
 
-function providerButtons(base: string, model: ConnectPageModel): string {
-    const buttons = [
-        model.githubAvailable
-            ? `<a class="provider" href="${base}/link/github">${PROVIDER_ICONS.github}<span>Link a GitHub account</span></a>`
-            : '',
-        model.gitlabAvailable
-            ? `<a class="provider" href="${base}/link/gitlab">${PROVIDER_ICONS.gitlab}<span>Link a gitlab.com account</span></a>`
-            : '',
-    ].join('')
-    return buttons ? `<div class="providers">${buttons}</div>` : ''
+function providerButtons(model: ConnectPageModel): string {
+    if (model.providers.length === 0) return ''
+    const buttons = model.providers
+        .map(link => {
+            const label =
+                link.host === GITHUB_HOST ? 'GitHub' : escapeHtml(link.host)
+            return `<a class="provider" href="${escapeHtml(link.href)}">${PROVIDER_ICONS[link.kind]}<span>Link a ${label} account</span></a>`
+        })
+        .join('')
+    return `<div class="providers">${buttons}</div>`
 }
 
 function githubHint(model: ConnectPageModel): string {
-    if (!model.githubAvailable || !model.githubInstallUrl) return ''
-    return `<p class="hint">Org repositories missing? <a href="${escapeHtml(model.githubInstallUrl)}" target="_blank" rel="noopener">Install the GitHub App on your org</a>, or add github.com with a fine-grained token below.</p>`
+    const hasGithub = model.providers.some(link => link.kind === 'github')
+    if (!hasGithub || !model.githubInstallUrl) return ''
+    return `<p class="hint">Org repositories missing? <a href="${escapeHtml(model.githubInstallUrl)}" target="_blank" rel="noopener">Install the GitHub App on your org</a>, or add github.com as a host below with a fine-grained token.</p>`
 }
 
-function tokenForm(base: string): string {
-    return `<details class="disclosure">
-        <summary>Use a token or a self-hosted instance</summary>
+function hostFields(panel?: SelfHostedPanel): string {
+    const kind = panel?.kind ?? 'gitlab'
+    return `<label>Provider
+        <select name="provider">
+            <option value="gitlab"${kind === 'gitlab' ? ' selected' : ''}>GitLab</option>
+            <option value="github"${kind === 'github' ? ' selected' : ''}>GitHub Enterprise</option>
+        </select>
+    </label>
+    <label>Host <input name="host" value="${escapeHtml(panel?.host ?? '')}" placeholder="gitlab.example.com" required autocomplete="off" autocapitalize="off" spellcheck="false"></label>`
+}
+
+function hiddenHost(panel: SelfHostedPanel): string {
+    return `<input type="hidden" name="provider" value="${panel.kind}"><input type="hidden" name="host" value="${escapeHtml(panel.host)}">`
+}
+
+function setupSteps(base: string, panel: SelfHostedPanel): string {
+    const host = escapeHtml(panel.host)
+    const scopes =
+        panel.kind === 'github'
+            ? '<code>repo</code> and <code>read:user</code>. GitHub has no read-only scope for private pull requests, so <code>repo</code> is the narrowest that works.'
+            : '<code>read_api</code> and <code>read_user</code>, and tick Confidential.'
+    return `<div class="setup">
+        <h3>Set up sign-in for everyone at ${host}</h3>
+        <ol class="steps">
+            <li><a href="${escapeHtml(panel.setupUrl)}" target="_blank" rel="noopener">Create an OAuth application on ${host}</a>. Anyone with an account can; an admin can make it trusted.</li>
+            <li>Use this redirect URI: <code class="copy">${escapeHtml(panel.callbackUrl)}</code></li>
+            <li>Scopes: ${scopes}</li>
+            <li>Paste the application ID and secret here. Once someone signs in with it, it is locked and shared by everyone at ${host}.</li>
+        </ol>
+        <form method="post" action="${base}/instances" class="fields">
+            ${hiddenHost(panel)}
+            <label>Application ID <input name="client_id" required autocomplete="off" spellcheck="false"></label>
+            <label>Secret <input name="client_secret" type="password" required autocomplete="off"></label>
+            <button class="secondary" type="submit">Save and sign in</button>
+        </form>
+    </div>`
+}
+
+function tokenOption(base: string, panel: SelfHostedPanel): string {
+    const scope =
+        panel.kind === 'github'
+            ? 'read access to pull requests, actions and checks'
+            : '<code>read_api</code>'
+    return `<details class="nested">
+        <summary>Or paste a personal access token</summary>
         <form method="post" action="${base}/token" class="fields">
-            <p class="hint">For self-hosted GitLab, GitHub Enterprise, or github.com without the app. A read-only token is enough: <code>read_api</code> on GitLab; read access to pull requests, actions and checks on GitHub.</p>
-            <label>Provider
-                <select name="provider">
-                    <option value="gitlab">GitLab</option>
-                    <option value="github">GitHub or GitHub Enterprise</option>
-                </select>
-            </label>
-            <label>Host <input name="host" placeholder="gitlab.example.com" required autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+            ${hiddenHost(panel)}
+            <p class="hint">A read-only token is enough: ${scope}.</p>
             <label>Token <input name="token" type="password" required autocomplete="off"></label>
             <button class="secondary" type="submit">Add account</button>
         </form>
+    </details>`
+}
+
+function selfHostedPanel(base: string, panel: SelfHostedPanel): string {
+    const host = escapeHtml(panel.host)
+    const signIn = panel.signInHref
+        ? `<a class="provider" href="${escapeHtml(panel.signInHref)}">${PROVIDER_ICONS[panel.kind]}<span>Sign in with ${host}</span></a>`
+        : `<p class="hint">${host} isn't set up for sign-in yet.</p>`
+    return `<div class="panel">
+        ${signIn}
+        ${panel.canSetUp ? setupSteps(base, panel) : ''}
+        ${tokenOption(base, panel)}
+        <a class="quiet" href="${base}">Use a different host</a>
+    </div>`
+}
+
+function selfHostedSection(base: string, panel?: SelfHostedPanel): string {
+    const body = panel
+        ? selfHostedPanel(base, panel)
+        : `<form method="post" action="${base}/self-hosted" class="fields">
+            <p class="hint">Your company's GitLab or GitHub Enterprise. If someone there already set up sign-in, you can use it; otherwise set it up once, or paste a token.</p>
+            ${hostFields()}
+            <button class="secondary" type="submit">Continue</button>
+        </form>`
+    return `<details class="disclosure" id="self-hosted"${panel ? ' open' : ''}>
+        <summary>Your company's GitLab or GitHub Enterprise</summary>
+        <div class="fields">${body}</div>
     </details>`
 }
 
@@ -166,9 +248,9 @@ export function renderConnectPage(model: ConnectPageModel): string {
         <section class="block" aria-labelledby="accounts-title">
             <h2 id="accounts-title">Accounts</h2>
             ${accountRows(base, model.accounts)}
-            ${providerButtons(base, model)}
+            ${providerButtons(model)}
             ${githubHint(model)}
-            ${tokenForm(base)}
+            ${selfHostedSection(base, model.selfHosted)}
         </section>
         ${webhookForm(base, model.webhook)}
         <form method="post" action="${base}/finish" class="finish">

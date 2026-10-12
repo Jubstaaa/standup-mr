@@ -27,7 +27,7 @@ import {
 import type { Lookup } from '../ssrf/ssrf'
 import type { Store } from '../store/store'
 import { createRemoteServer } from '../tools/tools'
-import { upstreamApps } from '../upstream/upstream'
+import { createUpstream } from '../upstream/upstream'
 
 import {
     ICON_CACHE,
@@ -49,12 +49,17 @@ export function createApp(
     options: AppOptions = {}
 ): Express {
     const app = express()
-    const apps = upstreamApps(config)
     const now = options.now ?? Date.now
     const blocked = blockedSet(config.blockedAddresses)
     const lookup = createGuardedLookup(blocked, options.lookup)
     const fetchImpl = options.fetchImpl ?? createGuardedFetch(lookup, blocked)
-    const freshAccessToken = createTokenRefresher(apps, store)
+    const upstream = createUpstream({
+        baseUrl: config.baseUrl,
+        config,
+        fetchImpl,
+        store,
+    })
+    const freshAccessToken = createTokenRefresher(upstream, store)
     const mcpUrl = new URL('/mcp', config.baseUrl)
     const provider = new StandupOAuthProvider(store, { mcpUrl, now })
     const authLimit = { keyGenerator: clientKey }
@@ -107,12 +112,13 @@ export function createApp(
     app.use(
         '/connect',
         createConnectRouter({
-            apps,
+            baseUrl: config.baseUrl,
             fetchImpl,
             githubAppSlug: config.githubAppSlug,
             hostCheck: createHostCheck(lookup),
             now,
             store,
+            upstream,
         })
     )
 

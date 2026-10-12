@@ -9,6 +9,7 @@ export const REFRESH_REUSE_GRACE_MS = MINUTE
 // Matches the refresh token: past it the client cannot get back in anyway.
 export const CONNECTION_IDLE_MS = REFRESH_TOKEN_TTL_MS
 export const CLIENT_IDLE_MS = DAY
+export const UNVERIFIED_INSTANCE_TTL_MS = DAY
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS clients (
@@ -75,6 +76,16 @@ CREATE TABLE IF NOT EXISTS tokens (
     scopes TEXT NOT NULL,
     expires_at INTEGER NOT NULL,
     used_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS instances (
+    kind TEXT NOT NULL,
+    host TEXT NOT NULL,
+    client_id TEXT NOT NULL,
+    client_secret TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    verified_at INTEGER,
+    PRIMARY KEY (kind, host)
 );
 
 CREATE INDEX IF NOT EXISTS tokens_family ON tokens (family);

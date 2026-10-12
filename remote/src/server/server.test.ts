@@ -16,10 +16,21 @@ let base: string
 let server: Server
 let store: Store
 
-// Stands in for git.example.com: only /user is needed to link an account.
-const fakeUpstream = async (url: string) => {
+const tokenRequests: URLSearchParams[] = []
+
+// Stands in for git.example.com: its user endpoint and OAuth token endpoint.
+const fakeUpstream = async (url: string, init?: RequestInit) => {
     if (url.endsWith('/api/v4/user')) {
         return Response.json({ id: 1, username: 'ilker' })
+    }
+    if (url === 'https://git.example.com/oauth/token') {
+        tokenRequests.push(new URLSearchParams(String(init?.body)))
+        return Response.json({
+            access_token: 'gitlab-oauth-token',
+            token_type: 'Bearer',
+            refresh_token: 'gitlab-refresh',
+            expires_in: 7200,
+        })
     }
     return new Response('not found', { status: 404 })
 }
@@ -188,6 +199,81 @@ describe('claude.ai connect flow', () => {
             '<strong>ilker</strong><span>git.example.com</span>'
         )
         expect(page).not.toContain('glpat-x')
+    })
+
+    test('a self-hosted GitLab is set up once and then signed in to', async () => {
+        const chosen = await browser(
+            `${pagePath}/self-hosted`,
+            form({ provider: 'gitlab', host: 'https://git.example.com/' })
+        )
+        const panelPath = chosen.headers.get('location')!
+        expect(panelPath).toContain('host=git.example.com')
+
+        const panel = await (await browser(panelPath)).text()
+        expect(panel).toContain("git.example.com isn't set up for sign-in yet")
+        expect(panel).toContain(
+            'http://localhost/connect/callback/gitlab/git.example.com'
+        )
+
+        const saved = await browser(
+            `${pagePath}/instances`,
+            form({
+                provider: 'gitlab',
+                host: 'git.example.com',
+                client_id: 'company-app',
+                client_secret: 'company-secret',
+            })
+        )
+        const linkPath = saved.headers.get('location')!
+        expect(linkPath).toEndWith('/link/gitlab/git.example.com')
+
+        const link = await browser(linkPath)
+        const authorize = new URL(link.headers.get('location')!)
+        expect(authorize.origin + authorize.pathname).toBe(
+            'https://git.example.com/oauth/authorize'
+        )
+        expect(authorize.searchParams.get('client_id')).toBe('company-app')
+        expect(authorize.searchParams.get('code_challenge_method')).toBe('S256')
+
+        const callback = await browser(
+            `/connect/callback/gitlab/git.example.com?code=granted&state=${authorize.searchParams.get('state')}`
+        )
+        expect(callback.headers.get('location')).toBe(pagePath)
+        expect(tokenRequests[0]!.get('client_secret')).toBe('company-secret')
+        expect(tokenRequests[0]!.get('code_verifier')).toBeTruthy()
+        const [account] = store
+            .listAccounts(
+                store.getPending(
+                    pagePath.split('/').pop()!,
+                    cookie.split('=')[1],
+                    Date.now()
+                )!.connectionId
+            )
+            .filter(linked => linked.host === 'git.example.com')
+        expect(account?.source).toBe('oauth')
+        expect(account?.accessToken).toBe('gitlab-oauth-token')
+    })
+
+    test('a working instance cannot be replaced from the page', async () => {
+        const panel = await (
+            await browser(`${pagePath}?provider=gitlab&host=git.example.com`)
+        ).text()
+        expect(panel).toContain('Sign in with git.example.com')
+        expect(panel).not.toContain('Set up sign-in for everyone')
+
+        const takeover = await browser(
+            `${pagePath}/instances`,
+            form({
+                provider: 'gitlab',
+                host: 'git.example.com',
+                client_id: 'attacker-app',
+                client_secret: 'attacker-secret',
+            })
+        )
+        expect(takeover.headers.get('location')).toContain('already+set+up')
+        expect(store.getInstance('gitlab', 'git.example.com')?.clientId).toBe(
+            'company-app'
+        )
     })
 
     test('an unknown webhook host is refused', async () => {

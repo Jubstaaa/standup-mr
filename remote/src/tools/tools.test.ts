@@ -19,7 +19,10 @@ beforeEach(() => {
     posted = []
     context = {
         connectionId,
-        freshAccessToken: createTokenRefresher({}, store),
+        freshAccessToken: createTokenRefresher(
+            { resolve: () => undefined, refresh: () => Promise.reject() },
+            store
+        ),
         now: () => 0,
         store,
         fetchImpl: async (url, init) => {

@@ -1,4 +1,5 @@
 import type { WebhookKind } from '../../../src/notify/notify.types'
+import type { ProviderKind } from '../../../src/types/standup.types'
 
 export interface Webhook {
     kind: WebhookKind
@@ -48,4 +49,19 @@ export interface StoredToken {
     resource: string | null
     scopes: string[]
     usedAt: number | null
+}
+
+export interface UpstreamLogin {
+    codeVerifier: string
+    pending: PendingAuthorization
+}
+
+// An OAuth application someone registered on a self-hosted GitLab or
+// GitHub Enterprise, shared by everyone who signs in to that host.
+export interface Instance {
+    clientId: string
+    clientSecret: string
+    host: string
+    kind: ProviderKind
+    verifiedAt: number | null
 }

@@ -1,12 +1,11 @@
 import { randomBytes } from 'node:crypto'
 
-import { OAuth2Tokens } from 'arctic'
-import type { GitHub } from 'arctic'
 import { beforeEach, describe, expect, test } from 'bun:test'
 
 import { Store } from '../store/store'
 import { startConnection } from '../store/store.fixtures'
-import type { UpstreamApps } from '../upstream/upstream'
+import type { UpstreamApp } from '../upstream/upstream'
+import type { UpstreamTokens } from '../upstream/upstream.types'
 
 import { AccountError, createTokenRefresher, pickAccount } from './accounts'
 import type { Account } from './accounts.types'
@@ -61,31 +60,41 @@ describe('createTokenRefresher', () => {
     let store: Store
     let linked: Account
     let refreshCalls: number
-    let refreshResult: () => Promise<OAuth2Tokens>
+    let refreshResult: () => Promise<UpstreamTokens>
 
-    const apps = (): UpstreamApps => ({
-        github: {
-            kind: 'github',
-            host: 'github.com',
-            scopes: [],
-            client: {
-                refreshAccessToken: async () => {
-                    refreshCalls += 1
-                    return refreshResult()
-                },
-            } as unknown as GitHub,
+    const githubApp: UpstreamApp = {
+        kind: 'github',
+        host: 'github.com',
+        clientId: 'id',
+        clientSecret: 'secret',
+        isInstance: false,
+        isVerified: true,
+        scopes: [],
+    }
+
+    const upstream = () => ({
+        resolve: () => githubApp,
+        refresh: async () => {
+            refreshCalls += 1
+            return refreshResult()
         },
     })
+
+    const noUpstream = {
+        resolve: () => undefined,
+        refresh: async (): Promise<UpstreamTokens> => {
+            throw new Error('unused')
+        },
+    }
 
     beforeEach(() => {
         store = new Store(':memory:', randomBytes(32))
         refreshCalls = 0
-        refreshResult = async () =>
-            new OAuth2Tokens({
-                access_token: 'new',
-                refresh_token: 'refresh-2',
-                expires_in: 28_800,
-            })
+        refreshResult = async () => ({
+            accessToken: 'new',
+            refreshToken: 'refresh-2',
+            expiresAt: 38_800_000,
+        })
         linked = store.addAccount({
             connectionId: startConnection(store).connectionId,
             provider: 'github',
@@ -99,13 +108,13 @@ describe('createTokenRefresher', () => {
     })
 
     test('keeps a token that is still valid', async () => {
-        const fresh = createTokenRefresher(apps(), store)
+        const fresh = createTokenRefresher(upstream(), store)
         expect(await fresh(linked, 0)).toBe('old')
         expect(refreshCalls).toBe(0)
     })
 
     test('refreshes a token about to expire and stores the new one', async () => {
-        const fresh = createTokenRefresher(apps(), store)
+        const fresh = createTokenRefresher(upstream(), store)
         expect(await fresh(linked, 9_999_000)).toBe('new')
         const [stored] = store.listAccounts(linked.connectionId)
         expect(stored!.accessToken).toBe('new')
@@ -113,7 +122,7 @@ describe('createTokenRefresher', () => {
     })
 
     test('spends a single-use refresh token once for concurrent calls', async () => {
-        const fresh = createTokenRefresher(apps(), store)
+        const fresh = createTokenRefresher(upstream(), store)
         const tokens = await Promise.all([
             fresh(linked, 9_999_000),
             fresh(linked, 9_999_000),
@@ -126,12 +135,12 @@ describe('createTokenRefresher', () => {
         refreshResult = async () => {
             throw new Error('bad_refresh_token')
         }
-        const fresh = createTokenRefresher(apps(), store)
+        const fresh = createTokenRefresher(upstream(), store)
         await expect(fresh(linked, 9_999_000)).rejects.toThrow(/Reconnect/)
     })
 
     test('never refreshes a pasted token', async () => {
-        const fresh = createTokenRefresher({}, store)
+        const fresh = createTokenRefresher(noUpstream, store)
         const pat = account({ source: 'pat', expiresAt: 1 })
         expect(await fresh(pat, 10)).toBe('token')
     })

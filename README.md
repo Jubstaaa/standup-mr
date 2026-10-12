@@ -82,8 +82,11 @@ read:
   repositories it is installed on, so install it on your org too; if the org
   won't approve it, add github.com with a fine-grained token instead.
 - **gitlab.com** — sign in with GitLab.
-- **Self-hosted GitLab or GitHub Enterprise** — host plus a read-only token
-  (`read_api` is enough on GitLab).
+- **Your company's GitLab or GitHub Enterprise** — type the host. If someone
+  at your company already set up sign-in, you get a "Sign in with …" button.
+  Otherwise set it up once: the page shows the exact redirect URI and scopes
+  for an OAuth application on your host, you paste its ID and secret, and
+  everyone at that host can sign in from then on. A read-only token works too.
 - **Chat webhook** _(optional)_ — Slack, Discord or Google Chat, so Claude can
   post the finished note when you ask it to.
 

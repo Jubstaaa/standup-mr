@@ -3,8 +3,7 @@ import { GitHubProvider } from '../../../src/providers/github/github'
 import { GitLabProvider } from '../../../src/providers/gitlab/gitlab'
 import type { FetchLike, ProviderKind } from '../../../src/types/standup.types'
 import type { Store } from '../store/store'
-import { toUpstreamTokens } from '../upstream/upstream'
-import type { UpstreamApps } from '../upstream/upstream'
+import type { Upstream } from '../upstream/upstream'
 
 import { REFRESH_MARGIN_MS } from './accounts.constants'
 import type { Account } from './accounts.types'
@@ -54,22 +53,27 @@ export function pickAccount(
     )
 }
 
-// OAuth tokens expire (GitHub after 8h, gitlab.com after 2h) and their
-// refresh tokens are single-use. Refreshes are shared per account, so two
+// OAuth tokens expire (GitHub after 8h, GitLab after 2h) and their refresh
+// tokens are single-use. Refreshes are shared per account, so two
 // concurrent tool calls never spend the same refresh token twice.
-export function createTokenRefresher(apps: UpstreamApps, store: Store) {
+export function createTokenRefresher(
+    upstream: Pick<Upstream, 'refresh' | 'resolve'>,
+    store: Store
+) {
     const inFlight = new Map<string, Promise<string>>()
 
-    async function refresh(account: Account): Promise<string> {
-        const app = apps[account.provider]
+    async function refresh(account: Account, now: number): Promise<string> {
+        const app = upstream.resolve(account.provider, account.host)
         if (!app || !account.refreshToken) {
             throw new AccountError(
                 `The ${describeAccount(account)} login has expired. Reconnect the connector.`
             )
         }
         try {
-            const tokens = toUpstreamTokens(
-                await app.client.refreshAccessToken(account.refreshToken)
+            const tokens = await upstream.refresh(
+                app,
+                account.refreshToken,
+                now
             )
             store.updateAccountTokens(account.id, tokens)
             return tokens.accessToken
@@ -92,7 +96,7 @@ export function createTokenRefresher(apps: UpstreamApps, store: Store) {
 
         const pending = inFlight.get(account.id)
         if (pending) return pending
-        const refreshing = refresh(account).finally(() =>
+        const refreshing = refresh(account, now).finally(() =>
             inFlight.delete(account.id)
         )
         inFlight.set(account.id, refreshing)
