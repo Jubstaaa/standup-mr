@@ -18,6 +18,7 @@ import type { Upstream } from '../upstream/upstream'
 import { GITHUB_HOST, GITLAB_HOST } from '../upstream/upstream.constants'
 import type { UpstreamTokens } from '../upstream/upstream.types'
 
+import { identifyClient } from './client-identity'
 import { renderConnectPage, renderMessagePage } from './connect-page'
 import {
     CONNECT_COOKIE,
@@ -185,8 +186,10 @@ export function createConnectRouter(deps: ConnectDeps): Router {
         res.send(
             renderConnectPage({
                 pendingId: pending.id,
-                clientName: client?.client_name ?? 'An MCP client',
-                redirectHost: new URL(pending.redirectUri).host,
+                client: identifyClient(
+                    client?.client_name,
+                    pending.redirectUri
+                ),
                 accounts: store.listAccounts(pending.connectionId),
                 webhook: store.getWebhook(pending.connectionId),
                 error: query(req, 'error').slice(0, ERROR_MESSAGE_MAX_LENGTH),
