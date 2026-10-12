@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import type { RemoteConfig } from '../config/config.types'
 import { Store } from '../store/store'
 
-import { createApp } from './server'
+import { createApp, createServices } from './server'
 
 const REDIRECT_URI = 'https://claude.ai/api/mcp/auth_callback'
 const verifier = randomBytes(32).toString('base64url')
@@ -17,6 +17,8 @@ let server: Server
 let store: Store
 
 const tokenRequests: URLSearchParams[] = []
+const webhookPosts: string[] = []
+const WEBHOOK = 'https://hooks.slack.com/services/T/B/X'
 
 // Stands in for git.example.com: its user endpoint and OAuth token endpoint.
 const fakeUpstream = async (url: string, init?: RequestInit) => {
@@ -32,6 +34,13 @@ const fakeUpstream = async (url: string, init?: RequestInit) => {
             expires_in: 7200,
         })
     }
+    if (url === WEBHOOK) {
+        webhookPosts.push(String(init?.body))
+        return new Response('ok')
+    }
+    if (url.startsWith('https://git.example.com/api/v4/')) {
+        return Response.json([])
+    }
     return new Response('not found', { status: 404 })
 }
 
@@ -44,11 +53,15 @@ beforeAll(async () => {
         port: 0,
     }
     store = new Store(':memory:', config.encryptionKey)
-    const app = createApp(config, store, {
-        fetchImpl: fakeUpstream,
-        lookup: (_host, _options, callback) =>
-            callback(null, [{ address: '140.82.112.3', family: 4 }]),
-    })
+    const app = createApp(
+        config,
+        store,
+        createServices(config, store, {
+            fetchImpl: fakeUpstream,
+            lookup: (_host, _options, callback) =>
+                callback(null, [{ address: '140.82.112.3', family: 4 }]),
+        })
+    )
     server = await new Promise<Server>(resolve => {
         const listening = app.listen(0, () => resolve(listening))
     })
@@ -290,6 +303,68 @@ describe('claude.ai connect flow', () => {
             form({ url: 'https://evil.example.com/hook' })
         )
         expect(response.headers.get('location')).toContain('error=')
+    })
+
+    test('the schedule form appears once a webhook is saved', async () => {
+        expect(await (await browser(pagePath)).text()).not.toContain(
+            'Post automatically'
+        )
+        await browser(`${pagePath}/webhook`, form({ url: WEBHOOK }))
+        const page = await (await browser(pagePath)).text()
+        expect(page).toContain('Post automatically')
+        expect(page).toContain('<option selected>Europe/Istanbul</option>')
+    })
+
+    function schedule(fields: Record<string, string | string[]>) {
+        const body = new URLSearchParams()
+        for (const [name, value] of Object.entries(fields)) {
+            for (const item of [value].flat()) body.append(name, item)
+        }
+        return browser(`${pagePath}/schedule`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString(),
+        })
+    }
+
+    const validSchedule = {
+        enabled: 'on',
+        time: '08:15',
+        timezone: 'America/New_York',
+        day: ['1', '3'],
+    }
+
+    test.each([
+        [{ ...validSchedule, time: '8am' }, 'HH:MM'],
+        [{ ...validSchedule, timezone: 'Mars/Olympus' }, 'time zone'],
+        [{ ...validSchedule, day: [] }, 'one day'],
+    ])('an invalid schedule is refused: %o', async (fields, message) => {
+        const response = await schedule(fields)
+        const location = new URL(response.headers.get('location')!, base)
+        expect(location.searchParams.get('error')).toContain(message)
+    })
+
+    test('a valid schedule is saved and shown', async () => {
+        const response = await schedule(validSchedule)
+        expect(response.headers.get('location')).toContain('notice=')
+        const page = await (await browser(pagePath)).text()
+        expect(page).toContain('Posts on Mon, Wed at 08:15 America/New_York')
+        expect(page).toContain('<option selected>America/New_York</option>')
+    })
+
+    test('a test digest is posted to the webhook', async () => {
+        const response = await browser(`${pagePath}/schedule/test`, form({}))
+        expect(response.headers.get('location')).toContain('notice=')
+        expect(webhookPosts).toHaveLength(1)
+        expect(webhookPosts[0]).toContain('ilker')
+    })
+
+    test('unticking the box turns the schedule off', async () => {
+        await schedule({ ...validSchedule, enabled: '' })
+        expect(await (await browser(pagePath)).text()).not.toContain(
+            'Posts on Mon'
+        )
+        await browser(`${pagePath}/webhook`, form({ url: '' }))
     })
 
     test('finish returns a code to claude.ai with the state', async () => {

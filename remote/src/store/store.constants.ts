@@ -88,7 +88,18 @@ CREATE TABLE IF NOT EXISTS instances (
     PRIMARY KEY (kind, host)
 );
 
+CREATE TABLE IF NOT EXISTS schedules (
+    connection_id TEXT PRIMARY KEY REFERENCES connections(id) ON DELETE CASCADE,
+    time TEXT NOT NULL,
+    timezone TEXT NOT NULL,
+    days TEXT NOT NULL,
+    next_run_at INTEGER NOT NULL,
+    last_sent_at INTEGER,
+    last_error TEXT
+);
+
 CREATE INDEX IF NOT EXISTS tokens_family ON tokens (family);
 CREATE INDEX IF NOT EXISTS tokens_connection ON tokens (connection_id);
 CREATE INDEX IF NOT EXISTS pending_upstream_state ON pending (upstream_state);
+CREATE INDEX IF NOT EXISTS schedules_next_run ON schedules (next_run_at);
 `

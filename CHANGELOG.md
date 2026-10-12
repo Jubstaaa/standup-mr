@@ -8,6 +8,12 @@ All notable changes to standup-mr are recorded here. The format follows
 
 ### Added
 
+- **Scheduled posting on the hosted connector.** Once a webhook is saved, the
+  connect page can post the digest automatically at a chosen time, time zone
+  and weekdays, with one section per linked account, and send a test right
+  away. A run missed by more than 30 minutes while the server was down is
+  skipped rather than posted late.
+
 - **A `standup` prompt.** Clients that show MCP prompts offer it as a one-click
   command — `/standup` in Claude Code — that writes the note, optionally for a
   named account.

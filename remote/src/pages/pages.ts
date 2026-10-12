@@ -26,6 +26,7 @@ export function renderPrivacyPage(): string {
             <li>The accounts you link: provider, host and username.</li>
             <li>The access and refresh tokens for those accounts, encrypted with AES-256-GCM.</li>
             <li>The chat webhook URL, if you add one, encrypted the same way.</li>
+            <li>If you turn on automatic posting: the time, time zone and days you chose, when it last posted and the last error, if any.</li>
             <li>The tokens your AI assistant uses to reach this server, stored only as SHA-256 hashes, and the client registration it sends.</li>
             <li>If you set up sign-in for a self-hosted GitLab or GitHub Enterprise: its host, application ID and secret, the secret encrypted.</li>
             <li>When a connection was created and last used.</li>
@@ -35,14 +36,14 @@ export function renderPrivacyPage(): string {
         <p>Your merge requests, reviews, pipeline logs and standup notes. They are read from your host when your assistant asks for them, returned to it, and not kept. The web server keeps standard access logs (IP address, time and path) to run and protect the service; tokens and webhook URLs never appear in them.</p>
 
         <h2>How it is used</h2>
-        <p>Only to do what you ask your assistant to do: read your merge requests, reviews and pipeline logs, and post a note to your chat webhook when you ask for it. The connector asks your host for read-only access and never writes to your repositories. There are no analytics, no advertising and no tracking.</p>
+        <p>Only to do what you ask your assistant to do: read your merge requests, reviews and pipeline logs, and post a note to your chat webhook when you ask for it. If you turn on automatic posting, the server collects the same digest at the time you chose and posts it to your webhook. The connector asks your host for read-only access and never writes to your repositories. There are no analytics, no advertising and no tracking.</p>
 
         <h2>Who else sees it</h2>
         <p>Nobody is sold or given your data. Requests go to the GitHub or GitLab host you linked and to your chat webhook. The server runs on DigitalOcean behind Cloudflare, which handle the traffic as infrastructure providers.</p>
 
         <h2>How long it is kept</h2>
         <ul>
-            <li>Disconnecting standup-mr in your assistant deletes the connection, its accounts, tokens and webhook at once.</li>
+            <li>Disconnecting standup-mr in your assistant deletes the connection, its accounts, tokens, webhook and schedule at once.</li>
             <li>Connections unused for 30 days are deleted.</li>
             <li>An unfinished connect page is deleted after 15 minutes.</li>
             <li>A self-hosted sign-in setup that nobody signs in with is deleted after a day.</li>

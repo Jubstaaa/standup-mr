@@ -6,9 +6,16 @@ import { rateLimit } from 'express-rate-limit'
 import { inferWebhookKind } from '../../../src/notify/notify'
 import type { FetchLike, ProviderKind } from '../../../src/types/standup.types'
 import { providerFor } from '../accounts/accounts'
+import type { TokenRefresher } from '../accounts/accounts'
 import { randomToken } from '../crypto/crypto'
 import { errorMessage } from '../errors/errors'
 import { clientKey } from '../rate-limit/rate-limit'
+import {
+    nextRunAt,
+    parseSchedule,
+    ScheduleError,
+    sendDigest,
+} from '../schedule/schedule'
 import { HostError, normalizeHost } from '../ssrf/ssrf'
 import type { HostCheck } from '../ssrf/ssrf'
 import type { Store } from '../store/store'
@@ -29,6 +36,7 @@ import {
 export interface ConnectDeps {
     baseUrl: URL
     fetchImpl: FetchLike
+    freshAccessToken: TokenRefresher
     githubAppSlug?: string
     hostCheck: HostCheck
     now: () => number
@@ -39,6 +47,7 @@ export interface ConnectDeps {
 interface PageParams {
     error?: string
     host?: string
+    notice?: string
     provider?: ProviderKind
 }
 
@@ -57,6 +66,12 @@ function field(req: Request, name: string): string {
     return typeof value === 'string' ? value.trim() : ''
 }
 
+function fieldList(req: Request, name: string): string[] {
+    const value: unknown = req.body?.[name]
+    const values = Array.isArray(value) ? value : [value]
+    return values.filter((item): item is string => typeof item === 'string')
+}
+
 function browserSecret(req: Request): string | undefined {
     const value: unknown = req.cookies?.[CONNECT_COOKIE]
     return typeof value === 'string' ? value : undefined
@@ -69,7 +84,11 @@ function pageUrl(pendingId: string, params: PageParams = {}): string {
             [string, string]
         >
     ).toString()
-    const anchor = params.host ? '#self-hosted' : ''
+    const anchor = params.host
+        ? '#self-hosted'
+        : params.notice
+          ? '#schedule'
+          : ''
     return `${query ? `${base}?${query}` : base}${anchor}`
 }
 
@@ -192,7 +211,9 @@ export function createConnectRouter(deps: ConnectDeps): Router {
                 ),
                 accounts: store.listAccounts(pending.connectionId),
                 webhook: store.getWebhook(pending.connectionId),
+                schedule: store.getSchedule(pending.connectionId),
                 error: query(req, 'error').slice(0, ERROR_MESSAGE_MAX_LENGTH),
+                notice: query(req, 'notice').slice(0, ERROR_MESSAGE_MAX_LENGTH),
                 providers: upstream.builtIn.map(builtIn => ({
                     kind: builtIn.kind,
                     host: builtIn.host,
@@ -393,6 +414,44 @@ export function createConnectRouter(deps: ConnectDeps): Router {
         res.redirect(pageUrl(pending.id))
     }
 
+    const saveSchedule: PendingHandler = (pending, req, res) => {
+        if (field(req, 'enabled') !== 'on') {
+            store.deleteSchedule(pending.connectionId)
+            return res.redirect(
+                pageUrl(pending.id, { notice: 'Automatic posting is off.' })
+            )
+        }
+        try {
+            const settings = parseSchedule({
+                time: field(req, 'time'),
+                timezone: field(req, 'timezone'),
+                days: fieldList(req, 'day'),
+            })
+            store.setSchedule(
+                pending.connectionId,
+                settings,
+                nextRunAt(settings, deps.now())
+            )
+            res.redirect(pageUrl(pending.id, { notice: 'Schedule saved.' }))
+        } catch (error) {
+            if (!(error instanceof ScheduleError)) throw error
+            res.redirect(pageUrl(pending.id, { error: error.message }))
+        }
+    }
+
+    const sendTest: PendingHandler = async (pending, _req, res) => {
+        try {
+            await sendDigest(deps, pending.connectionId)
+            res.redirect(pageUrl(pending.id, { notice: 'Test digest posted.' }))
+        } catch (error) {
+            res.redirect(
+                pageUrl(pending.id, {
+                    error: `The test digest was not posted: ${errorMessage(error)}`,
+                })
+            )
+        }
+    }
+
     const finish: PendingHandler = (pending, _req, res) => {
         if (store.listAccounts(pending.connectionId).length === 0) {
             return res.redirect(
@@ -441,6 +500,8 @@ export function createConnectRouter(deps: ConnectDeps): Router {
         withPending(removeAccount)
     )
     router.post('/:pendingId/webhook', withPending(saveWebhook))
+    router.post('/:pendingId/schedule', withPending(saveSchedule))
+    router.post('/:pendingId/schedule/test', tokenLimit, withPending(sendTest))
     router.post('/:pendingId/finish', withPending(finish))
     router.post('/:pendingId/cancel', withPending(cancel))
 

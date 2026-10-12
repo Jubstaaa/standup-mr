@@ -102,6 +102,12 @@ h1 { font-size: 21px; line-height: 1.3; font-weight: 650; letter-spacing: -0.01e
     color: var(--error); overflow-wrap: anywhere;
 }
 
+.notice {
+    margin: 0 0 20px; padding: 10px 12px;
+    border-radius: 10px; border: 1px solid var(--ok);
+    color: var(--ok); overflow-wrap: anywhere;
+}
+
 .scope { list-style: none; margin: 0 0 28px; padding: 14px 16px; border-radius: 12px; background: var(--branch); }
 .scope li { display: flex; gap: 10px; align-items: flex-start; padding: 3px 0; }
 .scope svg { width: 20px; height: 20px; flex: none; margin-top: 1px; }
@@ -164,6 +170,11 @@ h3 { font-size: 14px; font-weight: 650; margin: 0; overflow-wrap: anywhere; }
 .nested > summary { min-height: 32px; font-size: 13px; }
 .nested[open] > summary { margin-bottom: 6px; }
 .panel .quiet { justify-self: start; text-decoration: none; }
+.split { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; }
+.check { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+.check input { width: auto; min-height: 0; margin: 0; }
+.days { display: flex; flex-wrap: wrap; gap: 6px 14px; border: 0; margin: 0; padding: 0; }
+.days legend { font-size: 13px; font-weight: 600; padding: 0; margin-bottom: 6px; }
 
 label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
 input, select {

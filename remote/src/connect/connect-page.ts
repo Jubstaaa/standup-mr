@@ -2,7 +2,15 @@ import escapeHtml from 'escape-html'
 
 import type { ProviderKind } from '../../../src/types/standup.types'
 import type { Account } from '../accounts/accounts.types'
-import type { Webhook } from '../store/store.types'
+import { describeSchedule } from '../schedule/schedule'
+import {
+    DAY_NAMES,
+    DEFAULT_TIME,
+    DEFAULT_TIMEZONE,
+    TIMEZONES,
+    WEEKDAYS,
+} from '../schedule/schedule.constants'
+import type { Schedule, Webhook } from '../store/store.types'
 import { GITHUB_HOST } from '../upstream/upstream.constants'
 
 import type { ClientIdentity } from './client-identity'
@@ -37,8 +45,10 @@ export interface ConnectPageModel {
     client: ClientIdentity
     error?: string
     githubInstallUrl?: string
+    notice?: string
     pendingId: string
     providers: ProviderLink[]
+    schedule?: Schedule
     selfHosted?: SelfHostedPanel
     webhook?: Webhook
 }
@@ -91,7 +101,7 @@ function lockup(client: ClientIdentity): string {
 function scopeList(): string {
     return `<ul class="scope" aria-label="What standup-mr can do">
         <li class="can">${CHECK_ICON}<span>Read your merge requests, reviews and pipeline logs</span></li>
-        <li class="can">${CHECK_ICON}<span>Post your note to a chat channel, only when you ask</span></li>
+        <li class="can">${CHECK_ICON}<span>Post your note to a chat channel when you ask, or on your schedule</span></li>
         <li class="cannot">${CROSS_ICON}<span>Push code, comment, approve or change anything</span></li>
     </ul>`
 }
@@ -213,7 +223,56 @@ function selfHostedSection(base: string, panel?: SelfHostedPanel): string {
     </details>`
 }
 
-function webhookForm(base: string, webhook?: Webhook): string {
+function scheduleStatus(schedule?: Schedule): string {
+    if (!schedule) return ''
+    const last = schedule.lastError
+        ? `<p class="hint">Last run failed: ${escapeHtml(schedule.lastError)}</p>`
+        : schedule.lastSentAt
+          ? `<p class="hint">Last posted ${escapeHtml(
+                new Date(schedule.lastSentAt).toLocaleString('en-GB', {
+                    timeZone: schedule.timezone,
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                })
+            )}.</p>`
+          : ''
+    return `<p class="saved">${escapeHtml(describeSchedule(schedule))}.</p>${last}`
+}
+
+function scheduleForm(base: string, schedule?: Schedule): string {
+    const timezone = schedule?.timezone ?? DEFAULT_TIMEZONE
+    const days = (schedule?.days ?? WEEKDAYS).split(',')
+    const zones = TIMEZONES.map(
+        zone =>
+            `<option${zone === timezone ? ' selected' : ''}>${escapeHtml(zone)}</option>`
+    ).join('')
+    const dayBoxes = DAY_NAMES.map(
+        ([value, name]) =>
+            `<label class="check"><input type="checkbox" name="day" value="${value}"${days.includes(value) ? ' checked' : ''}>${name}</label>`
+    ).join('')
+    return `<div class="setup" id="schedule">
+        <h3>Post automatically</h3>
+        ${scheduleStatus(schedule)}
+        <form method="post" action="${base}/schedule" class="fields">
+            <label class="check"><input type="checkbox" name="enabled"${schedule ? ' checked' : ''}>Post the digest on a schedule</label>
+            <div class="split">
+                <label>Time <input name="time" type="time" value="${escapeHtml(schedule?.time ?? DEFAULT_TIME)}" required></label>
+                <label>Time zone <select name="timezone">${zones}</select></label>
+            </div>
+            <fieldset class="days"><legend>Days</legend>${dayBoxes}</fieldset>
+            <button class="secondary" type="submit">Save schedule</button>
+        </form>
+        <form method="post" action="${base}/schedule/test">
+            <button class="quiet" type="submit">Send a test now</button>
+        </form>
+    </div>`
+}
+
+function webhookForm(
+    base: string,
+    webhook?: Webhook,
+    schedule?: Schedule
+): string {
     const saved = webhook
         ? `<p class="saved">Notes go to a ${WEBHOOK_NAMES[webhook.kind]} channel (${escapeHtml(new URL(webhook.url).host)}).</p>`
         : ''
@@ -223,13 +282,14 @@ function webhookForm(base: string, webhook?: Webhook): string {
     return `<details class="disclosure disclosure-last"${webhook ? ' open' : ''}>
         <summary>Post notes to a chat channel <span class="optional">Optional</span></summary>
         <div class="fields">
-            <p class="hint">Paste a Slack, Discord or Google Chat webhook. Your assistant posts there only when you ask it to.</p>
+            <p class="hint">Paste a Slack, Discord or Google Chat webhook. Your assistant posts there when you ask it to, or on a schedule you set.</p>
             ${saved}
             <form method="post" action="${base}/webhook" class="fields">
                 <label>Webhook URL <input name="url" type="password" placeholder="https://hooks.slack.com/services/…" autocomplete="off"></label>
                 <button class="secondary" type="submit">${webhook ? 'Replace webhook' : 'Save webhook'}</button>
             </form>
             ${remove}
+            ${webhook ? scheduleForm(base, schedule) : ''}
         </div>
     </details>`
 }
@@ -250,6 +310,7 @@ export function renderConnectPage(model: ConnectPageModel): string {
                 : `<p class="warning" role="alert"><strong>standup-mr doesn't recognize this app.</strong> Anything you link here goes to <strong>${escapeHtml(model.client.redirectHost)}</strong>. Only continue if you set that app up yourself; if someone sent you this link, close this page.</p>`
         }
         ${model.error ? `<p class="error" role="alert">${escapeHtml(model.error)}</p>` : ''}
+        ${model.notice ? `<p class="notice" role="status">${escapeHtml(model.notice)}</p>` : ''}
         ${scopeList()}
         <section class="block" aria-labelledby="accounts-title">
             <h2 id="accounts-title">Accounts</h2>
@@ -258,7 +319,7 @@ export function renderConnectPage(model: ConnectPageModel): string {
             ${githubHint(model)}
             ${selfHostedSection(base, model.selfHosted)}
         </section>
-        ${webhookForm(base, model.webhook)}
+        ${webhookForm(base, model.webhook, model.schedule)}
         <form method="post" action="${base}/finish" class="finish">
             <button class="primary" type="submit"${canFinish ? '' : ' disabled'}>Continue to ${client}</button>
         </form>
