@@ -4,6 +4,17 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Gemini CLI extension.** `gemini extensions install
+  https://github.com/Jubstaaa/standup-mr` adds the hosted connector to Gemini
+  CLI, with a context file that tells it how to use the tools.
+- The README shows how to add the hosted connector to Claude Code, Cursor,
+  VS Code, Gemini CLI, Codex CLI and ChatGPT, with one-click install buttons
+  for Cursor and VS Code.
+
 ## [1.0.1] - 2026-10-12
 
 ### Fixed

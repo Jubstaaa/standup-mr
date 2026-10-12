@@ -64,6 +64,15 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the Gemini extension version matches package.json
+        run: |
+          PKG=$(node -p "require('./package.json').version")
+          GEMINI=$(node -p "require('./gemini-extension.json').version")
+          if [ "$GEMINI" != "$PKG" ]; then
+            echo "gemini-extension.json version $GEMINI does not match package.json version $PKG"
+            exit 1
+          fi
+
       - name: Verify the built binary runs through its bin symlink
         run: |
           mkdir -p /tmp/binlink

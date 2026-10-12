@@ -6,7 +6,7 @@ the same JSON as `standup fetch`.
 
 This is the local, stdio server: it runs on your machine and reads tokens from
 its environment. On claude.ai (web or mobile), use the hosted connector instead
-— see [claude.ai (web and mobile)](../README.md#claudeai-web-and-mobile).
+— see the [hosted connector](../README.md#hosted-connector-claude-cursor-vs-code-gemini-codex).
 
 ## Configure
 
