@@ -269,7 +269,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
             res.redirect(
                 pageUrl(pending.id, {
                     ...panel,
-                    error: `Could not sign in to ${app.host}: ${errorMessage(error)}.${hint}`,
+                    error: `Could not sign in to ${app.host}: ${errorMessage(error).replace(/\.$/, '')}.${hint}`,
                 })
             )
         }

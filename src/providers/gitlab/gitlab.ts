@@ -42,7 +42,10 @@ export class GitLabProvider implements Provider {
         const response = await sendWithRetry(
             this.fetchImpl,
             url,
-            { headers: { 'PRIVATE-TOKEN': this.token } },
+            // Bearer, not PRIVATE-TOKEN: GitLab accepts personal access tokens
+            // either way, but OAuth tokens — glab's browser login, and the
+            // remote server's sign-in — only as a bearer.
+            { headers: { Authorization: `Bearer ${this.token}` } },
             this.host
         )
         assertUsable(response, this.host)
