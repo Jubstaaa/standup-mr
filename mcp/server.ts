@@ -197,6 +197,10 @@ export async function runInstructionsTool(): Promise<ToolResult> {
     return text(readStandupSkillBody())
 }
 
+export const STANDUP_TOOL_TITLE = 'Get standup data'
+export const POST_TOOL_TITLE = 'Post standup note'
+export const INSTRUCTIONS_TOOL_TITLE = 'Get note instructions'
+
 export const STANDUP_TOOL_ANNOTATIONS = {
     readOnlyHint: true,
     destructiveHint: false,
@@ -241,6 +245,7 @@ export function createServer(): McpServer {
     server.registerTool(
         'get_standup_data',
         {
+            title: STANDUP_TOOL_TITLE,
             description: STANDUP_TOOL_DESCRIPTION,
             inputSchema: STANDUP_TOOL_SCHEMA,
             annotations: STANDUP_TOOL_ANNOTATIONS,
@@ -251,6 +256,7 @@ export function createServer(): McpServer {
     server.registerTool(
         'post_standup_note',
         {
+            title: POST_TOOL_TITLE,
             description: POST_TOOL_DESCRIPTION,
             inputSchema: POST_TOOL_SCHEMA,
             annotations: POST_TOOL_ANNOTATIONS,
@@ -261,6 +267,7 @@ export function createServer(): McpServer {
     server.registerTool(
         'get_note_instructions',
         {
+            title: INSTRUCTIONS_TOOL_TITLE,
             description: INSTRUCTIONS_TOOL_DESCRIPTION,
             annotations: INSTRUCTIONS_TOOL_ANNOTATIONS,
         },

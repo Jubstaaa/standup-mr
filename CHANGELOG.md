@@ -4,6 +4,13 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Every MCP tool declares a human-readable `title`, which clients show in
+  their tool lists and permission prompts.
+
 ## [1.0.0] - 2026-10-12
 
 First stable release. From here on the CLI commands and flags, the JSON that

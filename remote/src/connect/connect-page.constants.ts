@@ -186,4 +186,12 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 }
 .trust svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
 .trust p { margin: 0; }
+.prose h1 { text-align: left; margin-bottom: 4px; }
+.prose h2 { margin: 24px 0 8px; }
+.prose p, .prose li { color: var(--ink); }
+.prose p { margin: 0 0 12px; }
+.prose ul { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 6px; }
+.prose a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.updated, .back { color: var(--slate); font-size: 13px; margin: 0 0 20px; }
+.back a { text-decoration: none; }
 `

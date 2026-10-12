@@ -43,7 +43,7 @@ export interface ConnectPageModel {
     webhook?: Webhook
 }
 
-const SOURCE_URL = 'https://github.com/Jubstaaa/standup-mr'
+export const SOURCE_URL = 'https://github.com/Jubstaaa/standup-mr'
 
 const WEBHOOK_NAMES: Record<Webhook['kind'], string> = {
     'slack': 'Slack',
@@ -51,7 +51,7 @@ const WEBHOOK_NAMES: Record<Webhook['kind'], string> = {
     'google-chat': 'Google Chat',
 }
 
-function document(title: string, body: string): string {
+export function renderDocument(title: string, body: string): string {
     return `<!doctype html>
 <html lang="en">
 <head>
@@ -237,7 +237,7 @@ export function renderConnectPage(model: ConnectPageModel): string {
     const client = escapeHtml(model.clientName)
     const canFinish = model.accounts.length > 0
 
-    return document(
+    return renderDocument(
         `Connect standup-mr to ${model.clientName}`,
         `${lockup(model.clientName)}
         <h1>Connect standup-mr to ${client}</h1>
@@ -261,13 +261,13 @@ export function renderConnectPage(model: ConnectPageModel): string {
         </form>
         <footer class="trust">
             ${LOCK_ICON}
-            <p>Tokens and webhooks are encrypted at rest and deleted when you disconnect. Unused connections are deleted after 30 days. <a href="${SOURCE_URL}" target="_blank" rel="noopener">Source on GitHub</a></p>
+            <p>Tokens and webhooks are encrypted at rest and deleted when you disconnect. Unused connections are deleted after 30 days. <a href="/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="/support" target="_blank" rel="noopener">Support</a> · <a href="${SOURCE_URL}" target="_blank" rel="noopener">Source on GitHub</a></p>
         </footer>`
     )
 }
 
 export function renderMessagePage(title: string, body: string): string {
-    return document(
+    return renderDocument(
         title,
         `<div class="lockup lockup-solo" aria-hidden="true"><span class="tile tile-standup"><img src="/icon.png" alt="" width="56" height="56"></span></div>
         <h1>${escapeHtml(title)}</h1>
@@ -278,12 +278,12 @@ export function renderMessagePage(title: string, body: string): string {
 // The site root, so anything that resolves the connector's icon from its
 // home page finds this one and not the parent domain's.
 export function renderLandingPage(mcpUrl: string): string {
-    return document(
+    return renderDocument(
         'standup-mr',
         `<div class="lockup lockup-solo" aria-hidden="true"><span class="tile tile-standup"><img src="/icon.png" alt="" width="56" height="56"></span></div>
         <h1>standup-mr</h1>
         <p class="lede">Standup notes from merge request state, for Claude.</p>
         <p class="return">In claude.ai, open Settings, Connectors, Add custom connector, and paste <strong>${escapeHtml(mcpUrl)}</strong></p>
-        <footer class="trust"><p><a href="${SOURCE_URL}">Source and docs on GitHub</a></p></footer>`
+        <footer class="trust"><p><a href="${SOURCE_URL}">Source and docs</a> · <a href="/privacy">Privacy</a> · <a href="/support">Support</a></p></footer>`
     )
 }

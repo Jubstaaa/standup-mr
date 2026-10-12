@@ -164,6 +164,14 @@ describe('claude.ai connect flow', () => {
         expect(finish.status).toBe(410)
     })
 
+    test('publishes a privacy policy and a support page', async () => {
+        for (const path of ['/privacy', '/support']) {
+            const response = await fetch(`${base}${path}`)
+            expect(response.status).toBe(200)
+            expect(await response.text()).toContain('ilkerbalcilartr@gmail.com')
+        }
+    })
+
     test('serves the project icon to other sites', async () => {
         const response = await fetch(`${base}/favicon.ico`)
         expect(response.status).toBe(200)
@@ -323,8 +331,9 @@ describe('claude.ai connect flow', () => {
             method: 'tools/list',
         })
         const body = (await response.json()) as {
-            result: { tools: Array<{ name: string }> }
+            result: { tools: Array<{ name: string; title?: string }> }
         }
+        expect(body.result.tools.every(tool => tool.title)).toBe(true)
         expect(body.result.tools.map(tool => tool.name).sort()).toEqual([
             'get_note_instructions',
             'get_standup_data',

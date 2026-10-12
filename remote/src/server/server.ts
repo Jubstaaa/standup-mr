@@ -17,6 +17,7 @@ import type { RemoteConfig } from '../config/config.types'
 import { createConnectRouter } from '../connect/connect'
 import { renderLandingPage } from '../connect/connect-page'
 import { StandupOAuthProvider } from '../oauth/oauth'
+import { renderPrivacyPage, renderSupportPage } from '../pages/pages'
 import { clientKey } from '../rate-limit/rate-limit'
 import {
     blockedSet,
@@ -91,6 +92,14 @@ export function createApp(
 
     app.get('/', (_req, res) => {
         res.send(renderLandingPage(mcpUrl.href))
+    })
+
+    app.get('/privacy', (_req, res) => {
+        res.send(renderPrivacyPage())
+    })
+
+    app.get('/support', (_req, res) => {
+        res.send(renderSupportPage())
     })
 
     app.use(
