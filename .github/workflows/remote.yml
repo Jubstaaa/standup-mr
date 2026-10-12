@@ -1,0 +1,99 @@
+name: Remote
+
+on:
+    push:
+        branches: [main]
+        paths:
+            - 'remote/**'
+            - 'src/**'
+            - 'mcp/**'
+            - 'skills/**'
+            - 'package.json'
+            - 'bun.lock'
+            - '.github/workflows/remote.yml'
+    pull_request:
+        branches: [main]
+        paths:
+            - 'remote/**'
+            - 'src/**'
+            - 'mcp/**'
+            - 'skills/**'
+            - 'package.json'
+            - 'bun.lock'
+            - '.github/workflows/remote.yml'
+    workflow_dispatch:
+
+concurrency:
+    group: remote-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    # Tests, lint and typecheck already run in ci.yml. This builds the image on
+    # every PR so a broken Dockerfile shows up before merge, and pushes only
+    # from main.
+    build:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+        steps:
+            - uses: actions/checkout@v4
+            - uses: docker/setup-buildx-action@v3
+            - uses: docker/login-action@v3
+              if: github.ref == 'refs/heads/main'
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+            # :latest is what the droplet runs; :sha stays behind as the
+            # rollback target.
+            - uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  file: remote/Dockerfile
+                  push: ${{ github.ref == 'refs/heads/main' }}
+                  tags: |
+                      ghcr.io/jubstaaa/standup-mr-remote:latest
+                      ghcr.io/jubstaaa/standup-mr-remote:${{ github.sha }}
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
+
+    deploy:
+        needs: build
+        if: github.ref == 'refs/heads/main'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: read
+        steps:
+            # The compose file is the repository's, not the server's, so the
+            # two cannot drift silently.
+            - uses: actions/checkout@v4
+            - uses: appleboy/scp-action@v1
+              with:
+                  host: ${{ secrets.DO_HOST }}
+                  username: ${{ secrets.DO_USER }}
+                  key: ${{ secrets.DO_SSH_KEY }}
+                  source: remote/docker-compose.yml
+                  target: /opt/standup-mr
+                  strip_components: 1
+            - uses: appleboy/ssh-action@v1
+              with:
+                  host: ${{ secrets.DO_HOST }}
+                  username: ${{ secrets.DO_USER }}
+                  key: ${{ secrets.DO_SSH_KEY }}
+                  envs: GHCR_TOKEN,GHCR_USER
+                  script: |
+                      echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+                      cd /opt/standup-mr
+                      # Docker creates a missing bind-mount source as root,
+                      # which the image's non-root bun user (uid 1000) cannot
+                      # write the database into.
+                      mkdir -p data
+                      chown 1000:1000 data
+                      docker compose pull
+                      docker compose up -d
+                      docker image prune -f
+              env:
+                  GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  GHCR_USER: ${{ github.actor }}

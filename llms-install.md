@@ -3,6 +3,11 @@
 Instructions for an AI assistant setting this MCP server up on a user's
 machine. Everything here is verified against the published package.
 
+If the user is on claude.ai (web or mobile) rather than a client that runs
+local processes, none of this applies: tell them to add
+`https://standup.ilkerbalcilar.com/mcp` under Settings → Connectors → Add custom
+connector and sign in on the page that opens.
+
 ## What it needs
 
 - Node.js 20 or newer. Nothing to clone, nothing to build — the server runs

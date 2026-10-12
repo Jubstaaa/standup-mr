@@ -142,16 +142,16 @@ export const INSTRUCTIONS_TOOL_DESCRIPTION =
 
 export type PostToolArgs = z.infer<z.ZodObject<typeof POST_TOOL_SCHEMA>>
 
-type ToolResult = {
+export type ToolResult = {
     content: Array<{ type: 'text'; text: string }>
     isError?: true
 }
 
-function text(body: string): ToolResult {
+export function text(body: string): ToolResult {
     return { content: [{ type: 'text' as const, text: body }] }
 }
 
-function failure(body: string): ToolResult {
+export function failure(body: string): ToolResult {
     return { content: [{ type: 'text' as const, text: body }], isError: true }
 }
 
@@ -197,6 +197,27 @@ export async function runInstructionsTool(): Promise<ToolResult> {
     return text(readStandupSkillBody())
 }
 
+export const STANDUP_TOOL_ANNOTATIONS = {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+}
+
+export const POST_TOOL_ANNOTATIONS = {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: true,
+}
+
+export const INSTRUCTIONS_TOOL_ANNOTATIONS = {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+}
+
 export function createServer(): McpServer {
     const server = new McpServer({
         name: 'standup-mr',
@@ -208,12 +229,7 @@ export function createServer(): McpServer {
         {
             description: STANDUP_TOOL_DESCRIPTION,
             inputSchema: STANDUP_TOOL_SCHEMA,
-            annotations: {
-                readOnlyHint: true,
-                destructiveHint: false,
-                idempotentHint: true,
-                openWorldHint: true,
-            },
+            annotations: STANDUP_TOOL_ANNOTATIONS,
         },
         async args => await runStandupTool(args)
     )
@@ -223,12 +239,7 @@ export function createServer(): McpServer {
         {
             description: POST_TOOL_DESCRIPTION,
             inputSchema: POST_TOOL_SCHEMA,
-            annotations: {
-                readOnlyHint: false,
-                destructiveHint: false,
-                idempotentHint: false,
-                openWorldHint: true,
-            },
+            annotations: POST_TOOL_ANNOTATIONS,
         },
         async args => await runPostTool(args)
     )
@@ -237,12 +248,7 @@ export function createServer(): McpServer {
         'get_note_instructions',
         {
             description: INSTRUCTIONS_TOOL_DESCRIPTION,
-            annotations: {
-                readOnlyHint: true,
-                destructiveHint: false,
-                idempotentHint: true,
-                openWorldHint: false,
-            },
+            annotations: INSTRUCTIONS_TOOL_ANNOTATIONS,
         },
         async () => await runInstructionsTool()
     )

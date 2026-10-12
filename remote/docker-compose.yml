@@ -1,0 +1,34 @@
+# Runtime stack on the droplet (/opt/standup-mr). Published only on
+# localhost:3007; the shared Caddy in /opt/proxy terminates TLS behind
+# Cloudflare and reverse-proxies standup.ilkerbalcilar.com to it. The image is
+# pulled from GHCR by the deploy workflow.
+services:
+    app:
+        image: ghcr.io/jubstaaa/standup-mr-remote:latest
+        container_name: standup-mr
+        restart: unless-stopped
+        # One Bun process, an embedded SQLite and no build output: idles well
+        # under 100MB. The cap keeps a request spike from crowding the box.
+        mem_limit: 192m
+        # Reports only (Docker won't restart on unhealthy). Bun does the probe
+        # because the Debian runtime image has no wget/curl.
+        healthcheck:
+            test:
+                [
+                    'CMD',
+                    'bun',
+                    '-e',
+                    "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+                ]
+            interval: 30s
+            timeout: 5s
+            retries: 3
+            start_period: 20s
+        # ENCRYPTION_KEY, PUBLIC_URL, GITHUB_*, GITLAB_*, BLOCKED_ADDRESSES.
+        # Losing ENCRYPTION_KEY makes every stored token unreadable — back it up
+        # outside the droplet.
+        env_file: .env
+        ports:
+            - '127.0.0.1:3007:3000'
+        volumes:
+            - /opt/standup-mr/data:/data

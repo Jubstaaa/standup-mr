@@ -1,7 +1,12 @@
 # MCP server
 
-Exposes one tool, `get_standup_data`, for either GitLab or GitHub, returning
+Exposes three tools — `get_standup_data`, `get_note_instructions` and
+`post_standup_note` — for either GitLab or GitHub. `get_standup_data` returns
 the same JSON as `standup fetch`.
+
+This is the local, stdio server: it runs on your machine and reads tokens from
+its environment. On claude.ai (web or mobile), use the hosted connector instead
+— see [claude.ai (web and mobile)](../README.md#claudeai-web-and-mobile).
 
 ## Configure
 
