@@ -201,6 +201,44 @@ export const STANDUP_TOOL_TITLE = 'Get standup data'
 export const POST_TOOL_TITLE = 'Post standup note'
 export const INSTRUCTIONS_TOOL_TITLE = 'Get note instructions'
 
+export const STANDUP_PROMPT_TITLE = 'Write my standup'
+export const STANDUP_PROMPT_DESCRIPTION =
+    'Writes your standup note from merge request state: what you did, what is ' +
+    'ready or blocked today, and why any pipeline is red.'
+
+export const STANDUP_PROMPT_SCHEMA = {
+    account: z
+        .string()
+        .optional()
+        .describe(
+            'Which account to read when several are linked: github, gitlab, or a host.'
+        ),
+}
+
+export function standupPrompt(args: { account?: string }) {
+    const account = args.account?.trim()
+    const which = account
+        ? ` Read the ${account} account (pass it as provider or host).`
+        : ''
+    return {
+        messages: [
+            {
+                role: 'user' as const,
+                content: {
+                    type: 'text' as const,
+                    text:
+                        'Write my standup note. First call get_note_instructions and ' +
+                        'follow its rules, then call get_standup_data.' +
+                        which +
+                        ' If several accounts are linked and I did not say which, ask me. ' +
+                        "Write the note in the language I'm using. Do not post it anywhere " +
+                        'unless I ask.',
+                },
+            },
+        ],
+    }
+}
+
 export const STANDUP_TOOL_ANNOTATIONS = {
     readOnlyHint: true,
     destructiveHint: false,
@@ -272,6 +310,16 @@ export function createServer(): McpServer {
             annotations: INSTRUCTIONS_TOOL_ANNOTATIONS,
         },
         async () => await runInstructionsTool()
+    )
+
+    server.registerPrompt(
+        'standup',
+        {
+            title: STANDUP_PROMPT_TITLE,
+            description: STANDUP_PROMPT_DESCRIPTION,
+            argsSchema: STANDUP_PROMPT_SCHEMA,
+        },
+        args => standupPrompt(args)
     )
 
     return server

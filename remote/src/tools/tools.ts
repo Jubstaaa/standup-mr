@@ -12,9 +12,13 @@ import {
     POST_TOOL_TITLE,
     runInstructionsTool,
     SERVER_ICONS,
+    STANDUP_PROMPT_DESCRIPTION,
+    STANDUP_PROMPT_SCHEMA,
+    STANDUP_PROMPT_TITLE,
     STANDUP_TOOL_ANNOTATIONS,
     STANDUP_TOOL_SCHEMA,
     STANDUP_TOOL_TITLE,
+    standupPrompt,
     text,
 } from '../../../mcp/server'
 import type { ToolResult } from '../../../mcp/server'
@@ -140,6 +144,16 @@ export function createRemoteServer(context: ToolContext): McpServer {
             annotations: INSTRUCTIONS_TOOL_ANNOTATIONS,
         },
         async () => await runInstructionsTool()
+    )
+
+    server.registerPrompt(
+        'standup',
+        {
+            title: STANDUP_PROMPT_TITLE,
+            description: STANDUP_PROMPT_DESCRIPTION,
+            argsSchema: STANDUP_PROMPT_SCHEMA,
+        },
+        args => standupPrompt(args)
     )
 
     return server

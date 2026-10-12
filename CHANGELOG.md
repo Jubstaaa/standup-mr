@@ -8,6 +8,10 @@ All notable changes to standup-mr are recorded here. The format follows
 
 ### Added
 
+- **A `standup` prompt.** Clients that show MCP prompts offer it as a one-click
+  command — `/standup` in Claude Code — that writes the note, optionally for a
+  named account.
+
 - **Gemini CLI extension.** `gemini extensions install
   https://github.com/Jubstaaa/standup-mr` adds the hosted connector to Gemini
   CLI, with a context file that tells it how to use the tools.
