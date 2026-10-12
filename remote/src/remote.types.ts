@@ -44,6 +44,18 @@ export interface PendingAuthorization {
     codeChallenge: string
     connectionId: string
     createdAt: number
+    finishedRedirect: string | null
+    redirectUri: string
+    resource: string | null
+    scopes: string[]
+    state: string | null
+}
+
+export interface NewPending {
+    browserSecret: string
+    clientId: string
+    codeChallenge: string
+    pendingId: string
     redirectUri: string
     resource: string | null
     scopes: string[]
@@ -68,7 +80,7 @@ export interface StoredToken {
     kind: 'access' | 'refresh'
     resource: string | null
     scopes: string[]
-    used: boolean
+    usedAt: number | null
 }
 
 export interface UpstreamTokens {

@@ -30,6 +30,7 @@ h1 { font-size: 1.5rem; margin: 0 0 .5rem; }
 h2 { font-size: 1rem; margin: 0 0 .5rem; }
 section { border-top: 1px solid var(--line); padding: 1.25rem 0; }
 .muted { color: var(--muted); }
+.requester { border: 1px solid var(--line); border-radius: .5rem; padding: .5rem .75rem; overflow-wrap: anywhere; }
 .small { font-size: .875rem; }
 .error { color: var(--error); border: 1px solid var(--error); border-radius: .5rem; padding: .5rem .75rem; }
 .accounts { list-style: none; padding: 0; margin: 0 0 1rem; }

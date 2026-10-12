@@ -1,11 +1,14 @@
 import { randomBytes } from 'node:crypto'
 
+import { OAuth2Tokens } from 'arctic'
+import type { GitHub } from 'arctic'
 import { beforeEach, describe, expect, test } from 'bun:test'
 
-import { AccountError, freshAccessToken, pickAccount } from './accounts'
+import { AccountError, createTokenRefresher, pickAccount } from './accounts'
 import type { Account } from './remote.types'
 import { Store } from './store'
-import type { UpstreamApp } from './upstream'
+import { startConnection } from './store.fixtures'
+import type { UpstreamApps } from './upstream'
 
 function account(overrides: Partial<Account>): Account {
     return {
@@ -53,34 +56,37 @@ describe('pickAccount', () => {
     })
 })
 
-describe('freshAccessToken', () => {
-    const app: UpstreamApp = {
-        kind: 'github',
-        host: 'github.com',
-        authorizeUrl: 'https://github.com/login/oauth/authorize',
-        tokenUrl: 'https://github.com/login/oauth/access_token',
-        clientId: 'id',
-        clientSecret: 'secret',
-    }
+describe('createTokenRefresher', () => {
     let store: Store
     let linked: Account
+    let refreshCalls: number
+    let refreshResult: () => Promise<OAuth2Tokens>
+
+    const apps = (): UpstreamApps => ({
+        github: {
+            kind: 'github',
+            host: 'github.com',
+            scopes: [],
+            client: {
+                refreshAccessToken: async () => {
+                    refreshCalls += 1
+                    return refreshResult()
+                },
+            } as unknown as GitHub,
+        },
+    })
 
     beforeEach(() => {
         store = new Store(':memory:', randomBytes(32))
-        const { connectionId } = store.createPending(
-            {
-                clientId: 'claude',
-                codeChallenge: 'c',
-                redirectUri: 'https://claude.ai/cb',
-                resource: null,
-                scopes: [],
-                state: null,
-            },
-            'pending',
-            0
-        )
+        refreshCalls = 0
+        refreshResult = async () =>
+            new OAuth2Tokens({
+                access_token: 'new',
+                refresh_token: 'refresh-2',
+                expires_in: 28_800,
+            })
         linked = store.addAccount({
-            connectionId,
+            connectionId: startConnection(store).connectionId,
             provider: 'github',
             host: 'github.com',
             username: 'ilker',
@@ -92,47 +98,40 @@ describe('freshAccessToken', () => {
     })
 
     test('keeps a token that is still valid', async () => {
-        expect(await freshAccessToken(linked, { github: app }, store, 0)).toBe(
-            'old'
-        )
+        const fresh = createTokenRefresher(apps(), store)
+        expect(await fresh(linked, 0)).toBe('old')
+        expect(refreshCalls).toBe(0)
     })
 
     test('refreshes a token about to expire and stores the new one', async () => {
-        const fetchImpl = async () =>
-            Response.json({
-                access_token: 'new',
-                refresh_token: 'refresh-2',
-                expires_in: 28_800,
-            })
-        const token = await freshAccessToken(
-            linked,
-            { github: app },
-            store,
-            9_999_000,
-            fetchImpl
-        )
-        expect(token).toBe('new')
+        const fresh = createTokenRefresher(apps(), store)
+        expect(await fresh(linked, 9_999_000)).toBe('new')
         const [stored] = store.listAccounts(linked.connectionId)
         expect(stored!.accessToken).toBe('new')
         expect(stored!.refreshToken).toBe('refresh-2')
     })
 
+    test('spends a single-use refresh token once for concurrent calls', async () => {
+        const fresh = createTokenRefresher(apps(), store)
+        const tokens = await Promise.all([
+            fresh(linked, 9_999_000),
+            fresh(linked, 9_999_000),
+        ])
+        expect(tokens).toEqual(['new', 'new'])
+        expect(refreshCalls).toBe(1)
+    })
+
     test('asks for a reconnect when the refresh is refused', async () => {
-        const fetchImpl = async () =>
-            Response.json({ error: 'bad_refresh_token' })
-        await expect(
-            freshAccessToken(
-                linked,
-                { github: app },
-                store,
-                9_999_000,
-                fetchImpl
-            )
-        ).rejects.toThrow(/Reconnect/)
+        refreshResult = async () => {
+            throw new Error('bad_refresh_token')
+        }
+        const fresh = createTokenRefresher(apps(), store)
+        await expect(fresh(linked, 9_999_000)).rejects.toThrow(/Reconnect/)
     })
 
     test('never refreshes a pasted token', async () => {
+        const fresh = createTokenRefresher({}, store)
         const pat = account({ source: 'pat', expiresAt: 1 })
-        expect(await freshAccessToken(pat, {}, store, 10)).toBe('token')
+        expect(await fresh(pat, 10)).toBe('token')
     })
 })

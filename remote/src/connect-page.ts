@@ -6,11 +6,13 @@ import type { Account, Webhook } from './remote.types'
 
 export interface ConnectPageModel {
     accounts: Account[]
+    clientName: string
     error?: string
     githubAvailable: boolean
     githubInstallUrl?: string
     gitlabAvailable: boolean
     pendingId: string
+    redirectHost: string
     webhook?: Webhook
 }
 
@@ -68,6 +70,7 @@ export function renderConnectPage(model: ConnectPageModel): string {
 <body>
 <main>
     <h1>Connect standup-mr</h1>
+    <p class="requester"><strong>${escapeHtml(model.clientName)}</strong> is asking for access, and will be sent back to <strong>${escapeHtml(model.redirectHost)}</strong>. Only continue if you started this from that app.</p>
     <p class="muted">Link the accounts your standup should read. You can link several — GitHub for side projects, a self-hosted GitLab for work.</p>
 
     ${model.error ? `<p class="error" role="alert">${escapeHtml(model.error)}</p>` : ''}

@@ -8,12 +8,19 @@ import type {
     Account,
     AuthCode,
     NewAccount,
+    NewPending,
     PendingAuthorization,
     StoredToken,
     UpstreamTokens,
     Webhook,
 } from './remote.types'
-import { CONNECTION_IDLE_MS, PENDING_TTL_MS, SCHEMA } from './store.constants'
+import {
+    CLIENT_IDLE_MS,
+    CODE_TTL_MS,
+    CONNECTION_IDLE_MS,
+    PENDING_TTL_MS,
+    SCHEMA,
+} from './store.constants'
 
 interface AccountRow {
     id: string
@@ -28,14 +35,17 @@ interface AccountRow {
 }
 
 interface PendingRow {
+    browser_hash: string
     client_id: string
     code_challenge: string
     connection_id: string
     created_at: number
+    finished_redirect: string | null
     redirect_uri: string
     resource: string | null
     scopes: string
     state: string | null
+    upstream_return: string | null
 }
 
 interface CodeRow {
@@ -56,7 +66,7 @@ interface TokenRow {
     kind: StoredToken['kind']
     resource: string | null
     scopes: string
-    used: number
+    used_at: number | null
 }
 
 export class Store {
@@ -82,19 +92,18 @@ export class Store {
             : undefined
     }
 
-    saveClient(client: OAuthClientInformationFull): void {
+    saveClient(client: OAuthClientInformationFull, now: number): void {
         this.db
-            .query('INSERT OR REPLACE INTO clients (id, info) VALUES (?, ?)')
-            .run(client.client_id, JSON.stringify(client))
+            .query(
+                'INSERT OR REPLACE INTO clients (id, info, created_at) VALUES (?, ?, ?)'
+            )
+            .run(client.client_id, JSON.stringify(client), now)
     }
 
-    // The pending id is the only thing guarding the connect page, so it is
-    // stored hashed, like every other bearer value.
-    createPending(
-        input: Omit<PendingAuthorization, 'id' | 'connectionId' | 'createdAt'>,
-        pendingId: string,
-        now: number
-    ): PendingAuthorization {
+    // The pending id travels in URLs, so on its own it would let anyone
+    // holding a link finish someone else's authorization. Every lookup also
+    // needs the secret from the cookie set on the browser that started it.
+    createPending(input: NewPending, now: number): PendingAuthorization {
         const connectionId = randomUUID()
         this.db.transaction(() => {
             this.db
@@ -104,12 +113,13 @@ export class Store {
                 .run(connectionId, now, now)
             this.db
                 .query(
-                    `INSERT INTO pending (id, connection_id, client_id, code_challenge,
-                     redirect_uri, resource, scopes, state, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+                    `INSERT INTO pending (id, browser_hash, connection_id, client_id,
+                     code_challenge, redirect_uri, resource, scopes, state, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
                 )
                 .run(
-                    hashToken(pendingId),
+                    hashToken(input.pendingId),
+                    hashToken(input.browserSecret),
                     connectionId,
                     input.clientId,
                     input.codeChallenge,
@@ -120,42 +130,71 @@ export class Store {
                     now
                 )
         })()
-        return { ...input, id: pendingId, connectionId, createdAt: now }
+        return this.getPending(input.pendingId, input.browserSecret, now)!
     }
 
     getPending(
         pendingId: string,
+        browserSecret: string | undefined,
         now: number
     ): PendingAuthorization | undefined {
         const row = this.db
             .query<PendingRow, [string]>('SELECT * FROM pending WHERE id = ?')
             .get(hashToken(pendingId))
-        if (!row || row.created_at + PENDING_TTL_MS < now) return undefined
-        return {
-            id: pendingId,
-            clientId: row.client_id,
-            codeChallenge: row.code_challenge,
-            connectionId: row.connection_id,
-            createdAt: row.created_at,
-            redirectUri: row.redirect_uri,
-            resource: row.resource,
-            scopes: JSON.parse(row.scopes) as string[],
-            state: row.state,
-        }
+        return this.toPending(pendingId, row, browserSecret, now)
     }
 
-    // Turns a finished connect page into a single-use code. The pending row
-    // goes in the same transaction, so the page cannot issue a second code.
+    // The callback only gets `state` back, so the page id it returns to is
+    // kept beside it, sealed like any other secret.
+    setUpstreamState(pending: PendingAuthorization, state: string): void {
+        this.db
+            .query(
+                'UPDATE pending SET upstream_state = ?, upstream_return = ? WHERE id = ?'
+            )
+            .run(
+                hashToken(state),
+                seal(this.key, pending.id),
+                hashToken(pending.id)
+            )
+    }
+
+    // The upstream state is single-use: it is cleared as soon as it is read.
+    takePendingByUpstreamState(
+        state: string,
+        browserSecret: string | undefined,
+        now: number
+    ): PendingAuthorization | undefined {
+        const row = this.db
+            .query<PendingRow & { id: string }, [string]>(
+                'SELECT * FROM pending WHERE upstream_state = ?'
+            )
+            .get(hashToken(state))
+        if (!row?.upstream_return) return undefined
+        this.db
+            .query(
+                'UPDATE pending SET upstream_state = NULL, upstream_return = NULL WHERE id = ?'
+            )
+            .run(row.id)
+        return this.toPending(
+            open(this.key, row.upstream_return),
+            row,
+            browserSecret,
+            now
+        )
+    }
+
+    // The page stays readable after Finish so a second click is answered
+    // with the same redirect instead of an error page that loses the code.
     completePending(
         pending: PendingAuthorization,
         code: string,
-        expiresAt: number,
+        redirect: string,
         now: number
     ): void {
         this.db.transaction(() => {
             this.db
-                .query('DELETE FROM pending WHERE id = ?')
-                .run(hashToken(pending.id))
+                .query('UPDATE pending SET finished_redirect = ? WHERE id = ?')
+                .run(seal(this.key, redirect), hashToken(pending.id))
             this.db
                 .query(
                     'UPDATE connections SET activated_at = ?, last_used_at = ? WHERE id = ?'
@@ -175,9 +214,34 @@ export class Store {
                     pending.redirectUri,
                     pending.resource,
                     JSON.stringify(pending.scopes),
-                    expiresAt
+                    now + CODE_TTL_MS
                 )
         })()
+    }
+
+    private toPending(
+        pendingId: string,
+        row: PendingRow | null,
+        browserSecret: string | undefined,
+        now: number
+    ): PendingAuthorization | undefined {
+        if (!row || !browserSecret) return undefined
+        if (row.browser_hash !== hashToken(browserSecret)) return undefined
+        if (row.created_at + PENDING_TTL_MS < now) return undefined
+        return {
+            id: pendingId,
+            clientId: row.client_id,
+            codeChallenge: row.code_challenge,
+            connectionId: row.connection_id,
+            createdAt: row.created_at,
+            finishedRedirect: row.finished_redirect
+                ? open(this.key, row.finished_redirect)
+                : null,
+            redirectUri: row.redirect_uri,
+            resource: row.resource,
+            scopes: JSON.parse(row.scopes) as string[],
+            state: row.state,
+        }
     }
 
     peekCode(code: string, now: number): AuthCode | undefined {
@@ -202,11 +266,11 @@ export class Store {
         return found
     }
 
-    saveToken(token: string, data: Omit<StoredToken, 'used'>): void {
+    saveToken(token: string, data: Omit<StoredToken, 'usedAt'>): void {
         this.db
             .query(
                 `INSERT INTO tokens (id, kind, connection_id, client_id, family,
-                 resource, scopes, expires_at, used) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`
+                 resource, scopes, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
             )
             .run(
                 hashToken(token),
@@ -233,14 +297,14 @@ export class Store {
             kind: row.kind,
             resource: row.resource,
             scopes: JSON.parse(row.scopes) as string[],
-            used: row.used === 1,
+            usedAt: row.used_at,
         }
     }
 
-    markTokenUsed(token: string): void {
+    markTokenUsed(token: string, now: number): void {
         this.db
-            .query('UPDATE tokens SET used = 1 WHERE id = ?')
-            .run(hashToken(token))
+            .query('UPDATE tokens SET used_at = ? WHERE id = ?')
+            .run(now, hashToken(token))
     }
 
     revokeFamily(family: string): void {
@@ -359,6 +423,13 @@ export class Store {
                     'DELETE FROM connections WHERE activated_at IS NULL AND created_at < ?'
                 )
                 .run(now - PENDING_TTL_MS)
+            // Finished, but the code was never redeemed: nothing can use it.
+            this.db
+                .query(
+                    `DELETE FROM connections WHERE activated_at < ?
+                     AND id NOT IN (SELECT connection_id FROM tokens)`
+                )
+                .run(now - PENDING_TTL_MS)
             this.db
                 .query(
                     'DELETE FROM connections WHERE activated_at IS NOT NULL AND last_used_at < ?'
@@ -369,6 +440,14 @@ export class Store {
                 .run(now - PENDING_TTL_MS)
             this.db.query('DELETE FROM codes WHERE expires_at < ?').run(now)
             this.db.query('DELETE FROM tokens WHERE expires_at < ?').run(now)
+            // Dynamic registration is open, so clients nobody uses go too.
+            this.db
+                .query(
+                    `DELETE FROM clients WHERE created_at < ? AND id NOT IN (
+                     SELECT client_id FROM pending UNION SELECT client_id FROM codes
+                     UNION SELECT client_id FROM tokens)`
+                )
+                .run(now - CLIENT_IDLE_MS)
         })()
     }
 

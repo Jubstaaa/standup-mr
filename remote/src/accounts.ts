@@ -6,8 +6,8 @@ import type { FetchLike, ProviderKind } from '../../src/types/standup.types'
 import { REFRESH_MARGIN_MS } from './accounts.constants'
 import type { Account } from './remote.types'
 import type { Store } from './store'
-import { refreshTokens } from './upstream'
-import type { UpstreamApp } from './upstream'
+import { toUpstreamTokens } from './upstream'
+import type { UpstreamApps } from './upstream'
 
 export class AccountError extends Error {}
 
@@ -54,40 +54,50 @@ export function pickAccount(
     )
 }
 
-// OAuth tokens expire (GitHub after 8h, gitlab.com after 2h); refresh just
-// before that so a tool call never runs on a token about to die.
-export async function freshAccessToken(
-    account: Account,
-    apps: Partial<Record<ProviderKind, UpstreamApp>>,
-    store: Store,
-    now: number,
-    fetchImpl?: FetchLike
-): Promise<string> {
-    if (
-        account.source !== 'oauth' ||
-        account.expiresAt === null ||
-        account.expiresAt - REFRESH_MARGIN_MS > now
-    ) {
-        return account.accessToken
+// OAuth tokens expire (GitHub after 8h, gitlab.com after 2h) and their
+// refresh tokens are single-use. Refreshes are shared per account, so two
+// concurrent tool calls never spend the same refresh token twice.
+export function createTokenRefresher(apps: UpstreamApps, store: Store) {
+    const inFlight = new Map<string, Promise<string>>()
+
+    async function refresh(account: Account): Promise<string> {
+        const app = apps[account.provider]
+        if (!app || !account.refreshToken) {
+            throw new AccountError(
+                `The ${describeAccount(account)} login has expired. Reconnect the connector.`
+            )
+        }
+        try {
+            const tokens = toUpstreamTokens(
+                await app.client.refreshAccessToken(account.refreshToken)
+            )
+            store.updateAccountTokens(account.id, tokens)
+            return tokens.accessToken
+        } catch {
+            throw new AccountError(
+                `The ${describeAccount(account)} login could not be renewed. Reconnect the connector.`
+            )
+        }
     }
-    const app = apps[account.provider]
-    if (!app || !account.refreshToken) {
-        throw new AccountError(
-            `The ${describeAccount(account)} login has expired. Reconnect the connector.`
+
+    return async function freshAccessToken(
+        account: Account,
+        now: number
+    ): Promise<string> {
+        const isCurrent =
+            account.source !== 'oauth' ||
+            account.expiresAt === null ||
+            account.expiresAt - REFRESH_MARGIN_MS > now
+        if (isCurrent) return account.accessToken
+
+        const pending = inFlight.get(account.id)
+        if (pending) return pending
+        const refreshing = refresh(account).finally(() =>
+            inFlight.delete(account.id)
         )
-    }
-    try {
-        const tokens = await refreshTokens(
-            app,
-            account.refreshToken,
-            now,
-            fetchImpl
-        )
-        store.updateAccountTokens(account.id, tokens)
-        return tokens.accessToken
-    } catch {
-        throw new AccountError(
-            `The ${describeAccount(account)} login could not be renewed. Reconnect the connector.`
-        )
+        inFlight.set(account.id, refreshing)
+        return refreshing
     }
 }
+
+export type TokenRefresher = ReturnType<typeof createTokenRefresher>

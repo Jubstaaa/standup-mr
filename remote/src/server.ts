@@ -7,22 +7,29 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import express from 'express'
 import type { Express } from 'express'
 import { rateLimit } from 'express-rate-limit'
+import helmet from 'helmet'
 
 import type { FetchLike } from '../../src/types/standup.types'
 
+import { createTokenRefresher } from './accounts'
 import { createConnectRouter } from './connect'
 import { StandupOAuthProvider } from './oauth-provider'
 import { clientKey } from './rate-limit'
 import type { RemoteConfig } from './remote.types'
-import { createHostGuard } from './ssrf'
-import type { HostGuard } from './ssrf'
+import { MCP_CALLS_PER_MINUTE } from './server.constants'
+import {
+    createGuardedFetch,
+    createGuardedLookup,
+    createHostCheck,
+} from './ssrf'
+import type { Lookup } from './ssrf'
 import type { Store } from './store'
 import { createRemoteServer } from './tools'
 import { upstreamApps } from './upstream'
 
 export interface AppOptions {
     fetchImpl?: FetchLike
-    guard?: HostGuard
+    lookup?: Lookup
     now?: () => number
 }
 
@@ -34,13 +41,22 @@ export function createApp(
     const app = express()
     const apps = upstreamApps(config)
     const now = options.now ?? Date.now
-    const fetchImpl = options.fetchImpl
-    const guard = options.guard ?? createHostGuard(config.blockedAddresses)
-    const provider = new StandupOAuthProvider(store, now)
+    const lookup = createGuardedLookup(config.blockedAddresses, options.lookup)
+    const fetchImpl = options.fetchImpl ?? createGuardedFetch(lookup)
+    const freshAccessToken = createTokenRefresher(apps, store)
     const mcpUrl = new URL('/mcp', config.baseUrl)
+    const provider = new StandupOAuthProvider(store, { mcpUrl, now })
     const authLimit = { keyGenerator: clientKey }
 
-    app.disable('x-powered-by')
+    // Finish redirects a form POST to the client's callback, which a
+    // form-action directive would block; the page itself runs no script.
+    app.use(
+        helmet({
+            contentSecurityPolicy: {
+                directives: { formAction: null, frameAncestors: ["'none'"] },
+            },
+        })
+    )
 
     app.get('/health', (_req, res) => {
         res.json({ ok: true })
@@ -72,10 +88,9 @@ export function createApp(
         '/connect',
         createConnectRouter({
             apps,
-            baseUrl: config.baseUrl,
             fetchImpl,
             githubAppSlug: config.githubAppSlug,
-            guard,
+            hostCheck: createHostCheck(lookup),
             now,
             store,
         })
@@ -83,7 +98,7 @@ export function createApp(
 
     const toolLimit = rateLimit({
         windowMs: 60_000,
-        limit: 10,
+        limit: MCP_CALLS_PER_MINUTE,
         keyGenerator: req =>
             String(req.auth?.extra?.connectionId ?? clientKey(req)),
         standardHeaders: 'draft-8',
@@ -102,10 +117,9 @@ export function createApp(
         express.json({ limit: '256kb' }),
         async (req, res) => {
             const server = createRemoteServer({
-                apps,
                 connectionId: String(req.auth!.extra!.connectionId),
                 fetchImpl,
-                guard,
+                freshAccessToken,
                 now,
                 store,
             })

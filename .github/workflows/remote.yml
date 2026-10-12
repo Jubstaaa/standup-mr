@@ -86,6 +86,11 @@ jobs:
                   script: |
                       echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
                       cd /opt/standup-mr
+                      # Docker creates a missing bind-mount source as root,
+                      # which the image's non-root bun user (uid 1000) cannot
+                      # write the database into.
+                      mkdir -p data
+                      chown 1000:1000 data
                       docker compose pull
                       docker compose up -d
                       docker image prune -f

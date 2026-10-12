@@ -1,45 +1,32 @@
-import { lookup as dnsLookup } from 'node:dns/promises'
-import { BlockList, isIP } from 'node:net'
+import { lookup as dnsLookup } from 'node:dns'
+import type { LookupAddress, LookupOptions } from 'node:dns'
 
-type Lookup = (
-    host: string
-) => Promise<Array<{ address: string; family: number }>>
+import axios from 'axios'
+import type { AxiosRequestConfig } from 'axios'
+import ipaddr from 'ipaddr.js'
 
-const defaultLookup: Lookup = host => dnsLookup(host, { all: true })
+import type { FetchLike } from '../../src/types/standup.types'
 
-function privateRanges(extra: string[]): BlockList {
-    const list = new BlockList()
-    for (const [network, prefix] of [
-        ['0.0.0.0', 8],
-        ['10.0.0.0', 8],
-        ['100.64.0.0', 10],
-        ['127.0.0.0', 8],
-        ['169.254.0.0', 16],
-        ['172.16.0.0', 12],
-        ['192.168.0.0', 16],
-        ['224.0.0.0', 4],
-    ] as const) {
-        list.addSubnet(network, prefix, 'ipv4')
-    }
-    for (const [network, prefix] of [
-        ['::', 128],
-        ['::1', 128],
-        ['fc00::', 7],
-        ['fe80::', 10],
-        ['ff00::', 8],
-    ] as const) {
-        list.addSubnet(network, prefix, 'ipv6')
-    }
-    for (const address of extra) {
-        list.addAddress(address, isIP(address) === 6 ? 'ipv6' : 'ipv4')
-    }
-    return list
-}
+import {
+    MAX_REDIRECTS,
+    NULL_BODY_STATUSES,
+    REQUEST_TIMEOUT_MS,
+} from './ssrf.constants'
+
+type LookupCallback = (
+    error: NodeJS.ErrnoException | null,
+    address: string | LookupAddress[],
+    family?: number
+) => void
+
+export type Lookup = (
+    hostname: string,
+    options: LookupOptions,
+    callback: LookupCallback
+) => void
 
 export class HostError extends Error {}
 
-// Accepts what people paste — "https://git.example.com/", "git.example.com" —
-// and returns the bare host the providers expect.
 export function normalizeHost(input: string): string {
     const trimmed = input.trim().toLowerCase()
     const withScheme = /^[a-z]+:\/\//.test(trimmed)
@@ -57,42 +44,114 @@ export function normalizeHost(input: string): string {
     if (url.username || url.password) {
         throw new HostError('The host must not contain credentials.')
     }
-    return url.host
+    // A custom port would turn the token check into a port scanner.
+    if (url.port) {
+        throw new HostError('Only the default https port (443) is supported.')
+    }
+    return url.hostname
 }
 
-export function createHostGuard(
+// Only plain public unicast passes: ipaddr.js names every special range
+// (private, loopback, link-local, CGNAT, NAT64, 6to4, Teredo, reserved…), so
+// anything that is not 'unicast' is refused rather than listed one by one.
+export function isPublicAddress(
+    address: string,
+    blocked: ReadonlySet<string> = new Set()
+): boolean {
+    if (!ipaddr.isValid(address)) return false
+    const parsed = ipaddr.process(address)
+    return parsed.range() === 'unicast' && !blocked.has(parsed.toString())
+}
+
+// Runs inside the socket connect, on the addresses actually dialled, so a
+// DNS answer that changes between a check and the request cannot slip past.
+export function createGuardedLookup(
     blockedAddresses: string[] = [],
-    lookup: Lookup = defaultLookup
-) {
-    const blocked = privateRanges(blockedAddresses)
-
-    function isBlocked(address: string): boolean {
-        const mapped = address.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i)
-        if (mapped) return blocked.check(mapped[1]!, 'ipv4')
-        return blocked.check(address, isIP(address) === 6 ? 'ipv6' : 'ipv4')
-    }
-
-    // Self-hosted hosts are user input, and the server fetches them. Without
-    // this check anyone could point it at the droplet's own network.
-    return async function assertPublicHost(host: string): Promise<void> {
-        const hostname = new URL(`https://${host}`).hostname.replace(
-            /^\[|\]$/g,
-            ''
-        )
-        const addresses = isIP(hostname)
-            ? [{ address: hostname, family: isIP(hostname) }]
-            : await lookup(hostname).catch(() => {
-                  throw new HostError(`Could not resolve ${hostname}.`)
-              })
-        if (
-            addresses.length === 0 ||
-            addresses.some(a => isBlocked(a.address))
-        ) {
-            throw new HostError(
-                `${hostname} points to a private or reserved address.`
-            )
-        }
+    lookup: Lookup = dnsLookup as Lookup
+): Lookup {
+    const blocked = new Set(
+        blockedAddresses
+            .filter(address => ipaddr.isValid(address))
+            .map(address => ipaddr.process(address).toString())
+    )
+    return (hostname, options, callback) => {
+        lookup(hostname, { ...options, all: true }, (error, result) => {
+            if (error) return callback(error, [])
+            const addresses = result as LookupAddress[]
+            if (
+                addresses.length === 0 ||
+                addresses.some(
+                    entry => !isPublicAddress(entry.address, blocked)
+                )
+            ) {
+                return callback(
+                    new HostError(
+                        `${hostname} points to a private or reserved address.`
+                    ),
+                    []
+                )
+            }
+            if (options.all) return callback(null, addresses)
+            callback(null, addresses[0]!.address, addresses[0]!.family)
+        })
     }
 }
 
-export type HostGuard = ReturnType<typeof createHostGuard>
+export function createHostCheck(lookup: Lookup) {
+    return (host: string) =>
+        new Promise<void>((resolve, reject) => {
+            lookup(host, {}, error => {
+                if (!error) return resolve()
+                reject(
+                    error instanceof HostError
+                        ? error
+                        : new HostError(`Could not resolve ${host}.`)
+                )
+            })
+        })
+}
+
+export type HostCheck = ReturnType<typeof createHostCheck>
+
+function plainHeaders(init?: RequestInit): Record<string, string> {
+    return Object.fromEntries(new Headers(init?.headers).entries())
+}
+
+// The providers speak fetch; this answers in fetch's shape while every
+// connection — redirects included — goes through the guarded lookup.
+// Authorization is dropped by follow-redirects when a redirect changes host.
+export function createGuardedFetch(lookup: Lookup): FetchLike {
+    return async (url, init) => {
+        if (!url.startsWith('https://')) {
+            throw new HostError('Only https URLs are fetched.')
+        }
+        const response = await axios.request<ArrayBuffer>({
+            url,
+            method: init?.method ?? 'GET',
+            headers: plainHeaders(init),
+            data: init?.body,
+            adapter: 'http',
+            lookup: lookup as AxiosRequestConfig['lookup'],
+            responseType: 'arraybuffer',
+            timeout: REQUEST_TIMEOUT_MS,
+            maxRedirects: init?.redirect === 'manual' ? 0 : MAX_REDIRECTS,
+            beforeRedirect: options => {
+                if (options.protocol !== 'https:') {
+                    throw new HostError('Refusing a redirect away from https.')
+                }
+            },
+            validateStatus: () => true,
+        })
+        const headers = new Headers()
+        for (const [name, value] of Object.entries(response.headers)) {
+            if (value === undefined || value === null) continue
+            for (const item of [value].flat())
+                headers.append(name, String(item))
+        }
+        const hasBody = !NULL_BODY_STATUSES.has(response.status)
+        return new Response(hasBody ? response.data : null, {
+            status: response.status,
+            headers,
+        })
+    }
+}

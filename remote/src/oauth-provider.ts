@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/server/auth/clients.js'
 import {
     InvalidGrantError,
+    InvalidTargetError,
     InvalidTokenError,
 } from '@modelcontextprotocol/sdk/server/auth/errors.js'
 import type {
@@ -17,24 +18,39 @@ import type {
 } from '@modelcontextprotocol/sdk/shared/auth.js'
 import type { Response } from 'express'
 
+import { CONNECT_COOKIE } from './connect.constants'
 import { randomToken } from './crypto'
 import type { Store } from './store'
-import { ACCESS_TOKEN_TTL_MS, REFRESH_TOKEN_TTL_MS } from './store.constants'
+import {
+    ACCESS_TOKEN_TTL_MS,
+    REFRESH_REUSE_GRACE_MS,
+    REFRESH_TOKEN_TTL_MS,
+} from './store.constants'
+
+export interface OAuthProviderOptions {
+    mcpUrl: URL
+    now?: () => number
+}
 
 export class StandupOAuthProvider implements OAuthServerProvider {
     readonly clientsStore: OAuthRegisteredClientsStore
 
+    private readonly mcpUrl: URL
+    private readonly now: () => number
+
     constructor(
         private readonly store: Store,
-        private readonly now: () => number = Date.now
+        options: OAuthProviderOptions
     ) {
+        this.mcpUrl = options.mcpUrl
+        this.now = options.now ?? Date.now
         this.clientsStore = {
             getClient: id => store.getClient(id),
             registerClient: client => {
                 // The SDK fills in client_id before calling us; the type just
                 // does not say so.
                 const full = client as OAuthClientInformationFull
-                store.saveClient(full)
+                store.saveClient(full, this.now())
                 return full
             },
         }
@@ -45,9 +61,17 @@ export class StandupOAuthProvider implements OAuthServerProvider {
         params: AuthorizationParams,
         res: Response
     ): Promise<void> {
+        if (params.resource && !this.isOwnResource(params.resource.href)) {
+            throw new InvalidTargetError(
+                `This server only issues tokens for ${this.mcpUrl.href}`
+            )
+        }
         const pendingId = randomToken()
+        const browserSecret = randomToken()
         this.store.createPending(
             {
+                pendingId,
+                browserSecret,
                 clientId: client.client_id,
                 codeChallenge: params.codeChallenge,
                 redirectUri: params.redirectUri,
@@ -55,9 +79,14 @@ export class StandupOAuthProvider implements OAuthServerProvider {
                 scopes: params.scopes ?? [],
                 state: params.state ?? null,
             },
-            pendingId,
             this.now()
         )
+        res.cookie(CONNECT_COOKIE, browserSecret, {
+            httpOnly: true,
+            secure: this.mcpUrl.protocol === 'https:',
+            sameSite: 'lax',
+            path: '/connect',
+        })
         res.redirect(`/connect/${pendingId}`)
     }
 
@@ -82,7 +111,7 @@ export class StandupOAuthProvider implements OAuthServerProvider {
         if (!code || code.clientId !== client.client_id) {
             throw new InvalidGrantError('Invalid or expired authorization code')
         }
-        if (redirectUri && redirectUri !== code.redirectUri) {
+        if (redirectUri !== code.redirectUri) {
             throw new InvalidGrantError('redirect_uri does not match')
         }
         return this.issue(
@@ -109,11 +138,16 @@ export class StandupOAuthProvider implements OAuthServerProvider {
         }
         // A rotated refresh token coming back means two parties hold it —
         // one of them stole it. Kill the whole family and make both reconnect.
-        if (stored.used) {
-            this.store.revokeFamily(stored.family)
-            throw new InvalidGrantError('Refresh token reuse detected')
+        // A client retrying within a minute (a lost response) is let through.
+        const now = this.now()
+        if (stored.usedAt !== null) {
+            if (now - stored.usedAt > REFRESH_REUSE_GRACE_MS) {
+                this.store.revokeFamily(stored.family)
+                throw new InvalidGrantError('Refresh token reuse detected')
+            }
+        } else {
+            this.store.markTokenUsed(refreshToken, now)
         }
-        this.store.markTokenUsed(refreshToken)
         return this.issue(
             client.client_id,
             stored.connectionId,
@@ -128,7 +162,8 @@ export class StandupOAuthProvider implements OAuthServerProvider {
         if (
             !stored ||
             stored.kind !== 'access' ||
-            stored.expiresAt < this.now()
+            stored.expiresAt < this.now() ||
+            (stored.resource !== null && !this.isOwnResource(stored.resource))
         ) {
             throw new InvalidTokenError('Invalid or expired access token')
         }
@@ -151,6 +186,12 @@ export class StandupOAuthProvider implements OAuthServerProvider {
         const stored = this.store.getToken(request.token)
         if (!stored || stored.clientId !== client.client_id) return
         this.store.deleteConnection(stored.connectionId)
+    }
+
+    // Clients differ on a trailing slash; anything else is another resource.
+    private isOwnResource(resource: string): boolean {
+        const trim = (url: string) => url.replace(/\/+$/, '')
+        return trim(resource) === trim(this.mcpUrl.href)
     }
 
     private issue(

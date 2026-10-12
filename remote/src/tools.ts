@@ -18,8 +18,9 @@ import { packageVersion } from '../../src/manifest/manifest'
 import { postWebhook } from '../../src/notify/notify'
 import type { FetchLike, ProviderKind } from '../../src/types/standup.types'
 
-import { freshAccessToken, pickAccount, providerFor } from './accounts'
-import type { HostGuard } from './ssrf'
+import { pickAccount, providerFor } from './accounts'
+import type { TokenRefresher } from './accounts'
+import { errorMessage } from './errors'
 import type { Store } from './store'
 import {
     NO_WEBHOOK_MESSAGE,
@@ -28,13 +29,11 @@ import {
     REMOTE_PROVIDER_ARG_DESCRIPTION,
     REMOTE_STANDUP_TOOL_DESCRIPTION,
 } from './tools.constants'
-import type { UpstreamApp } from './upstream'
 
 export interface ToolContext {
-    apps: Partial<Record<ProviderKind, UpstreamApp>>
     connectionId: string
-    fetchImpl?: FetchLike
-    guard: HostGuard
+    fetchImpl: FetchLike
+    freshAccessToken: TokenRefresher
     now: () => number
     store: Store
 }
@@ -48,10 +47,6 @@ const REMOTE_STANDUP_SCHEMA = {
     lang: STANDUP_TOOL_SCHEMA.lang,
 }
 
-function message(error: unknown): string {
-    return error instanceof Error ? error.message : String(error)
-}
-
 export async function runRemoteStandup(
     args: { host?: string; lang?: string; provider?: ProviderKind },
     context: ToolContext
@@ -63,16 +58,7 @@ export async function runRemoteStandup(
             context.store.listAccounts(context.connectionId),
             args
         )
-        // Checked again on every call, not only when the host was added:
-        // DNS can be repointed at a private address afterwards.
-        if (account.source === 'pat') await context.guard(account.host)
-        const token = await freshAccessToken(
-            account,
-            context.apps,
-            context.store,
-            now,
-            context.fetchImpl
-        )
+        const token = await context.freshAccessToken(account, now)
         const report = await collect({
             providerImpl: providerFor(
                 account.provider,
@@ -84,7 +70,7 @@ export async function runRemoteStandup(
         })
         return text(JSON.stringify(report))
     } catch (error) {
-        return failure(message(error))
+        return failure(errorMessage(error))
     }
 }
 
@@ -103,7 +89,7 @@ export async function runRemotePost(
         )
     } catch (error) {
         return failure(
-            `The ${webhook.kind} webhook did not accept the note: ${message(error)}`
+            `The ${webhook.kind} webhook did not accept the note: ${errorMessage(error)}`
         )
     }
     return text(`Posted the note to the saved ${webhook.kind} webhook.`)

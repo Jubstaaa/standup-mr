@@ -34,7 +34,8 @@ beforeAll(async () => {
     store = new Store(':memory:', config.encryptionKey)
     const app = createApp(config, store, {
         fetchImpl: fakeUpstream,
-        guard: async () => {},
+        lookup: (_host, _options, callback) =>
+            callback(null, [{ address: '140.82.112.3', family: 4 }]),
     })
     server = await new Promise<Server>(resolve => {
         const listening = app.listen(0, () => resolve(listening))
@@ -48,10 +49,20 @@ afterAll(() => {
     store.close()
 })
 
+let cookie = ''
+
+// The browser that started the flow: sends the connect cookie back.
+function browser(path: string, init: RequestInit = {}) {
+    return fetch(`${base}${path}`, {
+        redirect: 'manual',
+        ...init,
+        headers: { ...init.headers, Cookie: cookie },
+    })
+}
+
 function form(body: Record<string, string>): RequestInit {
     return {
         method: 'POST',
-        redirect: 'manual',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(body).toString(),
     }
@@ -123,19 +134,40 @@ describe('claude.ai connect flow', () => {
         expect(response.status).toBe(302)
         pagePath = response.headers.get('location')!
         expect(pagePath).toStartWith('/connect/')
+        cookie = response.headers.get('set-cookie')!.split(';')[0]!
 
-        const page = await (await fetch(`${base}${pagePath}`)).text()
+        const page = await (await browser(pagePath)).text()
         expect(page).toContain('No account linked yet')
+        expect(page).toContain('<strong>Claude</strong> is asking for access')
+        expect(page).toContain('<strong>claude.ai</strong>')
+    })
+
+    test('a forwarded link is useless in another browser', async () => {
+        const page = await fetch(`${base}${pagePath}`)
+        expect(page.status).toBe(410)
+        const finish = await fetch(`${base}${pagePath}/finish`, {
+            ...form({}),
+            redirect: 'manual',
+        })
+        expect(finish.status).toBe(410)
+    })
+
+    test('sends security headers', async () => {
+        const response = await browser(pagePath)
+        expect(response.headers.get('content-security-policy')).toContain(
+            "frame-ancestors 'none'"
+        )
+        expect(response.headers.get('x-content-type-options')).toBe('nosniff')
     })
 
     test('finish is refused until an account is linked', async () => {
-        const response = await fetch(`${base}${pagePath}/finish`, form({}))
+        const response = await browser(`${pagePath}/finish`, form({}))
         expect(response.headers.get('location')).toContain('error=')
     })
 
     test('a pasted self-hosted token is validated and listed', async () => {
-        const response = await fetch(
-            `${base}${pagePath}/token`,
+        const response = await browser(
+            `${pagePath}/token`,
             form({
                 provider: 'gitlab',
                 host: 'https://git.example.com/',
@@ -143,22 +175,26 @@ describe('claude.ai connect flow', () => {
             })
         )
         expect(response.headers.get('location')).toBe(pagePath)
-        const page = await (await fetch(`${base}${pagePath}`)).text()
+        const page = await (await browser(pagePath)).text()
         expect(page).toContain('gitlab · git.example.com · ilker')
         expect(page).not.toContain('glpat-x')
     })
 
     test('an unknown webhook host is refused', async () => {
-        const response = await fetch(
-            `${base}${pagePath}/webhook`,
+        const response = await browser(
+            `${pagePath}/webhook`,
             form({ url: 'https://evil.example.com/hook' })
         )
         expect(response.headers.get('location')).toContain('error=')
     })
 
     test('finish returns a code to claude.ai with the state', async () => {
-        const response = await fetch(`${base}${pagePath}/finish`, form({}))
+        const response = await browser(`${pagePath}/finish`, form({}))
         const location = new URL(response.headers.get('location')!)
+
+        const doubleClick = await browser(`${pagePath}/finish`, form({}))
+        expect(doubleClick.headers.get('location')).toBe(location.href)
+
         expect(location.origin + location.pathname).toBe(REDIRECT_URI)
         expect(location.searchParams.get('state')).toBe('st')
 
@@ -178,9 +214,10 @@ describe('claude.ai connect flow', () => {
             .access_token
     })
 
-    test('the connect page is gone once finished', async () => {
-        const response = await fetch(`${base}${pagePath}`)
-        expect(response.status).toBe(410)
+    test('the finished page only sends the user back to the client', async () => {
+        const response = await browser(pagePath)
+        expect(response.status).toBe(302)
+        expect(response.headers.get('location')).toStartWith(REDIRECT_URI)
     })
 
     test('lists the three tools with the token', async () => {
