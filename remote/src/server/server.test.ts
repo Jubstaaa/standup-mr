@@ -341,6 +341,22 @@ describe('claude.ai connect flow', () => {
         ])
     })
 
+    test('offers the standup prompt', async () => {
+        const response = await rpc(accessToken, {
+            jsonrpc: '2.0',
+            id: 4,
+            method: 'prompts/get',
+            params: { name: 'standup', arguments: { account: 'gitlab' } },
+        })
+        const body = (await response.json()) as {
+            result: { messages: Array<{ content: { text: string } }> }
+        }
+        expect(body.result.messages[0]!.content.text).toContain(
+            'get_standup_data'
+        )
+        expect(body.result.messages[0]!.content.text).toContain('gitlab')
+    })
+
     test('post without a saved webhook explains how to add one', async () => {
         const response = await rpc(accessToken, {
             jsonrpc: '2.0',
