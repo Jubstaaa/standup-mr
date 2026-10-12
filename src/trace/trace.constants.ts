@@ -6,7 +6,10 @@ export const SIGNAL = /(\berror\b|Error:|fatal:|npm ERR!|\bfailed\b)/i
 export const NOISE =
     /^(Cleaning up|Job failed: exit status|ERROR: Job failed|Uploading artifacts|Job succeeded)/i
 export const MAX_LINE = 200
-export const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s+/
+// GitLab's timestamped logs follow the time with a stream marker: two hex
+// digits, O or E for stdout or stderr, and + on a continued line.
+export const TIMESTAMP =
+    /^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s+(?:[0-9a-f]{2}[OE]\+?\s)?/
 export const ERROR_MARKER = /^##\[error\]\s*/
 export const GROUP_START = /^##\[group\]/
 export const GROUP_END = /^##\[endgroup\]/

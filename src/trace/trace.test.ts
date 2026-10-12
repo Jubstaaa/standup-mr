@@ -15,6 +15,18 @@ const SAMPLE =
     'ERROR: Job failed: exit status 1\n'
 
 describe('extractErrors', () => {
+    it('strips the stream marker GitLab puts after a timestamp', () => {
+        const trace = [
+            "2026-10-12T11:05:44.068609Z 01O     TypeError: Cannot read properties of undefined (reading 'currency')",
+            '2026-10-12T11:05:44.708272Z 00O+ ERROR: Job failed: exit code 1',
+        ].join('\n')
+        const lines = extractErrors(trace)
+        expect(lines).toContain(
+            "TypeError: Cannot read properties of undefined (reading 'currency')"
+        )
+        expect(lines.some(line => /^\d{2}O/.test(line))).toBe(false)
+    })
+
     it('strips ansi codes from the lines it keeps', () => {
         const coloured = `${ESC}[31merror: GET /packages/npm/@acme/ui-1.2.0.tgz - 404${ESC}[0m`
         expect(extractErrors(coloured)).toEqual([

@@ -120,8 +120,10 @@ describe('getMyMrs', () => {
                         detailed_merge_status: 'draft_status',
                     },
                 ],
-                'merge_requests/7/pipelines': [],
-                'merge_requests/6/pipelines': [{ id: 99, status: 'failed' }],
+                'merge_requests/7': { head_pipeline: null },
+                'merge_requests/6': {
+                    head_pipeline: { id: 99, status: 'failed' },
+                },
                 'discussions': [],
             })
         )
@@ -133,6 +135,40 @@ describe('getMyMrs', () => {
         expect(byIid[7]!.bucket).toBe('ready')
         expect(byIid[7]!.pipeline).toBeNull()
         expect(byIid[7]!.pipelineMissing).toBe(true)
+    })
+
+    it('takes the pipeline GitLab shows on the MR, not a stale one', async () => {
+        const gl = new GitLabProvider(
+            'h',
+            't',
+            routedFetch({
+                'scope=created_by_me': [
+                    {
+                        project_id: 1,
+                        iid: 8,
+                        title: 'feat: rate limit',
+                        draft: false,
+                        source_branch: 'feat/rate-limit',
+                        target_branch: 'main',
+                        updated_at: '2026-08-27T00:00:00Z',
+                        web_url: 'https://h/acme/web/-/merge_requests/8',
+                        references: { full: 'acme/web!8' },
+                        detailed_merge_status: 'mergeable',
+                    },
+                ],
+                'merge_requests/8/pipelines': [{ id: 1, status: 'failed' }],
+                'merge_requests/8': {
+                    head_pipeline: { id: 2, status: 'success' },
+                },
+                'discussions': [],
+            })
+        )
+
+        const [row] = await gl.getMyMrs(TODAY)
+
+        expect(row!.pipeline).toBe('success')
+        expect(row!.pipelineId).toBe(2)
+        expect(row!.bucket).toBe('ready')
     })
 
     it('counts unresolved discussions', async () => {
@@ -154,7 +190,9 @@ describe('getMyMrs', () => {
                         detailed_merge_status: 'unchecked',
                     },
                 ],
-                'pipelines': [{ id: 5, status: 'success' }],
+                'merge_requests/49': {
+                    head_pipeline: { id: 5, status: 'success' },
+                },
                 'discussions': [
                     {
                         notes: [
