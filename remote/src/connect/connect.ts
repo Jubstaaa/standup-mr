@@ -3,25 +3,26 @@ import { Router, urlencoded } from 'express'
 import type { Request, RequestHandler, Response } from 'express'
 import { rateLimit } from 'express-rate-limit'
 
-import { inferWebhookKind } from '../../src/notify/notify'
-import type { FetchLike, ProviderKind } from '../../src/types/standup.types'
+import { inferWebhookKind } from '../../../src/notify/notify'
+import type { FetchLike, ProviderKind } from '../../../src/types/standup.types'
+import { providerFor } from '../accounts/accounts'
+import { randomToken } from '../crypto/crypto'
+import { errorMessage } from '../errors/errors'
+import { clientKey } from '../rate-limit/rate-limit'
+import { HostError, normalizeHost } from '../ssrf/ssrf'
+import type { HostCheck } from '../ssrf/ssrf'
+import type { Store } from '../store/store'
+import type { PendingAuthorization } from '../store/store.types'
+import { toUpstreamTokens } from '../upstream/upstream'
+import type { UpstreamApps } from '../upstream/upstream'
+import type { UpstreamTokens } from '../upstream/upstream.types'
 
-import { providerFor } from './accounts'
 import { renderConnectPage, renderMessagePage } from './connect-page'
 import {
     CONNECT_COOKIE,
     ERROR_MESSAGE_MAX_LENGTH,
     TOKEN_FORM_LIMIT_PER_MINUTE,
 } from './connect.constants'
-import { randomToken } from './crypto'
-import { errorMessage } from './errors'
-import { clientKey } from './rate-limit'
-import type { PendingAuthorization, UpstreamTokens } from './remote.types'
-import { HostError, normalizeHost } from './ssrf'
-import type { HostCheck } from './ssrf'
-import type { Store } from './store'
-import { toUpstreamTokens } from './upstream'
-import type { UpstreamApps } from './upstream'
 
 export interface ConnectDeps {
     apps: UpstreamApps

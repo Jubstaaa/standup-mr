@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import type { RemoteConfig } from './remote.types'
+import type { RemoteConfig } from './config.types'
 
 const optional = z
     .string()

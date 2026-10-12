@@ -4,11 +4,12 @@ import { OAuth2Tokens } from 'arctic'
 import type { GitHub } from 'arctic'
 import { beforeEach, describe, expect, test } from 'bun:test'
 
+import { Store } from '../store/store'
+import { startConnection } from '../store/store.fixtures'
+import type { UpstreamApps } from '../upstream/upstream'
+
 import { AccountError, createTokenRefresher, pickAccount } from './accounts'
-import type { Account } from './remote.types'
-import { Store } from './store'
-import { startConnection } from './store.fixtures'
-import type { UpstreamApps } from './upstream'
+import type { Account } from './accounts.types'
 
 function account(overrides: Partial<Account>): Account {
     return {

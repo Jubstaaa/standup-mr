@@ -18,14 +18,14 @@ import type {
 } from '@modelcontextprotocol/sdk/shared/auth.js'
 import type { Response } from 'express'
 
-import { CONNECT_COOKIE } from './connect.constants'
-import { randomToken } from './crypto'
-import type { Store } from './store'
+import { CONNECT_COOKIE } from '../connect/connect.constants'
+import { randomToken } from '../crypto/crypto'
+import type { Store } from '../store/store'
 import {
     ACCESS_TOKEN_TTL_MS,
     REFRESH_REUSE_GRACE_MS,
     REFRESH_TOKEN_TTL_MS,
-} from './store.constants'
+} from '../store/store.constants'
 
 export interface OAuthProviderOptions {
     mcpUrl: URL

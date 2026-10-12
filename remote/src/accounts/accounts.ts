@@ -1,13 +1,13 @@
-import type { Provider } from '../../src/providers/base/base.types'
-import { GitHubProvider } from '../../src/providers/github/github'
-import { GitLabProvider } from '../../src/providers/gitlab/gitlab'
-import type { FetchLike, ProviderKind } from '../../src/types/standup.types'
+import type { Provider } from '../../../src/providers/base/base.types'
+import { GitHubProvider } from '../../../src/providers/github/github'
+import { GitLabProvider } from '../../../src/providers/gitlab/gitlab'
+import type { FetchLike, ProviderKind } from '../../../src/types/standup.types'
+import type { Store } from '../store/store'
+import { toUpstreamTokens } from '../upstream/upstream'
+import type { UpstreamApps } from '../upstream/upstream'
 
 import { REFRESH_MARGIN_MS } from './accounts.constants'
-import type { Account } from './remote.types'
-import type { Store } from './store'
-import { toUpstreamTokens } from './upstream'
-import type { UpstreamApps } from './upstream'
+import type { Account } from './accounts.types'
 
 export class AccountError extends Error {}
 

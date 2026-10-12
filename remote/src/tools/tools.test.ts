@@ -2,9 +2,10 @@ import { randomBytes } from 'node:crypto'
 
 import { beforeEach, describe, expect, test } from 'bun:test'
 
-import { createTokenRefresher } from './accounts'
-import { Store } from './store'
-import { startConnection } from './store.fixtures'
+import { createTokenRefresher } from '../accounts/accounts'
+import { Store } from '../store/store'
+import { startConnection } from '../store/store.fixtures'
+
 import { createRemoteServer, runRemotePost, runRemoteStandup } from './tools'
 import type { ToolContext } from './tools'
 import { NO_WEBHOOK_MESSAGE } from './tools.constants'

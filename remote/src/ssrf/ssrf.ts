@@ -5,7 +5,7 @@ import axios from 'axios'
 import type { AxiosRequestConfig } from 'axios'
 import ipaddr from 'ipaddr.js'
 
-import type { FetchLike } from '../../src/types/standup.types'
+import type { FetchLike } from '../../../src/types/standup.types'
 
 import {
     MAX_REDIRECTS,

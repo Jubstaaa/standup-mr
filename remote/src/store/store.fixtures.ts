@@ -1,5 +1,5 @@
-import type { PendingAuthorization } from './remote.types'
 import type { Store } from './store'
+import type { PendingAuthorization } from './store.types'
 
 export const BROWSER_SECRET = 'browser-secret'
 

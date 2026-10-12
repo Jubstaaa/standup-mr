@@ -9,24 +9,24 @@ import type { Express } from 'express'
 import { rateLimit } from 'express-rate-limit'
 import helmet from 'helmet'
 
-import type { FetchLike } from '../../src/types/standup.types'
-
-import { createTokenRefresher } from './accounts'
-import { createConnectRouter } from './connect'
-import { StandupOAuthProvider } from './oauth-provider'
-import { clientKey } from './rate-limit'
-import type { RemoteConfig } from './remote.types'
-import { MCP_CALLS_PER_MINUTE } from './server.constants'
+import type { FetchLike } from '../../../src/types/standup.types'
+import { createTokenRefresher } from '../accounts/accounts'
+import type { RemoteConfig } from '../config/config.types'
+import { createConnectRouter } from '../connect/connect'
+import { StandupOAuthProvider } from '../oauth/oauth'
+import { clientKey } from '../rate-limit/rate-limit'
 import {
     blockedSet,
     createGuardedFetch,
     createGuardedLookup,
     createHostCheck,
-} from './ssrf'
-import type { Lookup } from './ssrf'
-import type { Store } from './store'
-import { createRemoteServer } from './tools'
-import { upstreamApps } from './upstream'
+} from '../ssrf/ssrf'
+import type { Lookup } from '../ssrf/ssrf'
+import type { Store } from '../store/store'
+import { createRemoteServer } from '../tools/tools'
+import { upstreamApps } from '../upstream/upstream'
+
+import { MCP_CALLS_PER_MINUTE } from './server.constants'
 
 export interface AppOptions {
     fetchImpl?: FetchLike

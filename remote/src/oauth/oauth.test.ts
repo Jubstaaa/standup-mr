@@ -4,11 +4,12 @@ import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/share
 import { beforeEach, describe, expect, test } from 'bun:test'
 import type { Response } from 'express'
 
-import { CONNECT_COOKIE } from './connect.constants'
-import { StandupOAuthProvider } from './oauth-provider'
-import { Store } from './store'
-import { REFRESH_REUSE_GRACE_MS } from './store.constants'
-import { BROWSER_SECRET, startConnection } from './store.fixtures'
+import { CONNECT_COOKIE } from '../connect/connect.constants'
+import { Store } from '../store/store'
+import { REFRESH_REUSE_GRACE_MS } from '../store/store.constants'
+import { BROWSER_SECRET, startConnection } from '../store/store.fixtures'
+
+import { StandupOAuthProvider } from './oauth'
 
 const REDIRECT_URI = 'https://claude.ai/api/mcp/auth_callback'
 const MCP_URL = new URL('https://standup.example.com/mcp')

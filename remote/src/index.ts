@@ -1,6 +1,6 @@
-import { loadConfig } from './config'
-import { createApp } from './server'
-import { Store } from './store'
+import { loadConfig } from './config/config'
+import { createApp } from './server/server'
+import { Store } from './store/store'
 
 const PURGE_INTERVAL_MS = 60 * 60_000
 

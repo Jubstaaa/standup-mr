@@ -3,17 +3,10 @@ import { randomUUID } from 'node:crypto'
 import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/shared/auth.js'
 import { Database } from 'bun:sqlite'
 
-import { hashToken, open, seal } from './crypto'
-import type {
-    Account,
-    AuthCode,
-    NewAccount,
-    NewPending,
-    PendingAuthorization,
-    StoredToken,
-    UpstreamTokens,
-    Webhook,
-} from './remote.types'
+import type { Account, NewAccount } from '../accounts/accounts.types'
+import { hashToken, open, seal } from '../crypto/crypto'
+import type { UpstreamTokens } from '../upstream/upstream.types'
+
 import {
     CLIENT_IDLE_MS,
     CODE_TTL_MS,
@@ -21,6 +14,13 @@ import {
     PENDING_TTL_MS,
     SCHEMA,
 } from './store.constants'
+import type {
+    AuthCode,
+    NewPending,
+    PendingAuthorization,
+    StoredToken,
+    Webhook,
+} from './store.types'
 
 interface AccountRow {
     id: string

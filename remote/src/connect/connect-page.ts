@@ -1,8 +1,10 @@
 import escapeHtml from 'escape-html'
 
-import { describeAccount } from './accounts'
+import { describeAccount } from '../accounts/accounts'
+import type { Account } from '../accounts/accounts.types'
+import type { Webhook } from '../store/store.types'
+
 import { PAGE_STYLE } from './connect-page.constants'
-import type { Account, Webhook } from './remote.types'
 
 export interface ConnectPageModel {
     accounts: Account[]

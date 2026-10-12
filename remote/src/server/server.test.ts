@@ -3,9 +3,10 @@ import type { Server } from 'node:http'
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
-import type { RemoteConfig } from './remote.types'
+import type { RemoteConfig } from '../config/config.types'
+import { Store } from '../store/store'
+
 import { createApp } from './server'
-import { Store } from './store'
 
 const REDIRECT_URI = 'https://claude.ai/api/mcp/auth_callback'
 const verifier = randomBytes(32).toString('base64url')

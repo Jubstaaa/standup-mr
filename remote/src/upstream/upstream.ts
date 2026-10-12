@@ -1,10 +1,11 @@
 import { GitHub, GitLab } from 'arctic'
 import type { OAuth2Tokens } from 'arctic'
 
-import type { ProviderKind } from '../../src/types/standup.types'
+import type { ProviderKind } from '../../../src/types/standup.types'
+import type { RemoteConfig } from '../config/config.types'
 
-import type { RemoteConfig, UpstreamTokens } from './remote.types'
 import { GITLAB_SCOPES } from './upstream.constants'
+import type { UpstreamTokens } from './upstream.types'
 
 export interface UpstreamApp {
     client: GitHub | GitLab

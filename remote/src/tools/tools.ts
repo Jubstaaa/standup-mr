@@ -12,16 +12,16 @@ import {
     STANDUP_TOOL_ANNOTATIONS,
     STANDUP_TOOL_SCHEMA,
     text,
-} from '../../mcp/server'
-import type { ToolResult } from '../../mcp/server'
-import { packageVersion } from '../../src/manifest/manifest'
-import { postWebhook } from '../../src/notify/notify'
-import type { FetchLike, ProviderKind } from '../../src/types/standup.types'
+} from '../../../mcp/server'
+import type { ToolResult } from '../../../mcp/server'
+import { packageVersion } from '../../../src/manifest/manifest'
+import { postWebhook } from '../../../src/notify/notify'
+import type { FetchLike, ProviderKind } from '../../../src/types/standup.types'
+import { pickAccount, providerFor } from '../accounts/accounts'
+import type { TokenRefresher } from '../accounts/accounts'
+import { errorMessage } from '../errors/errors'
+import type { Store } from '../store/store'
 
-import { pickAccount, providerFor } from './accounts'
-import type { TokenRefresher } from './accounts'
-import { errorMessage } from './errors'
-import type { Store } from './store'
 import {
     NO_WEBHOOK_MESSAGE,
     REMOTE_HOST_ARG_DESCRIPTION,
@@ -101,7 +101,7 @@ export function createRemoteServer(context: ToolContext): McpServer {
         // remote/ has its own package.json without a version; the published
         // package's version is the one the tools belong to.
         version: packageVersion(
-            new URL('../../mcp/server.ts', import.meta.url).href
+            new URL('../../../mcp/server.ts', import.meta.url).href
         ),
     })
 
