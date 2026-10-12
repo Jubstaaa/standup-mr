@@ -192,3 +192,16 @@ export function renderMessagePage(title: string, body: string): string {
         <p class="lede">${escapeHtml(body)}</p>`
     )
 }
+
+// The site root, so anything that resolves the connector's icon from its
+// home page finds this one and not the parent domain's.
+export function renderLandingPage(mcpUrl: string): string {
+    return document(
+        'standup-mr',
+        `<div class="lockup lockup-solo" aria-hidden="true"><span class="tile tile-standup"><img src="/icon.png" alt="" width="56" height="56"></span></div>
+        <h1>standup-mr</h1>
+        <p class="lede">Standup notes from merge request state, for Claude.</p>
+        <p class="return">In claude.ai, open Settings, Connectors, Add custom connector, and paste <strong>${escapeHtml(mcpUrl)}</strong></p>
+        <footer class="trust"><p><a href="${SOURCE_URL}">Source and docs on GitHub</a></p></footer>`
+    )
+}
