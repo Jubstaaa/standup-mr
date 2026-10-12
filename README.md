@@ -96,7 +96,7 @@ The connector then works from the claude.ai mobile app as well.
 **What is stored.** Your provider tokens and webhook URL, encrypted with
 AES-256-GCM, and only to read your merge requests and post your note. The
 access tokens Claude holds are stored as hashes. Disconnecting the connector
-deletes everything; connections unused for 90 days are deleted. The server is
+deletes everything; connections unused for 30 days are deleted. The server is
 the code in [`remote/`](remote/).
 
 **When to use the local server instead.** A GitLab behind a VPN or on a

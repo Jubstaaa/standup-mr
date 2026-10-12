@@ -6,7 +6,8 @@ export const CODE_TTL_MS = MINUTE
 export const ACCESS_TOKEN_TTL_MS = 60 * MINUTE
 export const REFRESH_TOKEN_TTL_MS = 30 * DAY
 export const REFRESH_REUSE_GRACE_MS = MINUTE
-export const CONNECTION_IDLE_MS = 90 * DAY
+// Matches the refresh token: past it the client cannot get back in anyway.
+export const CONNECTION_IDLE_MS = REFRESH_TOKEN_TTL_MS
 export const CLIENT_IDLE_MS = DAY
 
 export const SCHEMA = `

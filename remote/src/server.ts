@@ -18,6 +18,7 @@ import { clientKey } from './rate-limit'
 import type { RemoteConfig } from './remote.types'
 import { MCP_CALLS_PER_MINUTE } from './server.constants'
 import {
+    blockedSet,
     createGuardedFetch,
     createGuardedLookup,
     createHostCheck,
@@ -41,8 +42,9 @@ export function createApp(
     const app = express()
     const apps = upstreamApps(config)
     const now = options.now ?? Date.now
-    const lookup = createGuardedLookup(config.blockedAddresses, options.lookup)
-    const fetchImpl = options.fetchImpl ?? createGuardedFetch(lookup)
+    const blocked = blockedSet(config.blockedAddresses)
+    const lookup = createGuardedLookup(blocked, options.lookup)
+    const fetchImpl = options.fetchImpl ?? createGuardedFetch(lookup, blocked)
     const freshAccessToken = createTokenRefresher(apps, store)
     const mcpUrl = new URL('/mcp', config.baseUrl)
     const provider = new StandupOAuthProvider(store, { mcpUrl, now })
@@ -50,11 +52,14 @@ export function createApp(
 
     // Finish redirects a form POST to the client's callback, which a
     // form-action directive would block; the page itself runs no script.
+    // The opener policy stays off: a client that runs the login in a popup
+    // may need window.opener to learn that it finished.
     app.use(
         helmet({
             contentSecurityPolicy: {
                 directives: { formAction: null, frameAncestors: ["'none'"] },
             },
+            crossOriginOpenerPolicy: false,
         })
     )
 

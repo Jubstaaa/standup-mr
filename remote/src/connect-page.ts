@@ -118,7 +118,7 @@ export function renderConnectPage(model: ConnectPageModel): string {
 
     <footer class="muted small">
         Tokens and the webhook URL are encrypted at rest and used only to read your merge requests and post your note.
-        Disconnecting the connector deletes them; unused connections are deleted after 90 days.
+        Disconnecting the connector deletes them; unused connections are deleted after 30 days.
         <a href="https://github.com/Jubstaaa/standup-mr" target="_blank" rel="noopener">Source code</a>.
     </footer>
 </main>

@@ -60,20 +60,48 @@ export function isPublicAddress(
 ): boolean {
     if (!ipaddr.isValid(address)) return false
     const parsed = ipaddr.process(address)
-    return parsed.range() === 'unicast' && !blocked.has(parsed.toString())
+    // IPv4-compatible ::a.b.c.d is deprecated but still reported as unicast.
+    const isIpv4Compatible =
+        parsed.kind() === 'ipv6' && parsed.match(ipaddr.parse('::'), 96)
+    return (
+        parsed.range() === 'unicast' &&
+        !isIpv4Compatible &&
+        !blocked.has(parsed.toString())
+    )
+}
+
+export function blockedSet(addresses: string[]): ReadonlySet<string> {
+    return new Set(
+        addresses
+            .filter(address => ipaddr.isValid(address))
+            .map(address => ipaddr.process(address).toString())
+    )
+}
+
+// The guarded lookup never runs for an IP-literal host — the socket dials
+// it directly — so URLs, including every redirect target, are checked too.
+function assertPublicTarget(
+    target: { hostname: string; port: string; protocol: string },
+    blocked: ReadonlySet<string>
+): void {
+    if (target.protocol !== 'https:') {
+        throw new HostError('Only https URLs are fetched.')
+    }
+    if (target.port && target.port !== '443') {
+        throw new HostError('Only the default https port (443) is fetched.')
+    }
+    const hostname = target.hostname.replace(/^\[|\]$/g, '')
+    if (ipaddr.isValid(hostname) && !isPublicAddress(hostname, blocked)) {
+        throw new HostError(`${hostname} is a private or reserved address.`)
+    }
 }
 
 // Runs inside the socket connect, on the addresses actually dialled, so a
 // DNS answer that changes between a check and the request cannot slip past.
 export function createGuardedLookup(
-    blockedAddresses: string[] = [],
+    blocked: ReadonlySet<string> = new Set(),
     lookup: Lookup = dnsLookup as Lookup
 ): Lookup {
-    const blocked = new Set(
-        blockedAddresses
-            .filter(address => ipaddr.isValid(address))
-            .map(address => ipaddr.process(address).toString())
-    )
     return (hostname, options, callback) => {
         lookup(hostname, { ...options, all: true }, (error, result) => {
             if (error) return callback(error, [])
@@ -120,11 +148,12 @@ function plainHeaders(init?: RequestInit): Record<string, string> {
 // The providers speak fetch; this answers in fetch's shape while every
 // connection — redirects included — goes through the guarded lookup.
 // Authorization is dropped by follow-redirects when a redirect changes host.
-export function createGuardedFetch(lookup: Lookup): FetchLike {
+export function createGuardedFetch(
+    lookup: Lookup,
+    blocked: ReadonlySet<string> = new Set()
+): FetchLike {
     return async (url, init) => {
-        if (!url.startsWith('https://')) {
-            throw new HostError('Only https URLs are fetched.')
-        }
+        assertPublicTarget(new URL(url), blocked)
         const response = await axios.request<ArrayBuffer>({
             url,
             method: init?.method ?? 'GET',
@@ -136,9 +165,14 @@ export function createGuardedFetch(lookup: Lookup): FetchLike {
             timeout: REQUEST_TIMEOUT_MS,
             maxRedirects: init?.redirect === 'manual' ? 0 : MAX_REDIRECTS,
             beforeRedirect: options => {
-                if (options.protocol !== 'https:') {
-                    throw new HostError('Refusing a redirect away from https.')
-                }
+                assertPublicTarget(
+                    {
+                        hostname: String(options.hostname ?? ''),
+                        port: String(options.port ?? ''),
+                        protocol: String(options.protocol ?? ''),
+                    },
+                    blocked
+                )
             },
             validateStatus: () => true,
         })
