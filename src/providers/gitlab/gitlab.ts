@@ -159,14 +159,16 @@ export class GitLabProvider implements Provider {
         const projectId: number = mr.project_id
         const iid: number = mr.iid
 
-        const [pipelines, unresolved] = await Promise.all([
-            this.getJson<Array<{ id: number; status: string }>>(
-                `projects/${projectId}/merge_requests/${iid}/pipelines`,
-                { per_page: 1 }
-            ),
+        // head_pipeline is the one GitLab itself shows on the MR. The
+        // /pipelines list is not ordered newest first, so its first entry
+        // can be a stale pipeline from an earlier commit.
+        const [detail, unresolved] = await Promise.all([
+            this.getJson<{
+                head_pipeline?: { id: number; status: string } | null
+            }>(`projects/${projectId}/merge_requests/${iid}`),
             this.countUnresolved(projectId, iid),
         ])
-        const latest = pipelines?.[0]
+        const latest = detail?.head_pipeline ?? undefined
 
         return {
             provider: 'gitlab',

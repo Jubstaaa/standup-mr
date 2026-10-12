@@ -4,7 +4,16 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.1] - 2026-10-12
+
+### Fixed
+
+- GitLab merge requests take their pipeline from `head_pipeline`, the one
+  GitLab shows on the MR. The `/pipelines` list is not ordered newest first,
+  so a merge request could be reported blocked by a stale red pipeline from an
+  earlier commit, and the current failure's log was never read.
+- Error lines from GitLab's timestamped job logs no longer start with the
+  stream marker (`01O`, `00E+`) that follows each timestamp.
 
 ### Added
 
