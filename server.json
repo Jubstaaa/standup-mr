@@ -22,12 +22,12 @@
       ]
     }
   ],
-  "version": "0.7.0",
+  "version": "1.0.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "standup-mr",
-      "version": "0.7.0",
+      "version": "1.0.0",
       "transport": {
         "type": "stdio"
       },

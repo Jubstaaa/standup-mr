@@ -4,7 +4,12 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-10-12
+
+First stable release. From here on the CLI commands and flags, the JSON that
+`fetch` and `get_standup_data` return, the MCP tool names and arguments, and
+the environment variables follow semantic versioning: anything that would
+break an existing setup waits for 2.0.
 
 ### Added
 
@@ -14,8 +19,14 @@ All notable changes to standup-mr are recorded here. The format follows
   standup-mr from claude.ai on the web and on mobile, with no environment
   variables. One connector can hold several accounts and an optional chat
   webhook. The server lives in `remote/` and is not part of the npm package.
+- **Sign in to your company's GitLab or GitHub Enterprise.** On the connect
+  page, type the host: if someone there already set up sign-in, use it;
+  otherwise register an OAuth application once, following the exact redirect
+  URI and scopes the page shows, and everyone at that host can sign in from
+  then on.
 - `server.json` lists the remote endpoint, so registries show both the npm
   package and the hosted server.
+- Both servers declare the project icon in `serverInfo.icons`.
 
 ### Fixed
 

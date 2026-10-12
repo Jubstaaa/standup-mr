@@ -248,6 +248,16 @@ that pipeline is red; this one opens the failed job's log and shows you the
 404 — and a 404 rather than a 403 usually means the token's scope is wrong, not
 that the package is missing.
 
+## Stability
+
+Since 1.0.0 the CLI commands and flags, the JSON that `fetch` and
+`get_standup_data` return, the MCP tool names and arguments, and the
+environment variables follow [semantic versioning](https://semver.org/): a
+change that would break an existing setup waits for a major release. New
+fields in the JSON may appear in minor releases, so read it by name rather
+than by position. The hosted server at `standup.ilkerbalcilar.com` is
+updated continuously and is not tied to the npm version.
+
 ## Known limits
 
 - **GitHub's events feed is shallow.** It is capped at roughly 300 events over
