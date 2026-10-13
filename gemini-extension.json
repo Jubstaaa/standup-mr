@@ -1,6 +1,6 @@
 {
     "name": "standup-mr",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "description": "Standup notes from GitLab or GitHub merge request state, with the error lines from a failed pipeline's job log.",
     "contextFileName": "GEMINI.md",
     "mcpServers": {
