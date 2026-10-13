@@ -14,6 +14,8 @@ import type { ProviderLabels } from '../config/config'
 import type { Provider, ProviderKind } from './base/base.types'
 import { GitHubProvider } from './github/github'
 import { DOT_COM } from './github/github.constants'
+
+const GITLAB_DOT_COM = 'gitlab.com'
 import { GitLabProvider } from './gitlab/gitlab'
 
 export interface SelectOptions {
@@ -121,7 +123,8 @@ export function connect(options: SelectOptions = {}): Provider {
             options.token,
             env.GITHUB_TOKEN,
             ghToken,
-            GITHUB_LABELS
+            GITHUB_LABELS,
+            env.GITHUB_HOST ?? DOT_COM
         )
         return new GitHubProvider(host, token)
     }
@@ -138,7 +141,8 @@ export function connect(options: SelectOptions = {}): Provider {
         options.token,
         env.GITLAB_TOKEN,
         glabToken,
-        GITLAB_LABELS
+        GITLAB_LABELS,
+        env.GITLAB_HOST ?? GITLAB_DOT_COM
     )
     return new GitLabProvider(host, token)
 }
