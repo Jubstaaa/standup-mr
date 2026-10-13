@@ -4,6 +4,17 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-10-13
+
+### Fixed
+
+- **The env token is now bound to its host.** `GITHUB_TOKEN` / `GITLAB_TOKEN`
+  was returned for any host, so in the stdio MCP server a tool call with a
+  made-up host could send your token to it. The env token is now used only for
+  `GITHUB_HOST` / `GITLAB_HOST` (default github.com / gitlab.com); any other
+  host falls through to a host your CLI is logged into, or errors. Reported as
+  MTC-SRC-002.
+
 ## [1.1.0] - 2026-10-12
 
 ### Added
