@@ -3,11 +3,11 @@ import { describe, expect, it } from 'bun:test'
 import {
     ConfigError,
     GITHUB_LABELS,
+    GITLAB_LABELS,
     parseGlabHosts,
     parseLoggedInHosts,
     resolveHost,
     resolveToken,
-    GITLAB_LABELS,
 } from './config'
 
 describe('resolveHost', () => {

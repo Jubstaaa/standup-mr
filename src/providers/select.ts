@@ -14,8 +14,6 @@ import type { ProviderLabels } from '../config/config'
 import type { Provider, ProviderKind } from './base/base.types'
 import { GitHubProvider } from './github/github'
 import { DOT_COM } from './github/github.constants'
-
-const GITLAB_DOT_COM = 'gitlab.com'
 import { GitLabProvider } from './gitlab/gitlab'
 
 export interface SelectOptions {
@@ -27,6 +25,8 @@ export interface SelectOptions {
 }
 
 const DEFAULT_PROBE = { gitlab: glabHosts, github: ghHosts }
+
+const GITLAB_DOT_COM = 'gitlab.com'
 
 function hostFrom(
     cliHost: string | undefined,
