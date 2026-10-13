@@ -26,6 +26,8 @@ export interface SelectOptions {
 
 const DEFAULT_PROBE = { gitlab: glabHosts, github: ghHosts }
 
+const GITLAB_DOT_COM = 'gitlab.com'
+
 function hostFrom(
     cliHost: string | undefined,
     envHost: string | undefined,
@@ -121,7 +123,8 @@ export function connect(options: SelectOptions = {}): Provider {
             options.token,
             env.GITHUB_TOKEN,
             ghToken,
-            GITHUB_LABELS
+            GITHUB_LABELS,
+            env.GITHUB_HOST ?? DOT_COM
         )
         return new GitHubProvider(host, token)
     }
@@ -138,7 +141,8 @@ export function connect(options: SelectOptions = {}): Provider {
         options.token,
         env.GITLAB_TOKEN,
         glabToken,
-        GITLAB_LABELS
+        GITLAB_LABELS,
+        env.GITLAB_HOST ?? GITLAB_DOT_COM
     )
     return new GitLabProvider(host, token)
 }

@@ -61,10 +61,14 @@ export function resolveToken(
     cliToken?: string,
     envToken?: string,
     lookup?: (host: string) => string,
-    labels: ProviderLabels = GITLAB_LABELS
+    labels: ProviderLabels = GITLAB_LABELS,
+    envHost?: string
 ): string {
     if (cliToken) return cliToken
-    if (envToken) return envToken
+    // The env token belongs to envHost only. A host from a tool call that
+    // does not match must never receive it, or a prompt-injected host could
+    // walk off with the user's token.
+    if (envToken && (envHost === undefined || host === envHost)) return envToken
     if (lookup) {
         const token = lookup(host)
         if (token) return token

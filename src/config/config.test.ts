@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test'
 import {
     ConfigError,
     GITHUB_LABELS,
+    GITLAB_LABELS,
     parseGlabHosts,
     parseLoggedInHosts,
     resolveHost,
@@ -52,6 +53,43 @@ describe('resolveToken', () => {
         expect(resolveToken('h', undefined, 'env-token', undefined)).toBe(
             'env-token'
         )
+    })
+
+    it('sends the env token only to its own host', () => {
+        // env token belongs to envHost; a call for another host must not get it
+        expect(
+            resolveToken(
+                'github.com',
+                undefined,
+                'env',
+                () => '',
+                GITLAB_LABELS,
+                'github.com'
+            )
+        ).toBe('env')
+        expect(() =>
+            resolveToken(
+                'attacker.example',
+                undefined,
+                'env',
+                () => '',
+                GITLAB_LABELS,
+                'github.com'
+            )
+        ).toThrow(/attacker\.example/)
+    })
+
+    it('falls through to a host the cli is logged into instead of the env token', () => {
+        expect(
+            resolveToken(
+                'enterprise.gh',
+                undefined,
+                'env',
+                h => (h === 'enterprise.gh' ? 'cli-tok' : ''),
+                GITLAB_LABELS,
+                'github.com'
+            )
+        ).toBe('cli-tok')
     })
 })
 
