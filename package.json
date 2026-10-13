@@ -14,7 +14,7 @@
     ],
     "license": "MIT",
     "author": {
-        "name": "İlker Balcılar",
+        "name": "\u0130lker Balc\u0131lar",
         "email": "ilkerbalcilartr@gmail.com"
     },
     "repository": {
@@ -64,7 +64,8 @@
         "test": "bun test",
         "test:tz": "TZ=Europe/Istanbul bun test ./src/dates/dates.tz.istanbul.cases.ts && TZ=America/Los_Angeles bun test ./src/dates/dates.tz.los-angeles.cases.ts",
         "typecheck": "tsc --noEmit",
-        "prepublishOnly": "tsup"
+        "prepublishOnly": "tsup",
+        "version": "node scripts/sync-versions.mjs && git add -A"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.32.1",
