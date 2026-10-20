@@ -3,6 +3,7 @@
 [![standup-mr MCP server](https://glama.ai/mcp/servers/Jubstaaa/standup-mr/badges/score.svg)](https://glama.ai/mcp/servers/Jubstaaa/standup-mr)
 [![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/jubstaaa/standup-mr)
 [![smithery badge](https://smithery.ai/badge/ilkerbalcilartr/standup-mr)](https://smithery.ai/servers/ilkerbalcilartr/standup-mr)
+[![mcprush grade](https://mcprush.com/badge/standup-mr-mcp/score.svg)](https://mcprush.com/jubstaaa/standup-mr-mcp)
 
 Standup notes from **merge request state**, not commit logs.
 
