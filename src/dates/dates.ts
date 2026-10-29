@@ -1,4 +1,4 @@
-import { DAYS, MONTHS, MS_PER_DAY } from './dates.constants'
+import { MS_PER_DAY } from './dates.constants'
 
 export function isoDay(day: Date): string {
     const year = day.getFullYear()
@@ -15,13 +15,17 @@ export function localAt(iso: string): string {
 }
 
 export function label(day: Date, lang = 'en'): string {
-    const key = DAYS[lang] ? lang : 'en'
-    const weekday = DAYS[key]![day.getDay()]!
-    const month = MONTHS[key]![day.getMonth()]!
-    const date = day.getDate()
-    return key === 'tr'
-        ? `${date} ${month} ${weekday}`
-        : `${weekday}, ${date} ${month}`
+    const locale = lang === 'tr' ? 'tr' : 'en'
+    const parts = new Intl.DateTimeFormat(locale, {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+    }).formatToParts(day)
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+        parts.find(p => p.type === type)!.value
+    return locale === 'tr'
+        ? `${part('day')} ${part('month')} ${part('weekday')}`
+        : `${part('weekday')}, ${part('day')} ${part('month')}`
 }
 
 function isWeekday(day: string): boolean {
