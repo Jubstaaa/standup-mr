@@ -1,5 +1,6 @@
+import { stripVTControlCharacters } from 'node:util'
+
 import {
-    ANSI,
     ERROR_MARKER,
     GROUP_END,
     GROUP_START,
@@ -14,7 +15,7 @@ import {
 export function extractErrors(rawTrace: string, limit = 8): string[] {
     if (!rawTrace) return []
 
-    const cleaned = rawTrace.replace(ANSI, '').replace(SECTION, '')
+    const cleaned = stripVTControlCharacters(rawTrace).replace(SECTION, '')
 
     const seen = new Set<string>()
     const hits: string[] = []
