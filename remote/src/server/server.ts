@@ -7,7 +7,7 @@ import {
 } from '@modelcontextprotocol/sdk/server/auth/router.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import express from 'express'
-import type { Express } from 'express'
+import type { Express, Request, RequestHandler } from 'express'
 import { rateLimit } from 'express-rate-limit'
 import helmet from 'helmet'
 
@@ -36,9 +36,25 @@ import {
     ICON_CACHE,
     ICON_ROUTES,
     MCP_CALLS_PER_MINUTE,
+    PUBLIC_MCP_METHODS,
 } from './server.constants'
 
 const ASSETS_DIR = fileURLToPath(new URL('../../../assets/', import.meta.url))
+
+// Only without a token: a bad one must still fail, so a client whose token
+// expired is sent back through sign-in instead of getting a toolless session.
+function isPublicDiscovery(req: Request): boolean {
+    if (req.headers.authorization) return false
+    const messages: unknown[] = Array.isArray(req.body) ? req.body : [req.body]
+    return (
+        messages.length > 0 &&
+        messages.every(message =>
+            PUBLIC_MCP_METHODS.has(
+                String((message as { method?: unknown } | null)?.method)
+            )
+        )
+    )
+}
 
 export interface AppOptions {
     fetchImpl?: FetchLike
@@ -166,19 +182,24 @@ export function createApp(
         legacyHeaders: false,
     })
 
+    const bearerAuth = requireBearerAuth({
+        verifier: provider,
+        resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(mcpUrl),
+    })
+    const authUnlessDiscovery: RequestHandler = (req, res, next) =>
+        isPublicDiscovery(req) ? next() : bearerAuth(req, res, next)
+
     // Stateless: every POST builds a server bound to the caller's connection,
-    // so no MCP session has to survive a restart or live in memory.
+    // so no MCP session has to survive a restart or live in memory. Discovery
+    // has no connection; it never reaches a tool, so none is needed.
     app.post(
         '/mcp',
-        requireBearerAuth({
-            verifier: provider,
-            resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(mcpUrl),
-        }),
-        toolLimit,
         express.json({ limit: '256kb' }),
+        authUnlessDiscovery,
+        toolLimit,
         async (req, res) => {
             const server = createRemoteServer({
-                connectionId: String(req.auth!.extra!.connectionId),
+                connectionId: String(req.auth?.extra?.connectionId ?? ''),
                 fetchImpl,
                 freshAccessToken,
                 now,

@@ -1,7 +1,9 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.Jubstaaa/standup-mr",
+  "title": "Standup Mr",
   "description": "Standup notes from merge request state, with the failed job's error lines.",
+  "websiteUrl": "https://standup.ilkerbalcilar.com",
   "repository": {
     "url": "https://github.com/Jubstaaa/standup-mr",
     "source": "github"

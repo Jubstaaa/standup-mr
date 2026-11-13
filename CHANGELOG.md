@@ -4,6 +4,16 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **The hosted server shows what it does before sign-in.** `initialize`,
+  `tools/list` and `prompts/list` answer without a token, so directories and
+  agents can see the tools before anyone connects. Tool calls and prompts still
+  need sign-in, and a bad token is still refused.
+- `server.json` carries a title and the hosted server's website.
+
 ## [1.1.1] - 2026-10-13
 
 ### Fixed
