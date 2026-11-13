@@ -9,13 +9,3 @@ export const ICON_ROUTES = {
     '/apple-touch-icon.png': 'icon-400.png',
     '/favicon.svg': 'icon.svg',
 }
-
-// What a directory or an agent needs to see what the server does before
-// anyone signs in. Tool calls and prompts still need a token.
-export const PUBLIC_MCP_METHODS = new Set([
-    'initialize',
-    'notifications/initialized',
-    'ping',
-    'tools/list',
-    'prompts/list',
-])

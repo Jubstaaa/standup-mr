@@ -4,6 +4,15 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **The hosted server asks for sign-in again before anything else.** With
+  discovery open, claude.ai detected the server as needing no sign-in and
+  skipped OAuth, so new connectors could not call any tool. `initialize`,
+  `tools/list` and `prompts/list` need a token again, as before 1.1.2.
+
 ## [1.1.2] - 2026-11-13
 
 ### Changed
