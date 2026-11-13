@@ -119,16 +119,70 @@ describe('claude.ai connect flow', () => {
         expect(metadata.code_challenge_methods_supported).toEqual(['S256'])
     })
 
-    test('rejects /mcp without a token and points to the metadata', async () => {
+    test('initializes without a token', async () => {
+        const response = await rpc(null, {
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'initialize',
+            params: {
+                protocolVersion: '2025-06-18',
+                capabilities: {},
+                clientInfo: { name: 'directory', version: '1' },
+            },
+        })
+        const body = (await response.json()) as {
+            result: { serverInfo: { name: string } }
+        }
+        expect(response.status).toBe(200)
+        expect(body.result.serverInfo.name).toBe('standup-mr')
+    })
+
+    test('lists the tools without a token', async () => {
         const response = await rpc(null, {
             jsonrpc: '2.0',
             id: 1,
             method: 'tools/list',
         })
+        const body = (await response.json()) as {
+            result: { tools: Array<{ name: string }> }
+        }
+        expect(response.status).toBe(200)
+        expect(body.result.tools).toHaveLength(3)
+    })
+
+    test('rejects a tool call without a token and points to the metadata', async () => {
+        const response = await rpc(null, {
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/call',
+            params: { name: 'get_standup_data', arguments: {} },
+        })
         expect(response.status).toBe(401)
         expect(response.headers.get('www-authenticate')).toContain(
             'resource_metadata'
         )
+    })
+
+    test('rejects a batch that hides a tool call behind a list', async () => {
+        const response = await rpc(null, [
+            { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+            {
+                jsonrpc: '2.0',
+                id: 2,
+                method: 'tools/call',
+                params: { name: 'get_standup_data', arguments: {} },
+            },
+        ])
+        expect(response.status).toBe(401)
+    })
+
+    test('rejects a bad token even for a listing', async () => {
+        const response = await rpc('not-a-token', {
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/list',
+        })
+        expect(response.status).toBe(401)
     })
 
     test('registers a client dynamically', async () => {
