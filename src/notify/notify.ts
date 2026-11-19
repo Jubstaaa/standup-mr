@@ -1,6 +1,6 @@
 import { timedFetch } from '../providers/base/http'
 import { toChatText } from '../render/chat'
-import type { FetchLike } from '../types/standup.types'
+import type { FetchLike } from '../standup.types'
 
 import { PAYLOAD_FIELD } from './notify.constants'
 import type { WebhookKind } from './notify.types'

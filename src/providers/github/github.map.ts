@@ -1,5 +1,5 @@
 import { localAt } from '../../dates/dates'
-import type { ActivityEvent } from '../../types/standup.types'
+import type { ActivityEvent } from '../../standup.types'
 
 import { EVENT_ACTIONS, EVENT_TARGET_TYPES } from './github.constants'
 import type { RawEvent } from './github.types'

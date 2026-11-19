@@ -6,7 +6,6 @@ export const TICK_INTERVAL_MS = MINUTE
 export const CATCH_UP_LIMIT_MS = 30 * MINUTE
 
 export const TIMEZONES: readonly string[] = Intl.supportedValuesOf('timeZone')
-export const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
 
 export const DEFAULT_TIME = '09:30'
 export const DEFAULT_TIMEZONE = 'Europe/Istanbul'

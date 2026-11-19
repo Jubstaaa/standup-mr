@@ -1,4 +1,4 @@
-import type { FetchLike } from '../../types/standup.types'
+import type { FetchLike } from '../../standup.types'
 
 export const REDIRECT = Symbol('REDIRECT')
 

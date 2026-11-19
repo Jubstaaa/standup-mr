@@ -1,6 +1,6 @@
 import { isoDay } from '../dates/dates'
 import { MS_PER_DAY } from '../dates/dates.constants'
-import type { Bucket } from '../types/standup.types'
+import type { Bucket } from '../standup.types'
 
 import { STALE_DAYS } from './buckets.constants'
 import type { BucketInput, PipelineInput } from './buckets.types'

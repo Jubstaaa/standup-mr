@@ -5,7 +5,7 @@ import type {
     Bucket,
     MergeRequest,
     StandupReport,
-} from '../types/standup.types'
+} from '../standup.types'
 
 import { toChatDigest } from './digest'
 

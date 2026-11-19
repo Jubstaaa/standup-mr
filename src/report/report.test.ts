@@ -7,7 +7,7 @@ import type {
     Identity,
     MergeRequest,
     Review,
-} from '../types/standup.types'
+} from '../standup.types'
 
 import { buildReport } from './report'
 

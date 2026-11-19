@@ -18,6 +18,8 @@ export function readStandupSkillBody(): string {
     }
 
     const content = readFileSync(skillPath, 'utf8')
+    // Only the leading block is dropped, never parsed; gray-matter and
+    // front-matter have had no release since 2021 and pull in js-yaml 3.
     const withoutFrontmatter = content.replace(
         /^---\r?\n[\s\S]*?\r?\n---\r?\n/,
         ''

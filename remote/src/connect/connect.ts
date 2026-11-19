@@ -4,7 +4,7 @@ import type { Request, RequestHandler, Response } from 'express'
 import { rateLimit } from 'express-rate-limit'
 
 import { inferWebhookKind } from '../../../src/notify/notify'
-import type { FetchLike, ProviderKind } from '../../../src/types/standup.types'
+import type { FetchLike, ProviderKind } from '../../../src/standup.types'
 import { providerFor } from '../accounts/accounts'
 import type { TokenRefresher } from '../accounts/accounts'
 import { randomToken } from '../crypto/crypto'

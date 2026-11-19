@@ -2,6 +2,8 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+// Hand-written rather than empathic/package-up: the CLI core ships with no
+// runtime dependencies (README, Requirements).
 export function findPackageRoot(startDir: string): string {
     let dir = startDir
     while (!existsSync(join(dir, 'package.json'))) {

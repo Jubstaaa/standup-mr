@@ -1,4 +1,4 @@
-import type { ActivityEvent, StandupReport } from '../types/standup.types'
+import type { ActivityEvent, StandupReport } from '../standup.types'
 
 import {
     BUCKET_ORDER,

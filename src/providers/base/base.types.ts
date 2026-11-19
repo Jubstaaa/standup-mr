@@ -5,7 +5,7 @@ import type {
     MergeRequest,
     ProviderKind,
     Review,
-} from '../../types/standup.types'
+} from '../../standup.types'
 
 export type { ProviderKind }
 

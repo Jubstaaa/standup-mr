@@ -1,4 +1,4 @@
-import type { Bucket, ProviderKind } from '../types/standup.types'
+import type { Bucket, ProviderKind } from '../standup.types'
 
 import type { Strings } from './render.types'
 

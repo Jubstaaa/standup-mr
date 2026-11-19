@@ -1,5 +1,5 @@
 import type { WebhookKind } from '../../../src/notify/notify.types'
-import type { ProviderKind } from '../../../src/types/standup.types'
+import type { ProviderKind } from '../../../src/standup.types'
 
 export interface Webhook {
     kind: WebhookKind

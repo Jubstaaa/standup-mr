@@ -1,6 +1,7 @@
 import { Cron } from 'croner'
+import { z } from 'zod'
 
-import { collect } from '../../../mcp/server'
+import { collect } from '../../../mcp/tools'
 import { postWebhook } from '../../../src/notify/notify'
 import { toChatDigest } from '../../../src/render/digest'
 import { describeAccount, providerFor } from '../accounts/accounts'
@@ -12,7 +13,6 @@ import {
     DAY_NAMES,
     EVERY_DAY,
     TICK_INTERVAL_MS,
-    TIME_PATTERN,
     TIMEZONES,
     WEEKDAYS,
 } from './schedule.constants'
@@ -20,19 +20,29 @@ import type { ScheduleForm, SchedulerDeps } from './schedule.types'
 
 export class ScheduleError extends Error {}
 
+const NO_DAY = 'Pick at least one day.'
+
+const scheduleForm = z.object({
+    time: z.iso.time({ error: 'Pick a time as HH:MM.', precision: -1 }),
+    timezone: z.enum(TIMEZONES, { error: 'Pick a time zone from the list.' }),
+    days: z
+        .array(
+            z.enum(
+                DAY_NAMES.map(([value]) => value),
+                { error: NO_DAY }
+            ),
+            { error: NO_DAY }
+        )
+        .min(1, { error: NO_DAY }),
+})
+
 export function parseSchedule(form: ScheduleForm): ScheduleSettings {
-    if (!TIME_PATTERN.test(form.time)) {
-        throw new ScheduleError('Pick a time as HH:MM.')
+    const parsed = scheduleForm.safeParse(form)
+    if (!parsed.success) {
+        throw new ScheduleError(parsed.error.issues[0]!.message)
     }
-    if (!TIMEZONES.includes(form.timezone)) {
-        throw new ScheduleError('Pick a time zone from the list.')
-    }
-    const known = new Set(DAY_NAMES.map(([value]) => value))
-    if (form.days.length === 0 || !form.days.every(day => known.has(day))) {
-        throw new ScheduleError('Pick at least one day.')
-    }
-    const days = [...new Set(form.days)].sort().join(',')
-    return { time: form.time, timezone: form.timezone, days }
+    const { days, time, timezone } = parsed.data
+    return { time, timezone, days: [...new Set(days)].sort().join(',') }
 }
 
 export function nextRunAt(settings: ScheduleSettings, after: number): number {

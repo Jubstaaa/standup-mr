@@ -1,7 +1,7 @@
 import { isoDay, label, previousActiveDays } from '../dates/dates'
 import { MS_PER_DAY } from '../dates/dates.constants'
 import type { Provider } from '../providers/base/base.types'
-import type { StandupReport } from '../types/standup.types'
+import type { StandupReport } from '../standup.types'
 
 import { LOOKBACK_DAYS } from './report.constants'
 

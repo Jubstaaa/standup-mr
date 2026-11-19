@@ -1,4 +1,4 @@
-import type { FetchLike } from '../../../src/types/standup.types'
+import type { FetchLike } from '../../../src/standup.types'
 import type { TokenRefresher } from '../accounts/accounts'
 import type { Store } from '../store/store'
 

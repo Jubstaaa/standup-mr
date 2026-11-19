@@ -1,6 +1,6 @@
 import * as oauth from 'oauth4webapi'
 
-import type { FetchLike, ProviderKind } from '../../../src/types/standup.types'
+import type { FetchLike, ProviderKind } from '../../../src/standup.types'
 import type { RemoteConfig } from '../config/config.types'
 import type { Store } from '../store/store'
 import type { Instance } from '../store/store.types'

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import type { FetchLike } from '../../types/standup.types'
+import type { FetchLike } from '../../standup.types'
 import { routedFetch } from '../base/routes.helpers'
 
 import { GitHubProvider } from './github'

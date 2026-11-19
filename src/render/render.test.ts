@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import type { StandupReport } from '../types/standup.types'
+import type { StandupReport } from '../standup.types'
 
 import { toMarkdown } from './render'
 

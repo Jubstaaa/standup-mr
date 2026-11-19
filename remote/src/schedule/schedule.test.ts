@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 
 import { beforeEach, describe, expect, test } from 'bun:test'
 
-import type { FetchLike } from '../../../src/types/standup.types'
+import type { FetchLike } from '../../../src/standup.types'
 import { createTokenRefresher } from '../accounts/accounts'
 import { Store } from '../store/store'
 import { startConnection } from '../store/store.fixtures'
@@ -105,6 +105,7 @@ describe('parseSchedule', () => {
     test.each([
         [{ ...valid, time: '9:30' }, /HH:MM/],
         [{ ...valid, time: '24:00' }, /HH:MM/],
+        [{ ...valid, time: '09:30:00' }, /HH:MM/],
         [{ ...valid, timezone: 'Mars/Olympus' }, /time zone/],
         [{ ...valid, days: [] }, /one day/],
         [{ ...valid, days: ['7'] }, /one day/],

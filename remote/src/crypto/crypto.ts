@@ -20,7 +20,8 @@ export function open(key: Buffer, sealed: string): string {
     const decipher = createDecipheriv(
         'aes-256-gcm',
         key,
-        raw.subarray(0, IV_BYTES)
+        raw.subarray(0, IV_BYTES),
+        { authTagLength: TAG_BYTES }
     )
     decipher.setAuthTag(raw.subarray(IV_BYTES, IV_BYTES + TAG_BYTES))
     return Buffer.concat([

@@ -1,7 +1,7 @@
 import type { Provider } from '../../../src/providers/base/base.types'
 import { GitHubProvider } from '../../../src/providers/github/github'
 import { GitLabProvider } from '../../../src/providers/gitlab/gitlab'
-import type { FetchLike, ProviderKind } from '../../../src/types/standup.types'
+import type { FetchLike, ProviderKind } from '../../../src/standup.types'
 import { errorMessage } from '../errors/errors'
 import type { Store } from '../store/store'
 import type { Upstream } from '../upstream/upstream'

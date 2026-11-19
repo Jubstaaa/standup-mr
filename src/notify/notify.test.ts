@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import type { FetchLike } from '../types/standup.types'
+import type { FetchLike } from '../standup.types'
 
 import { inferWebhookKind, postWebhook } from './notify'
 import { WEBHOOK_KINDS } from './notify.constants'

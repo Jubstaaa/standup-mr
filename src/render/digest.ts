@@ -3,7 +3,7 @@ import type {
     ActivityEvent,
     MergeRequest,
     StandupReport,
-} from '../types/standup.types'
+} from '../standup.types'
 
 import {
     ERROR_LIMIT,

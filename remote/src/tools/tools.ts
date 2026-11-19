@@ -21,11 +21,11 @@ import {
     STANDUP_TOOL_TITLE,
     standupPrompt,
     text,
-} from '../../../mcp/server'
-import type { ToolResult } from '../../../mcp/server'
+} from '../../../mcp/tools'
+import type { ToolResult } from '../../../mcp/tools'
 import { packageVersion } from '../../../src/manifest/manifest'
 import { postWebhook } from '../../../src/notify/notify'
-import type { FetchLike, ProviderKind } from '../../../src/types/standup.types'
+import type { FetchLike, ProviderKind } from '../../../src/standup.types'
 import { pickAccount, providerFor } from '../accounts/accounts'
 import type { TokenRefresher } from '../accounts/accounts'
 import { errorMessage } from '../errors/errors'

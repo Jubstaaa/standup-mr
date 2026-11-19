@@ -5,9 +5,9 @@ import { describe, expect, it } from 'bun:test'
 import { WEBHOOK_KINDS } from '../src/notify/notify.constants'
 import type { Provider } from '../src/providers/base/base.types'
 
+import { createServer } from './server'
 import {
     collect,
-    createServer,
     INSTRUCTIONS_TOOL_DESCRIPTION,
     POST_TOOL_DESCRIPTION,
     POST_TOOL_SCHEMA,
@@ -17,7 +17,7 @@ import {
     STANDUP_TOOL_DESCRIPTION,
     STANDUP_TOOL_SCHEMA,
     WEBHOOK_URL_ENV,
-} from './server'
+} from './tools'
 
 const fakeProvider: Provider = {
     kind: 'gitlab',
