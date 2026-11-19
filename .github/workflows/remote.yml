@@ -3,97 +3,118 @@ name: Remote
 on:
     push:
         branches: [main]
-        paths:
+        paths: &remote-paths
             - 'remote/**'
             - 'src/**'
             - 'mcp/**'
             - 'skills/**'
+            - 'assets/**'
             - 'package.json'
             - 'bun.lock'
             - '.github/workflows/remote.yml'
     pull_request:
-        branches: [main]
-        paths:
-            - 'remote/**'
-            - 'src/**'
-            - 'mcp/**'
-            - 'skills/**'
-            - 'package.json'
-            - 'bun.lock'
-            - '.github/workflows/remote.yml'
+        paths: *remote-paths
     workflow_dispatch:
+        inputs:
+            image_tag:
+                description: 'Rollback: redeploy an existing image by its full 40-char commit SHA. Empty builds and deploys HEAD.'
+                required: false
+                default: ''
+                type: string
 
-concurrency:
-    group: remote-${{ github.ref }}
-    cancel-in-progress: true
+permissions:
+    contents: read
+
+env:
+    IMAGE: ghcr.io/jubstaaa/standup-mr-remote
 
 jobs:
-    # Tests, lint and typecheck already run in ci.yml. This builds the image on
-    # every PR so a broken Dockerfile shows up before merge, and pushes only
-    # from main.
+    # On main the deploy runs behind the same gate as every PR.
+    ci:
+        if: ${{ github.event_name != 'pull_request' && !inputs.image_tag }}
+        uses: ./.github/workflows/ci.yml
+
+    # Builds the image on every PR touching the server, so a broken Dockerfile
+    # shows up before merge; pushes only from main.
     build:
+        needs: ci
+        if: ${{ !cancelled() && !inputs.image_tag && (github.event_name == 'pull_request' || needs.ci.result == 'success') }}
         runs-on: ubuntu-latest
+        timeout-minutes: 20
         permissions:
             contents: read
             packages: write
         steps:
-            - uses: actions/checkout@v4
-            - uses: docker/setup-buildx-action@v3
-            - uses: docker/login-action@v3
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - id: meta
+              uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+              with:
+                  images: ${{ env.IMAGE }}
+                  # Only the commit SHA: :latest moves after production reports healthy.
+                  tags: type=sha,format=long,prefix=
+            - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+            - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
               if: github.ref == 'refs/heads/main'
               with:
                   registry: ghcr.io
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
-            # :latest is what the droplet runs; :sha stays behind as the
-            # rollback target.
-            - uses: docker/build-push-action@v6
+            - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
               with:
                   context: .
                   file: remote/Dockerfile
                   push: ${{ github.ref == 'refs/heads/main' }}
-                  tags: |
-                      ghcr.io/jubstaaa/standup-mr-remote:latest
-                      ghcr.io/jubstaaa/standup-mr-remote:${{ github.sha }}
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}
                   cache-from: type=gha
                   cache-to: type=gha,mode=max
 
     deploy:
         needs: build
-        if: github.ref == 'refs/heads/main'
+        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (inputs.image_tag || needs.build.result == 'success') }}
         runs-on: ubuntu-latest
+        timeout-minutes: 15
+        # Never cancel a deploy halfway through `compose up`.
+        concurrency:
+            group: production-deploy
+            cancel-in-progress: false
         permissions:
             contents: read
-            packages: read
+            packages: write
+        env:
+            IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
         steps:
-            # The compose file is the repository's, not the server's, so the
-            # two cannot drift silently.
-            - uses: actions/checkout@v4
-            - uses: appleboy/scp-action@v1
+            - name: Validate the tag
+              run: '[[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::image_tag must be a full 40-char commit SHA"; exit 1; }'
+            # The compose file comes from the repository, so the server never drifts from git.
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+                  sparse-checkout: remote/docker-compose.yml
+                  sparse-checkout-cone-mode: false
+            # For promoting :latest once the release is healthy.
+            - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+            - uses: Jubstaaa/deploy-actions/ssh@fe798b53bd39de86318a04ae42416fa939c8debe # v1.1.0
               with:
                   host: ${{ secrets.DO_HOST }}
-                  username: ${{ secrets.DO_USER }}
+                  user: ${{ secrets.DO_USER }}
                   key: ${{ secrets.DO_SSH_KEY }}
-                  source: remote/docker-compose.yml
-                  target: /opt/standup-mr
-                  strip_components: 1
-            - uses: appleboy/ssh-action@v1
+                  known-hosts: ${{ secrets.DO_KNOWN_HOSTS }}
+            # Docker creates a missing bind-mount source as root, which the image's
+            # non-root bun user (uid 1000) cannot write the database into.
+            - name: Prepare the data directory
+              run: ssh droplet 'mkdir -p /opt/standup-mr/data && chown 1000:1000 /opt/standup-mr/data'
+            - uses: Jubstaaa/deploy-actions/compose@fe798b53bd39de86318a04ae42416fa939c8debe # v1.1.0
               with:
-                  host: ${{ secrets.DO_HOST }}
-                  username: ${{ secrets.DO_USER }}
-                  key: ${{ secrets.DO_SSH_KEY }}
-                  envs: GHCR_TOKEN,GHCR_USER
-                  script: |
-                      echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-                      cd /opt/standup-mr
-                      # Docker creates a missing bind-mount source as root,
-                      # which the image's non-root bun user (uid 1000) cannot
-                      # write the database into.
-                      mkdir -p data
-                      chown 1000:1000 data
-                      docker compose pull
-                      docker compose up -d
-                      docker image prune -f
-              env:
-                  GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  GHCR_USER: ${{ github.actor }}
+                  app-dir: /opt/standup-mr
+                  compose-file: remote/docker-compose.yml
+                  container: standup-mr
+                  image: ${{ env.IMAGE }}
+                  tag: ${{ env.IMAGE_TAG }}
+                  health-url: http://127.0.0.1:3007/health
