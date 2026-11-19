@@ -62,8 +62,10 @@ bun install
 # Run tests
 bun test
 
-# Type check
+# Type check, lint, formatting
 bun run typecheck
+bun run lint
+bun run format:check
 
 # Build (CLI + library + MCP server bundle)
 bun run build
@@ -82,18 +84,25 @@ bun run build
 2. **Make your changes** following the code style:
     - TypeScript, ESM, no `.js` extension on relative imports
     - No comments in source unless logic is genuinely non-obvious
-    - `src/` stays free of runtime dependencies - the CLI and library ship
-      with zero. The only dependency in the whole project is the optional
-      `@modelcontextprotocol/sdk` peer dependency used by the MCP server
+    - `src/` imports no runtime dependencies - the CLI core loads nothing
+      but Node built-ins. `mcp/` uses `@modelcontextprotocol/sdk` and `zod`
+      (regular dependencies of the package). `remote/` is a separate
+      workspace with its own dependencies and never ships to npm
     - Kebab-case file names
 
 3. **Test your changes**:
 
     ```bash
-    bun test
+    bun run lint
+    bun run format:check
     bun run typecheck
+    bun test
+    bun run test:tz
+    bun run audit
     bun run build
     ```
+
+    That is the same list the CI `check` job gates every pull request on.
 
     If you touch anything in `src/dates/` or anything that computes "today"
     or "the previous day", run the suite under more than one timezone -
@@ -115,7 +124,7 @@ bun run build
 
     If you add a new file like this, you must also add it to the `test:tz`
     chain in `package.json`, or it will silently never run - not in `bun test`,
-    not in `test:tz`, not in CI. Both GitHub Actions workflows invoke
+    not in `test:tz`, not in CI. The CI and release workflows invoke
     `bun run test:tz` alongside `bun test`, so a file left out of the chain
     stays uncovered everywhere.
 
@@ -151,19 +160,25 @@ bun run build
 
 ```
 src/
-├── cli/                  # Argument parsing and the fetch/post commands
+├── cli/                  # Argument parsing and the fetch/post/mcp/instructions commands
 ├── config/               # Host and token resolution (flags, env, gh/glab)
-├── providers/            # GitLab and GitHub API clients (Provider interface + implementations, provider selection)
+├── providers/            # Provider selection plus the GitLab and GitHub API clients
+│   └── base/             # Provider interface, shared HTTP (retry, timeout, errors)
 ├── dates/                # Local-day date helpers
 ├── buckets/              # Merge request state classification (ready/blocked/draft/stale)
-├── report/                # Assembles the standup report from a provider
-├── render/                # JSON -> markdown digest
-├── notify/                # Slack/Discord webhook posting
-├── trace/                 # Error-line extraction from pipeline job logs
-└── types/                 # Shared TypeScript types
+├── report/               # Assembles the standup report from a provider
+├── render/               # JSON -> markdown digest and chat text
+├── notify/               # Slack/Discord/Google Chat webhook posting
+├── trace/                # Error-line extraction from pipeline job logs
+├── skill/, manifest/     # Bundled skill text and package.json lookup
+└── standup.types.ts      # Domain types shared by every module
 
-mcp/                       # MCP server wrapper (get_standup_data tool)
-skills/standup/             # Claude Code skill (note-writing playbook)
+mcp/
+├── tools.ts              # Tool and prompt definitions (shared with remote/)
+└── server.ts             # stdio MCP server entrypoint
+
+remote/                   # Hosted MCP server (Express, OAuth, SQLite), deployed as a container
+skills/standup/           # Claude Code skill (note-writing playbook)
 ```
 
 #### Key Concepts
@@ -195,9 +210,10 @@ either way isn't covering anything.
 ## Pull Request Process
 
 1. Update `README.md` / `mcp/README.md` / `skills/standup/SKILL.md` if needed
-2. Ensure all tests pass: `bun test`
-3. Ensure typecheck passes: `bun run typecheck`
-4. Ensure the build succeeds: `bun run build`
+2. Run the local check list above; CI's `check` job must be green
+3. Changes under `remote/` also build the server image in the `Remote`
+   workflow; it deploys from `main` after merge
+4. Add an entry under `[Unreleased]` in `CHANGELOG.md` for user-facing changes
 5. Request review from maintainers
 6. Address any feedback
 7. Merge once approved!

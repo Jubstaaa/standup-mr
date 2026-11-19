@@ -10,7 +10,7 @@ connector and sign in on the page that opens.
 
 ## What it needs
 
-- Node.js 20 or newer. Nothing to clone, nothing to build — the server runs
+- Node.js 22 or newer. Nothing to clone, nothing to build — the server runs
   straight from npm.
 - Read access to the user's GitLab or GitHub. It never takes a credential as
   a tool argument; credentials come from the environment or from a logged-in
@@ -51,7 +51,9 @@ Add only the pair the user actually needs.
 Ask the user for a token; do not invent one, and do not put a token anywhere
 but `env`.
 
-## The one tool
+## The tools
+
+The server registers three tools and one prompt (`standup`).
 
 `get_standup_data` returns the previous working day's activity, open merge
 requests bucketed by state (ready / blocked / draft / stale), pending
@@ -59,8 +61,15 @@ reviews, and the error lines from any failed pipeline job. All three
 arguments are optional:
 
 - `provider` — `github` or `gitlab`; omit to auto-detect
-- `host` — self-hosted host, no scheme
+- `host` — self-hosted host, no scheme or path (`gitlab.example.com`)
 - `lang` — `en` or `tr`; changes date labels in the JSON only
+
+`get_note_instructions` returns the note-writing rules; call it before writing
+the note.
+
+`post_standup_note` sends a finished note to the chat webhook in
+`STANDUP_WEBHOOK_URL` (Slack, Discord or Google Chat). It posts a message
+other people will see, so only call it when the user asks.
 
 ## Verifying the install
 
