@@ -90,11 +90,25 @@ export function unreachable(host: string, cause: unknown): ApiError {
     return new ApiError(`Could not reach ${host}: ${detail}`)
 }
 
+// A host that accepts the socket and never answers would otherwise hang the
+// CLI and the MCP tool call for good; fetch has no default timeout.
+export const REQUEST_TIMEOUT_MS = 30_000
+
+export function timedFetch(
+    ms: number = REQUEST_TIMEOUT_MS,
+    base: FetchLike = (url, init) => fetch(url, init)
+): FetchLike {
+    return (url, init) =>
+        base(url, { ...init, signal: init?.signal ?? AbortSignal.timeout(ms) })
+}
+
 export const RETRY_ATTEMPTS = 3
 export const RETRY_BACKOFF_MS = [250, 750]
 
 export type Sleep = (ms: number) => Promise<void>
 
+// Hand-written rather than p-retry: the CLI core ships with no runtime
+// dependencies (README, Requirements), and the backoff is two fixed steps.
 const wait: Sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 export async function sendWithRetry(

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, spyOn, test } from 'bun:test'
 
 import { Store } from '../store/store'
 import { startConnection } from '../store/store.fixtures'
@@ -137,6 +137,23 @@ describe('createTokenRefresher', () => {
         }
         const fresh = createTokenRefresher(upstream(), store)
         await expect(fresh(linked, 9_999_000)).rejects.toThrow(/Reconnect/)
+    })
+
+    test('logs why the refresh failed, without the refresh token', async () => {
+        refreshResult = async () => {
+            throw new Error('bad_refresh_token')
+        }
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        try {
+            const fresh = createTokenRefresher(upstream(), store)
+            await expect(fresh(linked, 9_999_000)).rejects.toThrow()
+            const line = logged.mock.calls.flat().join(' ')
+            expect(line).toMatch(/bad_refresh_token/)
+            expect(line).toMatch(/github\.com/)
+            expect(line).not.toMatch(/\brefresh\b(?!_token)/)
+        } finally {
+            logged.mockRestore()
+        }
     })
 
     test('never refreshes a pasted token', async () => {

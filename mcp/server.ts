@@ -49,6 +49,21 @@ export const STANDUP_TOOL_DESCRIPTION =
     'transient server errors. A blocker whose diagnosis could not be fetched is still ' +
     'returned, with `job: "unknown"`, so a red pipeline is never silently dropped.'
 
+// The URL parser must hand a bare host[:port] back unchanged, so no scheme,
+// path, credentials, query or fragment can ride along into the API URL.
+function isBareHost(value: string): boolean {
+    try {
+        return new URL(`https://${value}`).host === value.toLowerCase()
+    } catch {
+        return false
+    }
+}
+
+export const HOST_SCHEMA = z.string().max(253).refine(isBareHost, {
+    message:
+        'Pass a bare host such as gitlab.example.com, without a scheme or path.',
+})
+
 export const STANDUP_TOOL_SCHEMA = {
     provider: z
         .enum(['github', 'gitlab'])
@@ -59,15 +74,12 @@ export const STANDUP_TOOL_SCHEMA = {
                 'of the gh / glab CLIs is logged in. Pass it when both are configured — ' +
                 'ambiguity fails the call rather than being guessed at.'
         ),
-    host: z
-        .string()
-        .optional()
-        .describe(
-            'Self-hosted host, without a scheme, e.g. gitlab.example.com or ' +
-                'github.example.com. Required for GitLab, which has no default host; ' +
-                'optional for GitHub, which defaults to github.com. A recognisable host ' +
-                'also settles `provider` on its own, so the two are rarely both needed.'
-        ),
+    host: HOST_SCHEMA.optional().describe(
+        'Self-hosted host, without a scheme, e.g. gitlab.example.com or ' +
+            'github.example.com. Required for GitLab, which has no default host; ' +
+            'optional for GitHub, which defaults to github.com. A recognisable host ' +
+            'also settles `provider` on its own, so the two are rarely both needed.'
+    ),
     lang: z
         .enum(['en', 'tr'])
         .optional()

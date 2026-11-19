@@ -1,3 +1,4 @@
+import { timedFetch } from '../providers/base/http'
 import { toChatText } from '../render/chat'
 import type { FetchLike } from '../types/standup.types'
 
@@ -8,7 +9,7 @@ export async function postWebhook(
     url: string,
     text: string,
     kind: WebhookKind = 'slack',
-    fetchImpl: FetchLike = fetch
+    fetchImpl: FetchLike = timedFetch()
 ): Promise<void> {
     const field = PAYLOAD_FIELD[kind]
     if (!field) {

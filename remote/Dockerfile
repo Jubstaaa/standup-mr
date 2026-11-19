@@ -2,7 +2,9 @@
 # package's own src/ and mcp/, so the image carries the repo minus everything
 # the npm package or the tests need. Build from the repository root:
 #   docker build -f remote/Dockerfile .
-FROM oven/bun:1.4.4
+# Pinned by digest so a re-pushed tag cannot change what ships; Dependabot
+# (docker, /remote) bumps tag and digest together.
+FROM oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d
 WORKDIR /app
 
 # Install against the committed lockfile first so the layer caches across

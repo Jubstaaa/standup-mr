@@ -16,6 +16,7 @@ import {
     assertUsable,
     buildUrl,
     sendWithRetry,
+    timedFetch,
     unreachable,
 } from '../base/http'
 
@@ -31,7 +32,11 @@ export class GitLabProvider implements Provider {
     private readonly token: string
     private readonly fetchImpl: FetchLike
 
-    constructor(host: string, token: string, fetchImpl: FetchLike = fetch) {
+    constructor(
+        host: string,
+        token: string,
+        fetchImpl: FetchLike = timedFetch()
+    ) {
         this.host = host
         this.token = token
         this.api = `https://${host}/api/v4`
