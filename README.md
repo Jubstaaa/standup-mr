@@ -316,9 +316,9 @@ the `standup` skill changed along with the report shape.
 
 ## Requirements
 
-Node 20 or newer. The CLI core (`fetch`, `post`, `instructions`) pulls no
-runtime dependencies. The MCP server (`mcp` command) brings one:
-`@modelcontextprotocol/sdk`.
+Node 22 or newer. The CLI core (`fetch`, `post`, `instructions`) loads no
+runtime dependencies. The MCP server (`mcp` command) loads two:
+`@modelcontextprotocol/sdk` and `zod`. Both are installed with the package.
 
 ## License
 
