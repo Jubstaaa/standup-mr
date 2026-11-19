@@ -2,7 +2,7 @@
 # package's own src/ and mcp/, so the image carries the repo minus everything
 # the npm package or the tests need. Build from the repository root:
 #   docker build -f remote/Dockerfile .
-FROM oven/bun:1.3.13
+FROM oven/bun:1.4.4
 WORKDIR /app
 
 # Install against the committed lockfile first so the layer caches across
