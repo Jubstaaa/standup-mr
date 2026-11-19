@@ -4,11 +4,23 @@ updates:
       directory: /
       schedule:
           interval: weekly
+      # Wait a week before proposing a new release: compromised versions are
+      # usually caught and pulled within days.
+      cooldown:
+          default-days: 7
     - package-ecosystem: docker
       directory: /remote
       schedule:
           interval: weekly
+      # Wait a week before proposing a new release: compromised versions are
+      # usually caught and pulled within days.
+      cooldown:
+          default-days: 7
     - package-ecosystem: github-actions
       directory: /
       schedule:
           interval: weekly
+      # Wait a week before proposing a new release: compromised versions are
+      # usually caught and pulled within days.
+      cooldown:
+          default-days: 7
