@@ -1,7 +1,6 @@
 import { classify, markMissingPipelines } from '../../buckets/buckets'
 import { isoDay } from '../../dates/dates'
 import { MS_PER_DAY } from '../../dates/dates.constants'
-import { extractErrors } from '../../trace/trace'
 import type {
     ActivityEvent,
     Blocker,
@@ -9,7 +8,8 @@ import type {
     Identity,
     MergeRequest,
     Review,
-} from '../../types/standup.types'
+} from '../../standup.types'
+import { extractErrors } from '../../trace/trace'
 import type { Provider } from '../base/base.types'
 import { degradable, undiagnosed } from '../base/diagnosis'
 import {

@@ -11,7 +11,7 @@ import type { Express } from 'express'
 import { rateLimit } from 'express-rate-limit'
 import helmet from 'helmet'
 
-import type { FetchLike } from '../../../src/types/standup.types'
+import type { FetchLike } from '../../../src/standup.types'
 import { createTokenRefresher } from '../accounts/accounts'
 import type { TokenRefresher } from '../accounts/accounts'
 import type { RemoteConfig } from '../config/config.types'

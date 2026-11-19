@@ -1,4 +1,4 @@
-import type { ProviderKind } from '../../../src/types/standup.types'
+import type { ProviderKind } from '../../../src/standup.types'
 
 export interface Account {
     id: string

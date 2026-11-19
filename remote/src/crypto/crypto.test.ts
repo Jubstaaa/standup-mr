@@ -21,6 +21,14 @@ describe('seal / open', () => {
         expect(() => open(key, sealed.toString('base64'))).toThrow()
     })
 
+    // GCM accepts tags as short as 4 bytes unless the length is pinned, and a
+    // short tag is cheap to forge.
+    test('rejects a truncated authentication tag', () => {
+        const sealed = Buffer.from(seal(key, ''), 'base64')
+        const truncated = sealed.subarray(0, 12 + 4).toString('base64')
+        expect(() => open(key, truncated)).toThrow()
+    })
+
     test('rejects the wrong key', () => {
         expect(() => open(randomBytes(32), seal(key, 'value'))).toThrow()
     })

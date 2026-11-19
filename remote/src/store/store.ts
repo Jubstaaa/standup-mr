@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/shared/auth.js'
 import { Database } from 'bun:sqlite'
 
-import type { ProviderKind } from '../../../src/types/standup.types'
+import type { ProviderKind } from '../../../src/standup.types'
 import type { Account, NewAccount } from '../accounts/accounts.types'
 import { hashToken, open, seal } from '../crypto/crypto'
 import type { UpstreamTokens } from '../upstream/upstream.types'

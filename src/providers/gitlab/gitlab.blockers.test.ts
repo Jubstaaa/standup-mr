@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import type { MergeRequest } from '../../types/standup.types'
+import type { MergeRequest } from '../../standup.types'
 import { routedFetch } from '../base/routes.helpers'
 
 import { GitLabProvider } from './gitlab'

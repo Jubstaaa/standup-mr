@@ -1,4 +1,4 @@
-import type { Blocker, MergeRequest } from '../../types/standup.types'
+import type { Blocker, MergeRequest } from '../../standup.types'
 
 import { ApiError } from './http'
 

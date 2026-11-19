@@ -1,6 +1,6 @@
 import escapeHtml from 'escape-html'
 
-import type { ProviderKind } from '../../../src/types/standup.types'
+import type { ProviderKind } from '../../../src/standup.types'
 import type { Account } from '../accounts/accounts.types'
 import { describeSchedule } from '../schedule/schedule'
 import {

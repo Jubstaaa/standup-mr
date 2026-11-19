@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 
-import type { FetchLike, MergeRequest } from '../../types/standup.types'
+import type { FetchLike, MergeRequest } from '../../standup.types'
 import { REDIRECT, routedFetch } from '../base/routes.helpers'
 
 import { GitHubProvider } from './github'

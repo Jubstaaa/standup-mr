@@ -1,7 +1,7 @@
 import { siClaude, siGithub, siGitlab } from 'simple-icons'
 import type { SimpleIcon } from 'simple-icons'
 
-import type { ProviderKind } from '../../../src/types/standup.types'
+import type { ProviderKind } from '../../../src/standup.types'
 
 function brand(icon: SimpleIcon, className = ''): string {
     return `<svg class="${className}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${icon.path}"/></svg>`
