@@ -8,6 +8,9 @@ updates:
       # usually caught and pulled within days.
       cooldown:
           default-days: 7
+      groups:
+          eslint:
+              patterns: ['eslint', '@eslint/*']
     - package-ecosystem: docker
       directory: /remote
       schedule:
