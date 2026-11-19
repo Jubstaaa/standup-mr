@@ -6,8 +6,12 @@ All notable changes to standup-mr are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-11-20
+
 ### Changed
 
+- **Node 22 or newer is required** (`engines.node` was `>=20`; Node 20 is past
+  end of life).
 - **The hosted server asks for sign-in again before anything else.** With
   discovery open, claude.ai detected the server as needing no sign-in and
   skipped OAuth, so new connectors could not call any tool. `initialize`,
