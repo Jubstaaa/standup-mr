@@ -100,7 +100,7 @@ jobs:
                   registry: ghcr.io
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
-            - uses: Jubstaaa/deploy-actions/ssh@fe798b53bd39de86318a04ae42416fa939c8debe # v1.1.0
+            - uses: Jubstaaa/deploy-actions/ssh@1d9b582d7547aa6f02352b655c0721dd5a88071f # v1.3.0
               with:
                   host: ${{ secrets.DO_HOST }}
                   user: ${{ secrets.DO_USER }}
@@ -110,7 +110,7 @@ jobs:
             # non-root bun user (uid 1000) cannot write the database into.
             - name: Prepare the data directory
               run: ssh droplet 'mkdir -p /opt/standup-mr/data && chown 1000:1000 /opt/standup-mr/data'
-            - uses: Jubstaaa/deploy-actions/compose@fe798b53bd39de86318a04ae42416fa939c8debe # v1.1.0
+            - uses: Jubstaaa/deploy-actions/compose@1d9b582d7547aa6f02352b655c0721dd5a88071f # v1.3.0
               with:
                   app-dir: /opt/standup-mr
                   compose-file: remote/docker-compose.yml
