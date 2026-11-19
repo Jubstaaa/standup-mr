@@ -388,3 +388,44 @@ describe('createServer', () => {
         await client.close()
     })
 })
+
+// `host` comes from the model, so anything but a bare host is refused before
+// it reaches `https://${host}/api/...`.
+describe('STANDUP_TOOL_SCHEMA.host validation', () => {
+    it.each([
+        'gitlab.example.com',
+        'GitHub.Example.com',
+        'git.example.com:8443',
+    ])('accepts the bare host %s', host => {
+        expect(STANDUP_TOOL_SCHEMA.host.safeParse(host).success).toBe(true)
+    })
+
+    it.each([
+        '',
+        'https://gitlab.example.com',
+        'gitlab.example.com/group',
+        'user:pass@gitlab.example.com',
+        'gitlab.example.com?x=1',
+        'gitlab.example.com#frag',
+        'evil.com\\@github.com',
+        'a b.example.com',
+        `${'a'.repeat(254)}.com`,
+    ])('refuses %p', host => {
+        expect(STANDUP_TOOL_SCHEMA.host.safeParse(host).success).toBe(false)
+    })
+
+    it('rejects a bad host through the MCP server before collecting', async () => {
+        const [clientTransport, serverTransport] =
+            InMemoryTransport.createLinkedPair()
+        await createServer().connect(serverTransport)
+        const client = new Client({ name: 't', version: '0' })
+        await client.connect(clientTransport)
+        const result = await client.callTool({
+            name: 'get_standup_data',
+            arguments: { host: 'evil.com/steal?' },
+        })
+        expect(result.isError).toBe(true)
+        expect(JSON.stringify(result.content)).toMatch(/host/i)
+        await client.close()
+    })
+})

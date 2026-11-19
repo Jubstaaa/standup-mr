@@ -4,6 +4,7 @@ import { z } from 'zod'
 import {
     collect,
     failure,
+    HOST_SCHEMA,
     INSTRUCTIONS_TOOL_ANNOTATIONS,
     INSTRUCTIONS_TOOL_DESCRIPTION,
     INSTRUCTIONS_TOOL_TITLE,
@@ -51,7 +52,7 @@ const REMOTE_STANDUP_SCHEMA = {
         .enum(['github', 'gitlab'])
         .optional()
         .describe(REMOTE_PROVIDER_ARG_DESCRIPTION),
-    host: z.string().optional().describe(REMOTE_HOST_ARG_DESCRIPTION),
+    host: HOST_SCHEMA.optional().describe(REMOTE_HOST_ARG_DESCRIPTION),
     lang: STANDUP_TOOL_SCHEMA.lang,
 }
 

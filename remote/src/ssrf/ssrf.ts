@@ -145,6 +145,19 @@ function plainHeaders(init?: RequestInit): Record<string, string> {
     return Object.fromEntries(new Headers(init?.headers).entries())
 }
 
+export function redirectGuard(blocked: ReadonlySet<string>) {
+    return (options: Record<string, unknown>): void => {
+        assertPublicTarget(
+            {
+                hostname: String(options.hostname ?? ''),
+                port: String(options.port ?? ''),
+                protocol: String(options.protocol ?? ''),
+            },
+            blocked
+        )
+    }
+}
+
 // The providers speak fetch; this answers in fetch's shape while every
 // connection — redirects included — goes through the guarded lookup.
 // Authorization is dropped by follow-redirects when a redirect changes host.
@@ -164,16 +177,7 @@ export function createGuardedFetch(
             responseType: 'arraybuffer',
             timeout: REQUEST_TIMEOUT_MS,
             maxRedirects: init?.redirect === 'manual' ? 0 : MAX_REDIRECTS,
-            beforeRedirect: options => {
-                assertPublicTarget(
-                    {
-                        hostname: String(options.hostname ?? ''),
-                        port: String(options.port ?? ''),
-                        protocol: String(options.protocol ?? ''),
-                    },
-                    blocked
-                )
-            },
+            beforeRedirect: redirectGuard(blocked),
             validateStatus: () => true,
         })
         const headers = new Headers()

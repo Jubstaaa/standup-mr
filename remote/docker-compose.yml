@@ -12,6 +12,16 @@ services:
         # One Bun process, an embedded SQLite and no build output: idles well
         # under 100MB. The cap keeps a request spike from crowding the box.
         mem_limit: 192m
+        # Internet-facing on a shared box: nothing in the image needs to write
+        # outside /data, gain privileges or hold capabilities.
+        read_only: true
+        tmpfs:
+            - /tmp
+        cap_drop:
+            - ALL
+        security_opt:
+            - no-new-privileges:true
+        pids_limit: 128
         # Reports only (Docker won't restart on unhealthy). Bun does the probe
         # because the Debian runtime image has no wget/curl.
         healthcheck:

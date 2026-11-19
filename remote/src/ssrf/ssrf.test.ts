@@ -8,6 +8,7 @@ import {
     HostError,
     isPublicAddress,
     normalizeHost,
+    redirectGuard,
 } from './ssrf'
 import type { Lookup } from './ssrf'
 
@@ -146,5 +147,32 @@ describe('createGuardedFetch', () => {
             })
         )
         await expect(guardedFetch(url)).rejects.toThrow(HostError)
+    })
+})
+
+// follow-redirects hands beforeRedirect the next hop as http.request options;
+// a public host answering 30x must not steer the server inward.
+describe('redirectGuard', () => {
+    const guard = redirectGuard(blockedSet(['8.8.4.4']))
+    const hop = (hostname: string, port = '', protocol = 'https:') => ({
+        hostname,
+        port,
+        protocol,
+    })
+
+    test('lets a public https hop through', () => {
+        expect(() => guard(hop('gitlab.example.com'))).not.toThrow()
+        expect(() => guard(hop('140.82.112.3', '443'))).not.toThrow()
+    })
+
+    test.each([
+        ['plain http', hop('gitlab.example.com', '', 'http:')],
+        ['a custom port', hop('gitlab.example.com', '8443')],
+        ['loopback', hop('127.0.0.1')],
+        ['cloud metadata', hop('169.254.169.254')],
+        ['bracketed IPv6 loopback', hop('[::1]')],
+        ['a blocked public address', hop('8.8.4.4')],
+    ])('refuses %s', (_name, target) => {
+        expect(() => guard(target)).toThrow(HostError)
     })
 })

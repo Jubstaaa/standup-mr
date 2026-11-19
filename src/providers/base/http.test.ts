@@ -9,6 +9,7 @@ import {
     RETRY_ATTEMPTS,
     RETRY_BACKOFF_MS,
     sendWithRetry,
+    timedFetch,
     unreachable,
 } from './http'
 
@@ -274,5 +275,45 @@ describe('sendWithRetry', () => {
         const init = { headers: { authorization: 'Bearer t' } }
         await sendWithRetry(fetchImpl, 'https://h/x', init, 'h', noSleep)
         expect(seen).toEqual([init, init])
+    })
+})
+
+describe('timedFetch', () => {
+    it('aborts a request the host never answers', async () => {
+        const server = Bun.serve({
+            port: 0,
+            fetch: () => new Promise<Response>(() => {}),
+        })
+        try {
+            await expect(
+                timedFetch(50)(`http://127.0.0.1:${server.port}/`)
+            ).rejects.toThrow(/timed? ?out|abort/i)
+        } finally {
+            await server.stop(true)
+        }
+    })
+
+    it('keeps a signal the caller already passed', async () => {
+        let seen: AbortSignal | null | undefined
+        const base: FetchLike = async (_url, init) => {
+            seen = init?.signal
+            return response(200)
+        }
+        const controller = new AbortController()
+        await timedFetch(50, base)('https://h/x', {
+            signal: controller.signal,
+        })
+        expect(seen).toBe(controller.signal)
+    })
+
+    it('adds a timeout signal and keeps the rest of the init', async () => {
+        let seen: RequestInit | undefined
+        const base: FetchLike = async (_url, init) => {
+            seen = init
+            return response(200)
+        }
+        await timedFetch(50, base)('https://h/x', { method: 'POST' })
+        expect(seen?.method).toBe('POST')
+        expect(seen?.signal).toBeInstanceOf(AbortSignal)
     })
 })

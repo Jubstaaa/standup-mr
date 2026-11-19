@@ -13,6 +13,21 @@ All notable changes to standup-mr are recorded here. The format follows
   skipped OAuth, so new connectors could not call any tool. `initialize`,
   `tools/list` and `prompts/list` need a token again, as before 1.1.2.
 
+### Fixed
+
+- **A host that never answers no longer hangs the CLI or the local MCP
+  server.** Every GitHub, GitLab and webhook request gives up after 30
+  seconds; server errors are still retried twice.
+- **The MCP `host` argument must be a bare host** (`gitlab.example.com`,
+  optionally with a port). A scheme, path, credentials, query or fragment is
+  refused before any request is made.
+
+### Security
+
+- The hosted server's container runs with a read-only root filesystem, no
+  Linux capabilities, `no-new-privileges` and a process cap, from a base image
+  pinned by digest.
+
 ## [1.1.2] - 2026-11-13
 
 ### Changed

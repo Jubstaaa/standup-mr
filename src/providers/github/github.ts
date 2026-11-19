@@ -17,6 +17,7 @@ import {
     assertUsable,
     buildUrl,
     sendWithRetry,
+    timedFetch,
     unreachable,
 } from '../base/http'
 
@@ -55,7 +56,11 @@ export class GitHubProvider implements Provider {
     private readonly fetchImpl: FetchLike
     private identity: Identity | null = null
 
-    constructor(host: string, token: string, fetchImpl: FetchLike = fetch) {
+    constructor(
+        host: string,
+        token: string,
+        fetchImpl: FetchLike = timedFetch()
+    ) {
         this.host = host
         this.api =
             host === DOT_COM
