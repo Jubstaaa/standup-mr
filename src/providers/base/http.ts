@@ -107,22 +107,10 @@ export function timedFetch(
 // Response bodies come from hosts the user picks and land in a small
 // container, so none is buffered whole. Job logs keep their tail, where the
 // failure is; JSON over the cap is refused rather than cut mid-document.
+// Leaving a `for await` over a body early (cap reached, or a throw) cancels
+// the stream by spec, which frees the socket and any download slot behind it.
 export const LOG_BYTES_CAP = 2 * 1024 * 1024
 export const JSON_BYTES_CAP = 8 * 1024 * 1024
-
-async function* chunksOf(response: Response): AsyncGenerator<Uint8Array> {
-    if (!response.body) return
-    const reader = response.body.getReader()
-    try {
-        for (;;) {
-            const { done, value } = await reader.read()
-            if (done) return
-            yield value
-        }
-    } finally {
-        await reader.cancel()
-    }
-}
 
 const MIB = 1024 * 1024
 
@@ -136,7 +124,7 @@ export async function readTail(
 ): Promise<string> {
     const kept: Uint8Array[] = []
     let size = 0
-    for await (const chunk of chunksOf(response)) {
+    for await (const chunk of response.body ?? []) {
         kept.push(chunk)
         size += chunk.byteLength
         while (kept.length > 1 && size - kept[0]!.byteLength >= maxBytes) {
@@ -157,7 +145,7 @@ export async function readJsonCapped(
 ): Promise<unknown> {
     const kept: Uint8Array[] = []
     let size = 0
-    for await (const chunk of chunksOf(response)) {
+    for await (const chunk of response.body ?? []) {
         size += chunk.byteLength
         if (size > maxBytes) {
             throw new ApiError(
