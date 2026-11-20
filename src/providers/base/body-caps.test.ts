@@ -161,3 +161,50 @@ describe('readJsonResponse', () => {
         )
     })
 })
+
+// A body produced only when the reader asks for it, as a socket under
+// backpressure does, so the test can see how much was actually pulled.
+function pulledOnDemand(total: number, chunk = 64 * 1024) {
+    let produced = 0
+    let cancelled = false
+    const body = new ReadableStream<Uint8Array>(
+        {
+            pull(controller) {
+                if (produced >= total) return controller.close()
+                produced += chunk
+                controller.enqueue(new Uint8Array(chunk).fill(0x78))
+            },
+            cancel() {
+                cancelled = true
+            },
+        },
+        { highWaterMark: 0 }
+    )
+    return {
+        cancelled: () => cancelled,
+        produced: () => produced,
+        response: new Response(body),
+    }
+}
+
+describe('memory bound', () => {
+    const MIB = 1024 * 1024
+
+    it('stops pulling a JSON body once it passes the cap', async () => {
+        const source = pulledOnDemand(100 * MIB)
+
+        await expect(
+            readJsonCapped(source.response, MIB, 'h', 'events')
+        ).rejects.toThrow(/more than 1 MiB/)
+        expect(source.produced()).toBeLessThanOrEqual(MIB + 2 * 64 * 1024)
+    })
+
+    it('cancels the body after a capped read', async () => {
+        const source = pulledOnDemand(100 * MIB)
+
+        await expect(
+            readJsonCapped(source.response, MIB, 'h', 'events')
+        ).rejects.toThrow()
+        expect(source.cancelled()).toBe(true)
+    })
+})
