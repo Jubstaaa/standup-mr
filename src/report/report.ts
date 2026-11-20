@@ -49,7 +49,7 @@ export async function buildReport(
     }
 }
 
-export interface CollectOptions {
+export interface ReportCollectOptions {
     lang?: string
     providerImpl: Provider
 }
@@ -57,6 +57,8 @@ export interface CollectOptions {
 // Today's report from an already-built provider. Finding a provider from the
 // environment or a gh / glab session is the local CLI's job (providers/select),
 // so a server can import this without pulling that discovery in.
-export async function collect(options: CollectOptions): Promise<StandupReport> {
+export async function collect(
+    options: ReportCollectOptions
+): Promise<StandupReport> {
     return buildReport(options.providerImpl, new Date(), options.lang ?? 'en')
 }
