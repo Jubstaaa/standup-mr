@@ -24,7 +24,9 @@ module.exports = {
             comment:
                 'src/ and mcp/ ship to npm and must not pull in the remote server.',
             severity: 'error',
-            from: { path: '^(src|mcp)/' },
+            // Tests never ship; mcp/client-surface.test.ts pins both servers'
+            // client surface side by side, so it has to load the remote one.
+            from: { path: '^(src|mcp)/', pathNot: TEST_ONLY },
             to: { path: '^remote/' },
         },
         {
