@@ -21,7 +21,30 @@ import {
 } from './schedule.constants'
 import type { ScheduleForm, SchedulerDeps } from './schedule.types'
 
-export class ScheduleError extends Error {}
+export type ScheduleErrorCode =
+    | 'schedule-days'
+    | 'schedule-never'
+    | 'schedule-no-account'
+    | 'schedule-no-webhook'
+    | 'schedule-time'
+    | 'schedule-timezone'
+
+// code says what is wrong without the text, for pages that show a fixed
+// message per code.
+export class ScheduleError extends Error {
+    constructor(
+        message: string,
+        readonly code: ScheduleErrorCode
+    ) {
+        super(message)
+    }
+}
+
+const FIELD_CODES: Record<string, ScheduleErrorCode> = {
+    days: 'schedule-days',
+    time: 'schedule-time',
+    timezone: 'schedule-timezone',
+}
 
 const NO_DAY = 'Pick at least one day.'
 
@@ -42,7 +65,11 @@ const scheduleForm = z.object({
 export function parseSchedule(form: ScheduleForm): ScheduleSettings {
     const parsed = scheduleForm.safeParse(form)
     if (!parsed.success) {
-        throw new ScheduleError(parsed.error.issues[0]!.message)
+        const issue = parsed.error.issues[0]!
+        throw new ScheduleError(
+            issue.message,
+            FIELD_CODES[String(issue.path[0])] ?? 'schedule-time'
+        )
     }
     const { days, time, timezone } = parsed.data
     return { time, timezone, days: [...new Set(days)].sort().join(',') }
@@ -54,7 +81,8 @@ export function nextRunAt(settings: ScheduleSettings, after: number): number {
         timezone: settings.timezone,
     })
     const next = cron.nextRun(new Date(after))
-    if (!next) throw new ScheduleError('The schedule never runs.')
+    if (!next)
+        throw new ScheduleError('The schedule never runs.', 'schedule-never')
     return next.getTime()
 }
 
@@ -81,7 +109,7 @@ async function composeDigest(
 ): Promise<string> {
     const accounts = deps.store.accounts.list(connectionId)
     if (accounts.length === 0) {
-        throw new ScheduleError('No account is linked.')
+        throw new ScheduleError('No account is linked.', 'schedule-no-account')
     }
     const results = await Promise.allSettled(
         accounts.map(async account => {
@@ -121,7 +149,8 @@ export async function sendDigest(
     connectionId: string
 ): Promise<void> {
     const webhook = deps.store.connections.getWebhook(connectionId)
-    if (!webhook) throw new ScheduleError('No webhook is saved.')
+    if (!webhook)
+        throw new ScheduleError('No webhook is saved.', 'schedule-no-webhook')
     const text = await composeDigest(deps, connectionId)
     await postWebhook(webhook.url, text, webhook.kind, deps.fetchImpl)
 }

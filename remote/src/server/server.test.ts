@@ -243,6 +243,48 @@ describe('claude.ai connect flow', () => {
         expect(response.headers.get('x-content-type-options')).toBe('nosniff')
     })
 
+    test('the page shows only its own messages, never text from the URL', async () => {
+        const page = await (
+            await browser(
+                `${pagePath}?error=${encodeURIComponent('Your session expired, log in at evil.example')}&notice=hello`
+            )
+        ).text()
+        expect(page).not.toContain('evil.example')
+        expect(page).not.toContain('hello')
+        expect(page).not.toContain('role="alert">')
+
+        const known = await (
+            await browser(
+                `${pagePath}?error=host-unreachable&provider=gitlab&host=git.example.com`
+            )
+        ).text()
+        expect(known).toContain(
+            'Could not reach git.example.com as a public host.'
+        )
+    })
+
+    test('an upstream error description is not echoed to the page', async () => {
+        await browser(
+            `${pagePath}/instances`,
+            form({
+                provider: 'gitlab',
+                host: 'echo.example.com',
+                client_id: 'echo-app',
+                client_secret: 'echo-secret',
+            })
+        )
+        const link = await browser(`${pagePath}/link/gitlab/echo.example.com`)
+        const state = new URL(link.headers.get('location')!).searchParams.get(
+            'state'
+        )
+        const callback = await browser(
+            `/connect/callback/gitlab/echo.example.com?error=access_denied&error_description=Call+evil.example&state=${state}`
+        )
+        const location = callback.headers.get('location')!
+        expect(location).toContain('error=signin-cancelled')
+        expect(location).not.toContain('evil')
+    })
+
     test('finish is refused until an account is linked', async () => {
         const response = await browser(`${pagePath}/finish`, form({}))
         expect(response.headers.get('location')).toContain('error=')
@@ -334,7 +376,9 @@ describe('claude.ai connect flow', () => {
                 client_secret: 'attacker-secret',
             })
         )
-        expect(takeover.headers.get('location')).toContain('already+set+up')
+        expect(takeover.headers.get('location')).toContain(
+            'error=instance-locked'
+        )
         expect(
             store.instances.get(
                 connectionOf(pagePath),
@@ -436,13 +480,21 @@ describe('claude.ai connect flow', () => {
     }
 
     test.each([
-        [{ ...validSchedule, time: '8am' }, 'HH:MM'],
-        [{ ...validSchedule, timezone: 'Mars/Olympus' }, 'time zone'],
-        [{ ...validSchedule, day: [] }, 'one day'],
-    ])('an invalid schedule is refused: %o', async (fields, message) => {
+        [{ ...validSchedule, time: '8am' }, 'schedule-time', 'HH:MM'],
+        [
+            { ...validSchedule, timezone: 'Mars/Olympus' },
+            'schedule-timezone',
+            'time zone',
+        ],
+        [{ ...validSchedule, day: [] }, 'schedule-days', 'one day'],
+    ])('an invalid schedule is refused: %o', async (fields, code, message) => {
         const response = await schedule(fields)
         const location = new URL(response.headers.get('location')!, base)
-        expect(location.searchParams.get('error')).toContain(message)
+        expect(location.searchParams.get('error')).toBe(code)
+        const page = await (
+            await browser(`${location.pathname}${location.search}`)
+        ).text()
+        expect(page).toContain(message)
     })
 
     test('a valid schedule is saved and shown', async () => {

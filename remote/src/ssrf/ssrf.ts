@@ -28,7 +28,23 @@ export type Lookup = (
     callback: LookupCallback
 ) => void
 
-export class HostError extends Error {}
+export type HostErrorCode =
+    | 'host-credentials'
+    | 'host-invalid'
+    | 'host-not-https'
+    | 'host-port'
+    | 'host-unreachable'
+
+// code says what is wrong without the text: pages show a fixed message
+// for it instead of the message, which can carry user input.
+export class HostError extends Error {
+    constructor(
+        message: string,
+        readonly code: HostErrorCode = 'host-unreachable'
+    ) {
+        super(message)
+    }
+}
 
 export function normalizeHost(input: string): string {
     const trimmed = input.trim().toLowerCase()
@@ -39,17 +55,23 @@ export function normalizeHost(input: string): string {
     try {
         url = new URL(withScheme)
     } catch {
-        throw new HostError(`"${input}" is not a valid host.`)
+        throw new HostError(`"${input}" is not a valid host.`, 'host-invalid')
     }
     if (url.protocol !== 'https:') {
-        throw new HostError('Only https hosts are supported.')
+        throw new HostError('Only https hosts are supported.', 'host-not-https')
     }
     if (url.username || url.password) {
-        throw new HostError('The host must not contain credentials.')
+        throw new HostError(
+            'The host must not contain credentials.',
+            'host-credentials'
+        )
     }
     // A custom port would turn the token check into a port scanner.
     if (url.port) {
-        throw new HostError('Only the default https port (443) is supported.')
+        throw new HostError(
+            'Only the default https port (443) is supported.',
+            'host-port'
+        )
     }
     // github.com. names the same host as github.com; keeping the dot would
     // let one host pass for another wherever hosts are compared.
@@ -130,15 +152,17 @@ export function createGuardedLookup(
     }
 }
 
+// A private address and a name that does not resolve get the same answer:
+// telling them apart would let anyone map internal DNS through the page.
 export function createHostCheck(lookup: Lookup) {
     return (host: string) =>
         new Promise<void>((resolve, reject) => {
             lookup(host, {}, error => {
                 if (!error) return resolve()
                 reject(
-                    error instanceof HostError
-                        ? error
-                        : new HostError(`Could not resolve ${host}.`)
+                    new HostError(
+                        `${host} could not be reached as a public host.`
+                    )
                 )
             })
         })

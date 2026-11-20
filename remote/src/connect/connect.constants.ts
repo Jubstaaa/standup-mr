@@ -1,5 +1,4 @@
 export const CONNECT_COOKIE = 'standup_connect'
-export const ERROR_MESSAGE_MAX_LENGTH = 300
 export const TOKEN_FORM_LIMIT_PER_MINUTE = 10
 
 // The exact callback URLs (origin and path, query ignored) of the MCP
@@ -29,3 +28,47 @@ export const IMPERSONATED_NAMES =
     /claude|anthropic|cursor|vs ?code|visual studio|copilot|chatgpt|openai|gemini|google|codex|smithery|windsurf/i
 export const UNKNOWN_CLIENT_NAME = 'An unrecognized app'
 export const DEFAULT_CLIENT_NAME = 'An MCP client'
+
+// The only messages the page shows. A redirect carries a code from these
+// tables, never text: anything else in ?error= or ?notice= is ignored, so
+// the URL cannot put words in the page's mouth. {host} is the validated
+// host from the same URL.
+export const CONNECT_ERRORS = {
+    'finish-no-account': 'Link at least one account first.',
+    'host-credentials': 'The host must not contain credentials.',
+    'host-invalid': 'That is not a valid host.',
+    'host-not-https': 'Only https hosts are supported.',
+    'host-port': 'Only the default https port (443) is supported.',
+    'host-unreachable': 'Could not reach {host} as a public host.',
+    'instance-built-in': '{host} already has a sign-in button above.',
+    'instance-fields': 'Both the application ID and the secret are required.',
+    'instance-locked':
+        'Sign-in for {host} is already set up. Use the sign-in button.',
+    'schedule-days': 'Pick at least one day.',
+    'schedule-never': 'The schedule never runs.',
+    'schedule-no-account':
+        'The test digest was not posted: no account is linked.',
+    'schedule-no-webhook':
+        'The test digest was not posted: no webhook is saved.',
+    'schedule-time': 'Pick a time as HH:MM.',
+    'schedule-timezone': 'Pick a time zone from the list.',
+    'signin-cancelled': 'The sign-in was cancelled.',
+    'signin-failed': 'Could not sign in to {host}.',
+    'signin-failed-instance':
+        'Could not sign in to {host}. Check the application ID, secret and redirect URI registered on that host.',
+    'test-failed':
+        'The test digest was not posted. Check the webhook and try again.',
+    'token-fields': 'Provider, host and token are required.',
+    'token-rejected': 'The token was not accepted by {host}.',
+    'webhook-invalid':
+        'Use a Slack, Discord or Google Chat webhook URL (https).',
+} as const
+
+export const CONNECT_NOTICES = {
+    'schedule-off': 'Automatic posting is off.',
+    'schedule-saved': 'Schedule saved.',
+    'test-posted': 'Test digest posted.',
+} as const
+
+export type ConnectErrorCode = keyof typeof CONNECT_ERRORS
+export type ConnectNoticeCode = keyof typeof CONNECT_NOTICES

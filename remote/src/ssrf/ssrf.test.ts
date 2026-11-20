@@ -116,20 +116,40 @@ describe('createGuardedLookup', () => {
 })
 
 describe('createHostCheck', () => {
-    test('reports a private host and an unresolvable one', async () => {
+    // Telling the two apart would let anyone map internal DNS names.
+    test('refuses a private host and an unresolvable one alike', async () => {
         const privateCheck = createHostCheck(
             createGuardedLookup(new Set(), resolvesTo('127.0.0.1'))
         )
-        await expect(privateCheck('evil.example.com')).rejects.toThrow(
-            /private or reserved/
-        )
-
         const missing = createHostCheck((_host, _options, callback) =>
             callback(new Error('ENOTFOUND'), [])
         )
-        await expect(missing('nope.invalid')).rejects.toThrow(
-            /Could not resolve/
-        )
+        const refusals = await Promise.all([
+            privateCheck('a.example.com').catch((error: unknown) => error),
+            missing('a.example.com').catch((error: unknown) => error),
+        ])
+        for (const refusal of refusals) {
+            expect(refusal).toBeInstanceOf(HostError)
+            expect(refusal).toMatchObject({
+                code: 'host-unreachable',
+                message: 'a.example.com could not be reached as a public host.',
+            })
+        }
+    })
+
+    test('names what is wrong with a host that cannot be used', () => {
+        const codeOf = (input: string) => {
+            try {
+                normalizeHost(input)
+            } catch (error) {
+                return error instanceof HostError ? error.code : 'other'
+            }
+            return 'none'
+        }
+        expect(codeOf('http://git.example.com')).toBe('host-not-https')
+        expect(codeOf('https://u:p@git.example.com')).toBe('host-credentials')
+        expect(codeOf('git.example.com:22')).toBe('host-port')
+        expect(codeOf('https://')).toBe('host-invalid')
     })
 })
 
