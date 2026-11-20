@@ -1,10 +1,8 @@
 import { realpathSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 
 import { ConfigError } from '../config/config'
-import { findPackageRoot } from '../manifest/manifest'
 import { postWebhook } from '../notify/notify'
 import { WEBHOOK_KINDS } from '../notify/notify.constants'
 import { connect } from '../providers/select'
@@ -91,17 +89,8 @@ export async function main(argv: string[]): Promise<number> {
         }
 
         if (command === 'mcp') {
-            const moduleDir = dirname(fileURLToPath(import.meta.url))
-            const serverPath = join(
-                findPackageRoot(moduleDir),
-                'dist',
-                'mcp',
-                'server.js'
-            )
-            const serverUrl = pathToFileURL(serverPath).href
-            const { main: startMcpServer } = (await import(serverUrl)) as {
-                main: () => Promise<void>
-            }
+            // Loaded on demand so the other commands never pay for the MCP SDK.
+            const { main: startMcpServer } = await import('../../mcp/server')
             await startMcpServer()
             return 0
         }

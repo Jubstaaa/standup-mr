@@ -1,0 +1,154 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`the local stdio server shows clients the same surface 1`] = `
+{
+  "prompts": [
+    {
+      "arguments": [
+        {
+          "description": "Which account to read when several are linked: github, gitlab, or a host.",
+          "name": "account",
+          "required": false,
+        },
+      ],
+      "description": "Writes your standup note from merge request state: what you did, what is ready or blocked today, and why any pipeline is red.",
+      "name": "standup",
+      "title": "Write my standup",
+    },
+  ],
+  "tools": [
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true,
+      },
+      "description": "Returns the note-writing rules — the playbook for turning get_standup_data output into a standup note a person would actually say out loud: how to group the previous day by theme, how to derive today from open merge requests, and how to report a blocker from its job log. Read-only, no arguments, no network. Call it once before writing the first note; the rules do not change between calls.",
+      "inputKeys": [],
+      "name": "get_note_instructions",
+      "required": [],
+      "title": "Get note instructions",
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+      },
+      "description": 
+"Collect merge-request-based standup data from GitLab or GitHub. Returns one JSON object: \`today\`, \`previousDays[]\` with the events of each, \`todayEvents[]\`, \`myMrs[]\` bucketed ready / blocked / draft / stale, \`reviews[]\` waiting on you, and \`blockers[]\` carrying the error lines read out of each failed pipeline job log.
+
+Call it once at the start of a working day, to write a standup note. It is a snapshot, not a search API: it cannot fetch one named merge request, reach further back than the previous working day, or filter by project.
+
+Read-only, and credentials never come from an argument — they come from the environment or a logged-in gh / glab session. A rejected token, a refused resource or a rate limit fails the call with the host's own message, after two retries on transient server errors. A blocker whose diagnosis could not be fetched is still returned, with \`job: "unknown"\`, so a red pipeline is never silently dropped."
+,
+      "inputKeys": [
+        "host",
+        "lang",
+        "provider",
+      ],
+      "name": "get_standup_data",
+      "required": [],
+      "title": "Get standup data",
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "readOnlyHint": false,
+      },
+      "description": 
+"Posts a finished standup note to a chat webhook. This one has a side effect: it sends a message other people will see, so only call it on a note the user has agreed to send.
+
+The webhook URL is read from STANDUP_WEBHOOK_URL, never from an argument — a webhook URL is a credential, since anyone holding it can post to the channel. Slack and Discord payload shapes are supported; the shape is inferred from the URL host, and \`kind\` is only needed for a proxied or self-hosted endpoint whose host gives nothing away — Mattermost and Rocket.Chat take the slack shape. A missing URL, an unrecognised host, or a webhook that rejects the message comes back as an error rather than a silent success."
+,
+      "inputKeys": [
+        "kind",
+        "text",
+      ],
+      "name": "post_standup_note",
+      "required": [
+        "text",
+      ],
+      "title": "Post standup note",
+    },
+  ],
+}
+`;
+
+exports[`the remote connector shows clients the same surface 1`] = `
+{
+  "prompts": [
+    {
+      "arguments": [
+        {
+          "description": "Which account to read when several are linked: github, gitlab, or a host.",
+          "name": "account",
+          "required": false,
+        },
+      ],
+      "description": "Writes your standup note from merge request state: what you did, what is ready or blocked today, and why any pipeline is red.",
+      "name": "standup",
+      "title": "Write my standup",
+    },
+  ],
+  "tools": [
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true,
+      },
+      "description": "Returns the note-writing rules — the playbook for turning get_standup_data output into a standup note a person would actually say out loud: how to group the previous day by theme, how to derive today from open merge requests, and how to report a blocker from its job log. Read-only, no arguments, no network. Call it once before writing the first note; the rules do not change between calls.",
+      "inputKeys": [],
+      "name": "get_note_instructions",
+      "required": [],
+      "title": "Get note instructions",
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+      },
+      "description": 
+"Collect merge-request-based standup data from the GitLab or GitHub account the user linked to this connector. Returns one JSON object: \`today\`, \`previousDays[]\` with the events of each, \`todayEvents[]\`, \`myMrs[]\` bucketed ready / blocked / draft / stale, \`reviews[]\` waiting on the user, and \`blockers[]\` carrying the error lines read out of each failed pipeline job log.
+
+Call it once at the start of a working day, to write a standup note. It is a snapshot, not a search API: it cannot fetch one named merge request, reach further back than the previous working day, or filter by project.
+
+Read-only. Credentials come from the accounts linked on the connect page, never from an argument. With one linked account no argument is needed; with several, pass \`provider\` or \`host\` — an ambiguous call fails and lists the linked accounts, so ask the user which one they mean. An expired login fails with a request to reconnect the connector."
+,
+      "inputKeys": [
+        "host",
+        "lang",
+        "provider",
+      ],
+      "name": "get_standup_data",
+      "required": [],
+      "title": "Get standup data",
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "readOnlyHint": false,
+      },
+      "description": "Posts a finished standup note to the chat webhook the user saved on the connect page (Slack, Discord or Google Chat). This one has a side effect: it sends a message other people will see, so only call it on a note the user has agreed to send. The webhook URL is never an argument. If none is saved, the call fails and says how to add one.",
+      "inputKeys": [
+        "text",
+      ],
+      "name": "post_standup_note",
+      "required": [
+        "text",
+      ],
+      "title": "Post standup note",
+    },
+  ],
+}
+`;

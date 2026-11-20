@@ -9,7 +9,7 @@ import type {
     Review,
 } from '../standup.types'
 
-import { buildReport } from './report'
+import { buildReport, collect } from './report'
 
 const TODAY = new Date(2026, 7, 28)
 
@@ -114,5 +114,23 @@ describe('buildReport', () => {
 
         await buildReport(provider, TODAY)
         expect(seen).toEqual({ id: 1, username: 'dev' })
+    })
+})
+
+describe('collect', () => {
+    it("builds today's report from the provider it is handed", async () => {
+        const report = await collect({ providerImpl: fakeProvider() })
+
+        expect(report.user).toBe('dev')
+        expect(report.today.date).toBe(
+            (await buildReport(fakeProvider(), new Date())).today.date
+        )
+    })
+
+    it('passes the language through', async () => {
+        const en = await collect({ providerImpl: fakeProvider(), lang: 'en' })
+        const tr = await collect({ providerImpl: fakeProvider(), lang: 'tr' })
+
+        expect(en.today.label).not.toBe(tr.today.label)
     })
 })

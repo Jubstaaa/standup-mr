@@ -1,11 +1,18 @@
 import { z } from 'zod'
 
+import {
+    failure,
+    HOST_SCHEMA,
+    LANG_ARG_SCHEMA,
+    POST_TEXT_ARG_SCHEMA,
+    text,
+} from '../src/mcp-tools/mcp-tools'
+import type { ToolResult } from '../src/mcp-tools/mcp-tools'
 import { inferWebhookKind, postWebhook } from '../src/notify/notify'
 import type { WebhookKind } from '../src/notify/notify.types'
 import type { Provider } from '../src/providers/base/base.types'
 import { connect } from '../src/providers/select'
-import { buildReport } from '../src/report/report'
-import { readStandupSkillBody } from '../src/skill/skill'
+import { collect as collectReport } from '../src/report/report'
 import type { StandupReport } from '../src/standup.types'
 
 export interface CollectOptions {
@@ -19,14 +26,16 @@ export interface CollectOptions {
 export async function collect(
     options: CollectOptions = {}
 ): Promise<StandupReport> {
-    const provider =
-        options.providerImpl ??
-        connect({
-            provider: options.provider,
-            host: options.host,
-            token: options.token,
-        })
-    return buildReport(provider, new Date(), options.lang ?? 'en')
+    return collectReport({
+        providerImpl:
+            options.providerImpl ??
+            connect({
+                provider: options.provider,
+                host: options.host,
+                token: options.token,
+            }),
+        lang: options.lang,
+    })
 }
 
 export const STANDUP_TOOL_DESCRIPTION =
@@ -42,21 +51,6 @@ export const STANDUP_TOOL_DESCRIPTION =
     "or a rate limit fails the call with the host's own message, after two retries on " +
     'transient server errors. A blocker whose diagnosis could not be fetched is still ' +
     'returned, with `job: "unknown"`, so a red pipeline is never silently dropped.'
-
-// The URL parser must hand a bare host[:port] back unchanged, so no scheme,
-// path, credentials, query or fragment can ride along into the API URL.
-function isBareHost(value: string): boolean {
-    try {
-        return new URL(`https://${value}`).host === value.toLowerCase()
-    } catch {
-        return false
-    }
-}
-
-export const HOST_SCHEMA = z.string().max(253).refine(isBareHost, {
-    message:
-        'Pass a bare host such as gitlab.example.com, without a scheme or path.',
-})
 
 export const STANDUP_TOOL_SCHEMA = {
     provider: z
@@ -74,15 +68,7 @@ export const STANDUP_TOOL_SCHEMA = {
             'optional for GitHub, which defaults to github.com. A recognisable host ' +
             'also settles `provider` on its own, so the two are rarely both needed.'
     ),
-    lang: z
-        .enum(['en', 'tr'])
-        .optional()
-        .describe(
-            'Language for the date labels inside the returned JSON: en (default) or tr. ' +
-                'It relabels dates and nothing else — no field is translated, and the ' +
-                'standup note itself is written by the caller, in whatever language they ' +
-                'are speaking.'
-        ),
+    lang: LANG_ARG_SCHEMA,
 }
 
 export type StandupToolArgs = z.infer<z.ZodObject<typeof STANDUP_TOOL_SCHEMA>>
@@ -92,7 +78,7 @@ type Collector = (options: CollectOptions) => Promise<StandupReport>
 export async function runStandupTool(
     args: StandupToolArgs,
     collector: Collector = collect
-): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
+): Promise<ToolResult> {
     // Only the three declared options reach the collector. A token is never
     // accepted as a tool argument — credentials belong in the environment,
     // not in a transcript.
@@ -101,9 +87,7 @@ export async function runStandupTool(
         host: args.host,
         lang: args.lang,
     })
-    return {
-        content: [{ type: 'text' as const, text: JSON.stringify(report) }],
-    }
+    return text(JSON.stringify(report))
 }
 
 export const WEBHOOK_URL_ENV = 'STANDUP_WEBHOOK_URL'
@@ -119,14 +103,7 @@ export const POST_TOOL_DESCRIPTION =
     'rejects the message comes back as an error rather than a silent success.'
 
 export const POST_TOOL_SCHEMA = {
-    text: z
-        .string()
-        .min(1)
-        .describe(
-            'The note to post, as the chat should render it. Slack and Discord both take ' +
-                'Markdown, so send the written note rather than the raw JSON from ' +
-                'get_standup_data.'
-        ),
+    text: POST_TEXT_ARG_SCHEMA,
     kind: z
         .enum(['slack', 'discord', 'google-chat'])
         .optional()
@@ -139,27 +116,7 @@ export const POST_TOOL_SCHEMA = {
         ),
 }
 
-export const INSTRUCTIONS_TOOL_DESCRIPTION =
-    'Returns the note-writing rules — the playbook for turning get_standup_data output ' +
-    'into a standup note a person would actually say out loud: how to group the previous ' +
-    'day by theme, how to derive today from open merge requests, and how to report a ' +
-    'blocker from its job log. Read-only, no arguments, no network. Call it once before ' +
-    'writing the first note; the rules do not change between calls.'
-
 export type PostToolArgs = z.infer<z.ZodObject<typeof POST_TOOL_SCHEMA>>
-
-export type ToolResult = {
-    content: Array<{ type: 'text'; text: string }>
-    isError?: true
-}
-
-export function text(body: string): ToolResult {
-    return { content: [{ type: 'text' as const, text: body }] }
-}
-
-export function failure(body: string): ToolResult {
-    return { content: [{ type: 'text' as const, text: body }], isError: true }
-}
 
 export interface PostToolDeps {
     env?: Record<string, string | undefined>
@@ -198,83 +155,3 @@ export async function runPostTool(
 
     return text(`Posted the note to the configured ${kind} webhook.`)
 }
-
-export async function runInstructionsTool(): Promise<ToolResult> {
-    return text(readStandupSkillBody())
-}
-
-export const STANDUP_TOOL_TITLE = 'Get standup data'
-export const POST_TOOL_TITLE = 'Post standup note'
-export const INSTRUCTIONS_TOOL_TITLE = 'Get note instructions'
-
-export const STANDUP_PROMPT_TITLE = 'Write my standup'
-export const STANDUP_PROMPT_DESCRIPTION =
-    'Writes your standup note from merge request state: what you did, what is ' +
-    'ready or blocked today, and why any pipeline is red.'
-
-export const STANDUP_PROMPT_SCHEMA = {
-    account: z
-        .string()
-        .optional()
-        .describe(
-            'Which account to read when several are linked: github, gitlab, or a host.'
-        ),
-}
-
-export function standupPrompt(args: { account?: string }) {
-    const account = args.account?.trim()
-    const which = account
-        ? ` Read the ${account} account (pass it as provider or host).`
-        : ''
-    return {
-        messages: [
-            {
-                role: 'user' as const,
-                content: {
-                    type: 'text' as const,
-                    text:
-                        'Write my standup note. First call get_note_instructions and ' +
-                        'follow its rules, then call get_standup_data.' +
-                        which +
-                        ' If several accounts are linked and I did not say which, ask me. ' +
-                        "Write the note in the language I'm using. Do not post it anywhere " +
-                        'unless I ask.',
-                },
-            },
-        ],
-    }
-}
-
-export const STANDUP_TOOL_ANNOTATIONS = {
-    readOnlyHint: true,
-    destructiveHint: false,
-    idempotentHint: true,
-    openWorldHint: true,
-}
-
-export const POST_TOOL_ANNOTATIONS = {
-    readOnlyHint: false,
-    destructiveHint: false,
-    idempotentHint: false,
-    openWorldHint: true,
-}
-
-export const INSTRUCTIONS_TOOL_ANNOTATIONS = {
-    readOnlyHint: true,
-    destructiveHint: false,
-    idempotentHint: true,
-    openWorldHint: false,
-}
-
-export const SERVER_ICONS = [
-    {
-        src: 'https://raw.githubusercontent.com/Jubstaaa/standup-mr/main/assets/icon-512.png',
-        mimeType: 'image/png',
-        sizes: ['512x512'],
-    },
-    {
-        src: 'https://raw.githubusercontent.com/Jubstaaa/standup-mr/main/assets/icon.svg',
-        mimeType: 'image/svg+xml',
-        sizes: ['any'],
-    },
-]

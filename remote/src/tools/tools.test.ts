@@ -1,4 +1,6 @@
 import { randomBytes } from 'node:crypto'
+import { relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { beforeEach, describe, expect, test } from 'bun:test'
 
@@ -83,4 +85,29 @@ describe('post_standup_note', () => {
 
 test('registers the three tools', () => {
     expect(() => createRemoteServer(context)).not.toThrow()
+})
+
+// The server reaches accounts only through the tokens linked on the connect
+// page. Loading the local CLI's discovery (env pairs, gh / glab sessions)
+// into this process is what the boundary forbids, transitively too.
+test('the server module graph leaves out local credential discovery', async () => {
+    const build = await Bun.build({
+        entrypoints: [fileURLToPath(new URL('../index.ts', import.meta.url))],
+        target: 'bun',
+        packages: 'external',
+        metafile: true,
+        throw: true,
+    })
+    // Metafile keys are relative to the working directory, not the entry.
+    const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
+    const modules = Object.keys(build.metafile?.inputs ?? {}).map(path =>
+        relative(repoRoot, resolve(path))
+    )
+
+    expect(modules).toContain('src/mcp-tools/mcp-tools.ts')
+    expect(
+        modules.filter(path =>
+            /^(mcp\/|src\/config\/|src\/providers\/select)/.test(path)
+        )
+    ).toEqual([])
 })

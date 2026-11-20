@@ -1,6 +1,6 @@
 # The remote server runs straight from TypeScript under Bun and imports the
-# package's own src/ and mcp/, so the image carries the repo minus everything
-# the npm package or the tests need. Build from the repository root:
+# package's own src/ (never mcp/, which is the local stdio server), so the
+# image carries the repo minus everything the npm package or the tests need. Build from the repository root:
 #   docker build -f remote/Dockerfile .
 # Pinned by digest so a re-pushed tag cannot change what ships; Dependabot
 # (docker, /remote) bumps tag and digest together.
@@ -15,7 +15,6 @@ RUN bun install --frozen-lockfile --production
 
 # skills/ is read at runtime by get_note_instructions; assets/ holds the icon.
 COPY src src
-COPY mcp mcp
 COPY skills skills
 COPY assets assets
 COPY remote/src remote/src

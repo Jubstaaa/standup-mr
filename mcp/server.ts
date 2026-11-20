@@ -1,83 +1,33 @@
 import { realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 
-import { packageVersion } from '../src/manifest/manifest'
+import { createStandupServer } from '../src/mcp-tools/mcp-tools'
 
 import {
-    INSTRUCTIONS_TOOL_ANNOTATIONS,
-    INSTRUCTIONS_TOOL_DESCRIPTION,
-    INSTRUCTIONS_TOOL_TITLE,
-    POST_TOOL_ANNOTATIONS,
     POST_TOOL_DESCRIPTION,
     POST_TOOL_SCHEMA,
-    POST_TOOL_TITLE,
-    runInstructionsTool,
     runPostTool,
     runStandupTool,
-    SERVER_ICONS,
-    STANDUP_PROMPT_DESCRIPTION,
-    STANDUP_PROMPT_SCHEMA,
-    STANDUP_PROMPT_TITLE,
-    STANDUP_TOOL_ANNOTATIONS,
     STANDUP_TOOL_DESCRIPTION,
     STANDUP_TOOL_SCHEMA,
-    STANDUP_TOOL_TITLE,
-    standupPrompt,
 } from './tools'
 
 export function createServer(): McpServer {
-    const server = new McpServer({
-        name: 'standup-mr',
-        version: packageVersion(import.meta.url),
-        icons: SERVER_ICONS,
-    })
-
-    server.registerTool(
-        'get_standup_data',
-        {
-            title: STANDUP_TOOL_TITLE,
+    return createStandupServer({
+        standup: {
             description: STANDUP_TOOL_DESCRIPTION,
             inputSchema: STANDUP_TOOL_SCHEMA,
-            annotations: STANDUP_TOOL_ANNOTATIONS,
+            run: async args => await runStandupTool(args),
         },
-        async args => await runStandupTool(args)
-    )
-
-    server.registerTool(
-        'post_standup_note',
-        {
-            title: POST_TOOL_TITLE,
+        post: {
             description: POST_TOOL_DESCRIPTION,
             inputSchema: POST_TOOL_SCHEMA,
-            annotations: POST_TOOL_ANNOTATIONS,
+            run: async args => await runPostTool(args),
         },
-        async args => await runPostTool(args)
-    )
-
-    server.registerTool(
-        'get_note_instructions',
-        {
-            title: INSTRUCTIONS_TOOL_TITLE,
-            description: INSTRUCTIONS_TOOL_DESCRIPTION,
-            annotations: INSTRUCTIONS_TOOL_ANNOTATIONS,
-        },
-        async () => await runInstructionsTool()
-    )
-
-    server.registerPrompt(
-        'standup',
-        {
-            title: STANDUP_PROMPT_TITLE,
-            description: STANDUP_PROMPT_DESCRIPTION,
-            argsSchema: STANDUP_PROMPT_SCHEMA,
-        },
-        args => standupPrompt(args)
-    )
-
-    return server
+    })
 }
 
 export async function main(): Promise<void> {

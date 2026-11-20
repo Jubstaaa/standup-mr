@@ -1,9 +1,9 @@
 import { Cron } from 'croner'
 import { z } from 'zod'
 
-import { collect } from '../../../mcp/tools'
 import { postWebhook } from '../../../src/notify/notify'
 import { toChatDigest } from '../../../src/render/digest'
+import { collect } from '../../../src/report/report'
 import { describeAccount, providerFor } from '../accounts/accounts'
 import { errorMessage } from '../errors/errors'
 import type { Schedule, ScheduleSettings } from '../store/store.types'
