@@ -71,7 +71,7 @@ describe('getBlockers', () => {
         })
     })
 
-    it('reports nothing when no job in the pipeline failed', async () => {
+    it('keeps the red merge request as undiagnosed when no failed job is listed', async () => {
         const gl = new GitLabProvider(
             'h',
             't',
@@ -82,7 +82,23 @@ describe('getBlockers', () => {
             })
         )
 
-        expect(await gl.getBlockers([mr()])).toEqual([])
+        const [row] = await gl.getBlockers([mr()])
+        expect(row).toMatchObject({ mr: 6, job: 'unknown' })
+        expect(row!.errors[0]).toMatch(
+            /diagnosis unavailable: no failed job found in pipeline 99/
+        )
+    })
+
+    it('asks GitLab for the failed jobs only', async () => {
+        const urls: string[] = []
+        const gl = new GitLabProvider('h', 't', async url => {
+            urls.push(url)
+            return new Response('[]')
+        })
+
+        await gl.getBlockers([mr()])
+
+        expect(decodeURIComponent(urls[0]!)).toContain('scope[]=failed')
     })
 
     it('reports an undiagnosed blocker when the jobs endpoint stays unusable', async () => {

@@ -166,7 +166,12 @@ export class GitHubProvider implements Provider {
         } catch (cause) {
             throw unreachable(this.host, cause)
         }
-        if (!blob.ok) return ''
+        if (!blob.ok) {
+            throw new ApiError(
+                `job log unavailable: HTTP ${blob.status}`,
+                blob.status
+            )
+        }
         return await readTail(blob)
     }
 
@@ -332,7 +337,7 @@ export class GitHubProvider implements Provider {
 
         const jobs = await this.getJson<{ jobs?: WorkflowJob[] }>(
             `repos/${mr.project}/actions/runs/${run.id}/jobs`,
-            { per_page: PAGE_SIZE }
+            { filter: 'latest', per_page: PAGE_SIZE }
         )
         const job = (jobs?.jobs ?? []).find(
             row =>
@@ -341,9 +346,17 @@ export class GitHubProvider implements Provider {
         )
         if (!job) return null
 
-        const log = await this.getLogText(
-            `repos/${mr.project}/actions/jobs/${job.id}/logs`
-        )
+        let errors: string[]
+        try {
+            errors = extractErrors(
+                await this.getLogText(
+                    `repos/${mr.project}/actions/jobs/${job.id}/logs`
+                )
+            )
+        } catch (cause) {
+            if (!degradable(cause)) throw cause
+            errors = [cause.message]
+        }
         return {
             provider: 'github',
             project: mr.project,
@@ -352,7 +365,7 @@ export class GitHubProvider implements Provider {
             job: job.name,
             stage: run.name ?? '',
             url: mr.url,
-            errors: extractErrors(log),
+            errors,
         }
     }
 
@@ -397,11 +410,19 @@ export class GitHubProvider implements Provider {
             `repos/${mr.project}/pulls/${mr.iid}`
         )
         const sha = pull?.head?.sha
-        if (!sha) return null
+        if (!sha) {
+            throw new ApiError(
+                `the head commit of #${mr.iid} could not be read`
+            )
+        }
 
         const actions = await this.actionsBlocker(mr, sha)
         if (actions?.errors.length) return actions
-        return (await this.checkRunBlocker(mr, sha)) ?? actions
+        const blocker = (await this.checkRunBlocker(mr, sha)) ?? actions
+        if (!blocker) {
+            throw new ApiError(`no failed job found for commit ${sha}`)
+        }
+        return blocker
     }
 
     async getBlockers(mrs: MergeRequest[]): Promise<Blocker[]> {

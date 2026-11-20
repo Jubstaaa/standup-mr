@@ -278,10 +278,14 @@ export class GitLabProvider implements Provider {
         const jobs =
             (await this.getJson<RawJob[]>(
                 `projects/${mr.projectId}/pipelines/${mr.pipelineId}/jobs`,
-                { per_page: PAGE_SIZE }
+                { 'per_page': PAGE_SIZE, 'scope[]': 'failed' }
             )) ?? []
         const job = jobs.find(j => j.status === 'failed')
-        if (!job) return null
+        if (!job) {
+            throw new ApiError(
+                `no failed job found in pipeline ${mr.pipelineId}`
+            )
+        }
 
         const trace = await this.getText(
             `projects/${mr.projectId}/jobs/${job.id}/trace`
