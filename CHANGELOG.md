@@ -32,6 +32,23 @@ The report gains a field, so the next release is a minor version.
   naming the CLI, instead of reading as "no token".
 - Per-item API requests (diagnoses, merge request details) run at most four at
   a time.
+- **Hosted server: only a refused login asks you to reconnect.** A refresh the
+  host answers with `invalid_grant` asks for a reconnect; a network or
+  database error says to try again in a few minutes; a rejected sign-in app
+  (`invalid_client`, `unauthorized_client`) says the operator has to fix it.
+  A renewal that cannot be saved after the old refresh token was spent asks
+  for a reconnect instead of being reported as temporary.
+- **Hosted server: long job logs keep their tail** instead of failing past
+  10 MiB. Host responses are streamed, and at most four bodies download at
+  once across the whole server.
+- **Hosted server: scheduled digests say what they could not read.** A run
+  that reads some accounts but not all posts what it read plus a fixed line
+  for each account that failed, and is recorded as a warning. A run missed by
+  more than the catch-up limit is recorded as the schedule's last error
+  instead of being skipped silently.
+- **Hosted server: connect page messages come from a fixed table of codes.**
+  The host's own `error_description` is no longer shown, and a failed sign-in
+  no longer looks like a cancel.
 
 ### Fixed
 
@@ -39,6 +56,11 @@ The report gains a field, so the next release is a minor version.
   cannot be diagnosed, it is still listed with job `unknown` and the reason,
   such as `job log unavailable: HTTP 410` or `no failed job found …`.
 - Provider warnings now reach MCP callers, not only the CLI's stderr.
+- **Hosted server: two servers overlapping during a deploy cannot post the same
+  digest or spend the same refresh token twice.** Schedule runs and token
+  refreshes are claimed in the database first (schema migrations 3 and 4 add
+  `schedules.last_warning` and `accounts.refresh_claimed_until`; both are
+  additive, so a rollback to the previous image keeps working).
 
 ### Security
 
@@ -57,6 +79,18 @@ The report gains a field, so the next release is a minor version.
   collect colleagues' tokens. Existing applications stay with the connections
   that already signed in through them; register your own on your next
   connect.
+- **Hosted server: dynamic client registration refuses plain `http` redirect
+  URIs** other than loopback, and script schemes. A client that registered
+  one has to register again over https.
+- **Hosted server: the connect cookie is `__Host-`-prefixed**, so a sibling
+  subdomain cannot plant one. A connect flow in progress during the deploy
+  starts over once.
+- **Hosted server: clients are recognised by their exact callback URL**, not by
+  host. A custom GPT on chatgpt.com no longer borrows the ChatGPT name on the
+  consent page, and the openai.com and cursor.com host entries are gone.
+- **Hosted server: every outbound response has a size and time bound.** The
+  OAuth token exchange refuses an answer over 10 MiB, and every request has a
+  30-second total deadline next to its idle timeout.
 
 ### Dependencies
 
