@@ -34,11 +34,28 @@ jobs:
             steps.metadata.outputs.package-ecosystem != 'docker'
         env:
             GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            # The job has no checkout, so gh cannot infer the repository.
+            GH_REPO: ${{ github.repository }}
             PR_URL: ${{ github.event.pull_request.html_url }}
             BASE: ${{ github.event.pull_request.base.ref }}
         run: |
             # Let the required checks register before watching them.
             sleep 30
             gh pr checks "$PR_URL" --required --watch --fail-fast --interval 20
+            # The ruleset requires up-to-date branches. A branch left behind by an
+            # earlier merge is rebased by Dependabot instead, which re-runs the
+            # checks and this workflow.
+            # mergeStateStatus is UNKNOWN while GitHub recomputes it.
+            for _ in 1 2 3 4 5 6; do
+                state=$(gh pr view "$PR_URL" --json mergeStateStatus -q .mergeStateStatus)
+                [ "$state" != UNKNOWN ] && break
+                sleep 10
+            done
+            if [ "$state" = BEHIND ]; then
+                gh pr comment "$PR_URL" --body '@dependabot rebase'
+                # Red on purpose: if Dependabot ignores the request, the PR stalls visibly.
+                echo "::error::Branch is behind main; requested a Dependabot rebase instead of merging"
+                exit 1
+            fi
             gh pr merge --merge "$PR_URL"
             gh workflow run remote.yml --ref "$BASE"
