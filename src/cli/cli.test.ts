@@ -337,110 +337,134 @@ describe('instructions command failure', () => {
     }
 })
 
-describe('mcp command', () => {
-    if (!canRunSymlinkTest) {
-        it.skip('speaks MCP over stdio and writes nothing else to stdout (dist/cli.js missing and `bun run build` failed)', () => {})
-    } else {
-        it('speaks MCP over stdio and writes nothing else to stdout', async () => {
-            const child = spawn('node', [distCli, 'mcp'], {
-                stdio: ['pipe', 'pipe', 'pipe'],
-            })
-            const lines: string[] = []
-            let buffer = ''
+// Completes an MCP initialize handshake and a tools/list over stdio, and
+// checks the server writes nothing else to stdout.
+async function expectMcpHandshake(command: string, args: string[]) {
+    const child = spawn(command, [...args, 'mcp'], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    const lines: string[] = []
+    let buffer = ''
 
-            child.stdout.on('data', (chunk: Buffer) => {
-                buffer += chunk.toString('utf8')
-                let index: number
-                while ((index = buffer.indexOf('\n')) !== -1) {
-                    lines.push(buffer.slice(0, index))
-                    buffer = buffer.slice(index + 1)
+    child.stdout.on('data', (chunk: Buffer) => {
+        buffer += chunk.toString('utf8')
+        let index: number
+        while ((index = buffer.indexOf('\n')) !== -1) {
+            lines.push(buffer.slice(0, index))
+            buffer = buffer.slice(index + 1)
+        }
+    })
+
+    function send(message: unknown) {
+        child.stdin.write(`${JSON.stringify(message)}\n`)
+    }
+
+    function waitForLines(count: number, timeoutMs = 5000): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const start = Date.now()
+            const timer = setInterval(() => {
+                if (lines.length >= count) {
+                    clearInterval(timer)
+                    resolve()
+                } else if (Date.now() - start > timeoutMs) {
+                    clearInterval(timer)
+                    reject(
+                        new Error(
+                            'timed out waiting for the mcp server to respond'
+                        )
+                    )
                 }
-            })
+            }, 20)
+        })
+    }
 
-            function send(message: unknown) {
-                child.stdin.write(`${JSON.stringify(message)}\n`)
-            }
+    try {
+        send({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'initialize',
+            params: {
+                protocolVersion: '2024-11-05',
+                capabilities: {},
+                clientInfo: {
+                    name: 'standup-mr-test',
+                    version: '1.0.0',
+                },
+            },
+        })
+        await waitForLines(1)
 
-            function waitForLines(
-                count: number,
-                timeoutMs = 5000
-            ): Promise<void> {
-                return new Promise((resolve, reject) => {
-                    const start = Date.now()
-                    const timer = setInterval(() => {
-                        if (lines.length >= count) {
-                            clearInterval(timer)
-                            resolve()
-                        } else if (Date.now() - start > timeoutMs) {
-                            clearInterval(timer)
-                            reject(
-                                new Error(
-                                    'timed out waiting for the mcp server to respond'
-                                )
-                            )
-                        }
-                    }, 20)
+        send({ jsonrpc: '2.0', method: 'notifications/initialized' })
+        send({
+            jsonrpc: '2.0',
+            id: 2,
+            method: 'tools/list',
+            params: {},
+        })
+        await waitForLines(2)
+
+        const initResponse = JSON.parse(lines[0]!)
+        expect(initResponse.result.serverInfo.name).toBe('standup-mr')
+        expect(initResponse.result.serverInfo.version).toBe(
+            JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'))
+                .version
+        )
+
+        const toolsResponse = JSON.parse(lines[1]!)
+        const toolNames = (
+            toolsResponse.result.tools as Array<{ name: string }>
+        ).map(tool => tool.name)
+        expect(toolNames.sort()).toEqual([
+            'get_note_instructions',
+            'get_standup_data',
+            'post_standup_note',
+        ])
+
+        const tool = (
+            toolsResponse.result.tools as Array<{
+                name: string
+                inputSchema: { properties?: Record<string, unknown> }
+            }>
+        ).find(row => row.name === 'get_standup_data')!
+        expect(Object.keys(tool.inputSchema.properties ?? {}).sort()).toEqual([
+            'host',
+            'lang',
+            'provider',
+        ])
+        expect(JSON.stringify(tool.inputSchema)).not.toMatch(/token/i)
+
+        expect(lines).toHaveLength(2)
+    } finally {
+        child.kill()
+    }
+}
+
+describe('mcp command', () => {
+    it('speaks MCP over stdio from a source checkout with no dist/', async () => {
+        const checkout = mkdtempSync(join(tmpdir(), 'standup-src-'))
+        try {
+            for (const entry of ['package.json', 'src', 'mcp', 'skills']) {
+                cpSync(join(repoRoot, entry), join(checkout, entry), {
+                    recursive: true,
                 })
             }
+            symlinkSync(
+                join(repoRoot, 'node_modules'),
+                join(checkout, 'node_modules')
+            )
+            await expectMcpHandshake('bun', [
+                join(checkout, 'src', 'cli', 'cli.ts'),
+            ])
+        } finally {
+            rmSync(checkout, { recursive: true, force: true })
+        }
+    }, 10000)
 
-            try {
-                send({
-                    jsonrpc: '2.0',
-                    id: 1,
-                    method: 'initialize',
-                    params: {
-                        protocolVersion: '2024-11-05',
-                        capabilities: {},
-                        clientInfo: {
-                            name: 'standup-mr-test',
-                            version: '1.0.0',
-                        },
-                    },
-                })
-                await waitForLines(1)
-
-                send({ jsonrpc: '2.0', method: 'notifications/initialized' })
-                send({
-                    jsonrpc: '2.0',
-                    id: 2,
-                    method: 'tools/list',
-                    params: {},
-                })
-                await waitForLines(2)
-
-                const initResponse = JSON.parse(lines[0]!)
-                expect(initResponse.result.serverInfo.name).toBe('standup-mr')
-                expect(initResponse.result.serverInfo.version).toBe(
-                    JSON.parse(
-                        readFileSync(join(repoRoot, 'package.json'), 'utf8')
-                    ).version
-                )
-
-                const toolsResponse = JSON.parse(lines[1]!)
-                const toolNames = (
-                    toolsResponse.result.tools as Array<{ name: string }>
-                ).map(tool => tool.name)
-                expect(toolNames.sort()).toEqual([
-                    'get_note_instructions',
-                    'get_standup_data',
-                    'post_standup_note',
-                ])
-
-                const tool = (
-                    toolsResponse.result.tools as Array<{
-                        name: string
-                        inputSchema: { properties?: Record<string, unknown> }
-                    }>
-                ).find(row => row.name === 'get_standup_data')!
-                expect(
-                    Object.keys(tool.inputSchema.properties ?? {}).sort()
-                ).toEqual(['host', 'lang', 'provider'])
-                expect(JSON.stringify(tool.inputSchema)).not.toMatch(/token/i)
-
-                expect(lines).toHaveLength(2)
-            } finally {
-                child.kill()
-            }
+    if (!canRunSymlinkTest) {
+        it.skip('speaks MCP over stdio from the built bin (dist/cli.js missing and `bun run build` failed)', () => {})
+    } else {
+        it('speaks MCP over stdio from the built bin', async () => {
+            await expectMcpHandshake('node', [distCli])
         }, 10000)
     }
 })
