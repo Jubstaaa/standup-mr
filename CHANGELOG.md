@@ -92,8 +92,10 @@ The report gains a field, so the next release is a minor version.
   OAuth token exchange refuses an answer over 10 MiB, and every request has a
   30-second total deadline next to its idle timeout.
 - npm releases carry provenance (`npm audit signatures` verifies them) and are
-  published only from tags on `main`, from a tarball packed in a job that holds
-  no publishing credential.
+  published through npm trusted publishing, only from tags on `main`, from a
+  tarball packed in a job that holds no publishing credential. The release
+  workflow uses no npm token; the old token is retired after the first trusted
+  publish.
 
 ### Dependencies
 

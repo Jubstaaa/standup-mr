@@ -227,7 +227,8 @@ either way isn't covering anything.
 1. Update `README.md` / `mcp/README.md` / `skills/standup/SKILL.md` if needed
 2. Run the local check list above; CI's `check` job must be green
 3. Changes under `remote/` also build the server image in the `Remote`
-   workflow; it deploys from `main` after merge
+   workflow; it deploys from `main` after merge (see "Deploying and rolling
+   back the hosted server")
 4. Add an entry under `[Unreleased]` in `CHANGELOG.md` for user-facing changes
 5. Request review from maintainers
 6. Address any feedback
@@ -256,6 +257,60 @@ The `Release` workflow then runs four jobs:
 - **github-release** creates the release from the changelog entry.
 
 Each publishing job skips work already done, so re-running a failed job is safe.
+A prerelease tag (`vX.Y.Z-*`) is refused by verify.
+
+### One-time setup
+
+These are what the release trusts; check them before the first release from
+a new account or fork.
+
+- **npm trusted publisher** for `standup-mr`: repository `Jubstaaa/standup-mr`,
+  workflow `release.yml`, environment `release`. The npm job needs npm 11.5.1
+  or newer (it runs Node 24) and checks for it.
+- **`release` environment** with a deployment policy that admits only `v*`
+  tags.
+- **`protect-release-tags` ruleset**: creating, updating or deleting
+  `refs/tags/v*` is restricted, with only the admin role allowed to bypass, so
+  only an admin can push step 3's tag and a published tag cannot be moved.
+- **Retire the old token** after the first release published this way: delete
+  the `NPM_TOKEN` repository secret, set the package's publishing access on
+  npmjs.com to "require two-factor authentication and disallow tokens", and
+  revoke the token there.
+
+### Bad release
+
+An npm version can never be published again, even after an unpublish, so the
+fix is always a new version.
+
+1. Publish a fixed `x.y.z+1` through the normal steps.
+2. Deprecate the bad one: `npm deprecate standup-mr@x.y.z "<reason>; use x.y.z+1"`.
+3. If `latest` must move before the fix is out:
+   `npm dist-tag add standup-mr@<good version> latest`.
+4. `npm unpublish standup-mr@x.y.z` only within npm's 72-hour window and its
+   other unpublish rules; prefer deprecating.
+
+The MCP registry entry cannot be deleted, only superseded by the next version.
+The GitHub release can be edited or deleted. The tag stays: the ruleset
+blocks retagging by design.
+
+## Deploying and rolling back the hosted server
+
+The `Remote` workflow builds the image on every push to `main` that touches
+the server, deploys it through the `production` environment (which admits
+only `main`), and keeps the previous image if the new one is unhealthy. A
+failed deploy opens or updates a "Production deploy failed" issue labelled
+`deploy-failure`; close it by hand once production is healthy.
+
+To roll back to an earlier release, dispatch the workflow from `main` with that
+release's full 40-character commit SHA:
+
+    gh workflow run remote.yml --ref main -f image_tag=<sha>
+
+If a schema migration ran since that release, also pass
+`-f restore_snapshot=true`. The server then starts on the newest database
+snapshot taken while that release ran, and every write since is discarded.
+Additive migrations (such as 3 and 4) do not need it: the previous image
+ignores the new columns.
 
 ## Commit Message Format
 

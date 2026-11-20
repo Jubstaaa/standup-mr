@@ -128,7 +128,9 @@ jobs:
   npm:
     needs: verify
     # The release environment admits only v* tags, and npm trusts exactly
-    # this workflow in this environment, so no npm token is stored anywhere.
+    # this workflow in this environment, so this job uses no npm token. The
+    # old NPM_TOKEN repository secret is retired after the first trusted
+    # publish (CONTRIBUTING, Releasing).
     environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 10
