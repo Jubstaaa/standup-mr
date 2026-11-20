@@ -31,21 +31,6 @@ jobs:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
-            # Before install, so it scans the repository (lockfiles, Dockerfile,
-            # compose file, secrets) rather than node_modules.
-            - name: Trivy (vulnerabilities, secrets, misconfiguration)
-              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-              with:
-                  scan-type: fs
-                  scan-ref: .
-                  scanners: vuln,secret,misconfig
-                  severity: HIGH,CRITICAL
-                  # Explicit, so a scanner upgrade shows up in review.
-                  version: v0.70.0
-                  # A finding with no fixed version would block every PR with
-                  # nothing to act on; bun audit reports those advisories too.
-                  ignore-unfixed: true
-                  exit-code: '1'
             - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
               with:
                   bun-version-file: package.json
@@ -67,6 +52,27 @@ jobs:
             - run: bun run duplication
             - run: bun run deps:check
             - run: bun run build
+            # Last, so a new advisory never hides lint or test feedback. Lockfiles,
+            # Dockerfile, compose file and secrets; not installed or built output.
+            - name: Trivy (vulnerabilities, secrets, misconfiguration)
+              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+              with:
+                  scan-type: fs
+                  scan-ref: .
+                  scanners: vuln,secret,misconfig
+                  skip-dirs: node_modules,dist
+                  severity: HIGH,CRITICAL
+                  # Explicit, so a scanner upgrade shows up in review.
+                  version: v0.70.0
+                  # A finding with no fixed version would block every PR with
+                  # nothing to act on; bun audit reports those advisories too.
+                  ignore-unfixed: true
+                  exit-code: '1'
+                  # Outside the checkout, so the downloaded checks bundle never
+                  # reaches prettier or eslint; and no per-PR DB cache, which no
+                  # other PR could restore.
+                  cache-dir: ${{ runner.temp }}/trivy
+                  cache: 'false'
             - name: actionlint
               run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color
 
@@ -122,6 +128,8 @@ jobs:
                   severity: HIGH,CRITICAL
                   ignore-unfixed: true
                   exit-code: '1'
+                  cache-dir: ${{ runner.temp }}/trivy
+                  cache: 'false'
             - name: Start candidate
               env:
                   IMAGE_TAG: candidate

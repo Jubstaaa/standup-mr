@@ -11,6 +11,12 @@ permissions:
   # Dispatches the deploy after merging.
   actions: write
 
+# A push or rebase supersedes the previous watcher, which would otherwise
+# race the new one to merge.
+concurrency:
+  group: automerge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   auto-merge:
     if: github.event.pull_request.user.login == 'dependabot[bot]'
