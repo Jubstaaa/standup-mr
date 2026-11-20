@@ -26,9 +26,9 @@ import { GITHUB_HOST, GITLAB_HOST } from '../upstream/upstream.constants'
 import type { UpstreamTokens } from '../upstream/upstream.types'
 
 import { identifyClient } from './client-identity'
+import { connectCookieName } from './connect-cookie'
 import { renderConnectPage, renderMessagePage } from './connect-page'
 import {
-    CONNECT_COOKIE,
     CONNECT_ERRORS,
     CONNECT_NOTICES,
     TOKEN_FORM_LIMIT_PER_MINUTE,
@@ -72,11 +72,6 @@ function fieldList(req: Request, name: string): string[] {
     const value: unknown = req.body?.[name]
     const values = Array.isArray(value) ? value : [value]
     return values.filter((item): item is string => typeof item === 'string')
-}
-
-function browserSecret(req: Request): string | undefined {
-    const value: unknown = req.cookies?.[CONNECT_COOKIE]
-    return typeof value === 'string' ? value : undefined
 }
 
 function pageUrl(pendingId: string, params: PageParams = {}): string {
@@ -178,7 +173,13 @@ function redirectToClient(
 
 export function createConnectRouter(deps: ConnectDeps): Router {
     const { store, upstream } = deps
+    const cookieName = connectCookieName(deps.baseUrl)
     const router = Router()
+
+    function browserSecret(req: Request): string | undefined {
+        const value: unknown = req.cookies?.[cookieName]
+        return typeof value === 'string' ? value : undefined
+    }
     router.use(cookieParser(), urlencoded({ extended: false, limit: '8kb' }))
 
     function withPending(handler: PendingHandler): RequestHandler {

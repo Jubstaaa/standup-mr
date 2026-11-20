@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/server/auth/clients.js'
 import {
+    InvalidClientMetadataError,
     InvalidGrantError,
     InvalidTargetError,
     InvalidTokenError,
@@ -18,7 +19,8 @@ import type {
 } from '@modelcontextprotocol/sdk/shared/auth.js'
 import type { Response } from 'express'
 
-import { CONNECT_COOKIE } from '../connect/connect.constants'
+import { connectCookieName } from '../connect/connect-cookie'
+import { LOOPBACK_HOSTS } from '../connect/connect.constants'
 import { randomToken } from '../crypto/crypto'
 import type { Store } from '../store/store'
 import {
@@ -30,6 +32,29 @@ import {
 export interface OAuthProviderOptions {
     mcpUrl: URL
     now?: () => number
+}
+
+const SCRIPT_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
+
+// The code travels to the redirect URI, so plain http is only accepted on
+// loopback (a native app on the user's own machine, RFC 8252); a custom
+// scheme is how desktop clients such as Cursor sign in.
+function assertSafeRedirects(redirectUris: string[]): void {
+    for (const redirect of redirectUris) {
+        const url = URL.parse(redirect)
+        const isSafe =
+            url !== null &&
+            (url.protocol === 'https:' ||
+                (url.protocol === 'http:' &&
+                    LOOPBACK_HOSTS.includes(url.hostname)) ||
+                (url.protocol !== 'http:' &&
+                    !SCRIPT_SCHEMES.includes(url.protocol)))
+        if (!isSafe) {
+            throw new InvalidClientMetadataError(
+                `Redirect URI ${redirect} must use https, or http on localhost.`
+            )
+        }
+    }
 }
 
 export class StandupOAuthProvider implements OAuthServerProvider {
@@ -50,6 +75,7 @@ export class StandupOAuthProvider implements OAuthServerProvider {
                 // The SDK fills in client_id before calling us; the type just
                 // does not say so.
                 const full = client as OAuthClientInformationFull
+                assertSafeRedirects(full.redirect_uris)
                 store.clients.save(full, this.now())
                 return full
             },
@@ -81,11 +107,13 @@ export class StandupOAuthProvider implements OAuthServerProvider {
             },
             this.now()
         )
-        res.cookie(CONNECT_COOKIE, browserSecret, {
+        const secure = this.mcpUrl.protocol === 'https:'
+        res.cookie(connectCookieName(this.mcpUrl), browserSecret, {
             httpOnly: true,
-            secure: this.mcpUrl.protocol === 'https:',
+            secure,
             sameSite: 'lax',
-            path: '/connect',
+            // __Host- requires the root path.
+            path: secure ? '/' : '/connect',
         })
         res.redirect(`/connect/${pendingId}`)
     }

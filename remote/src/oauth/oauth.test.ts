@@ -4,7 +4,6 @@ import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/share
 import { beforeEach, describe, expect, test } from 'bun:test'
 import type { Response } from 'express'
 
-import { CONNECT_COOKIE } from '../connect/connect.constants'
 import { Store } from '../store/store'
 import { REFRESH_REUSE_GRACE_MS } from '../store/store.constants'
 import { BROWSER_SECRET, startConnection } from '../store/store.fixtures'
@@ -24,13 +23,18 @@ let store: Store
 let provider: StandupOAuthProvider
 
 function fakeResponse() {
-    const sent = { location: '', cookies: {} as Record<string, string> }
+    const sent = {
+        location: '',
+        cookies: {} as Record<string, string>,
+        options: {} as Record<string, unknown>,
+    }
     const response = {
         redirect: (to: string) => {
             sent.location = to
         },
-        cookie: (name: string, value: string) => {
+        cookie: (name: string, value: string, options: object) => {
             sent.cookies[name] = value
+            sent.options[name] = options
         },
     } as unknown as Response
     return { sent, response }
@@ -70,7 +74,7 @@ describe('authorize', () => {
             response
         )
         const pendingId = sent.location.replace('/connect/', '')
-        const secret = sent.cookies[CONNECT_COOKIE]!
+        const secret = sent.cookies['__Host-standup_connect']!
 
         expect(
             store.authorizations.getPending(pendingId, secret, now)
@@ -81,6 +85,33 @@ describe('authorize', () => {
         expect(
             store.authorizations.getPending(pendingId, 'other', now)
         ).toBeUndefined()
+    })
+
+    // __Host- keeps a sibling subdomain from planting its own cookie and
+    // walking the user into the attacker's sign-in.
+    test('uses a __Host- cookie over https and a plain one over http', async () => {
+        const secure = fakeResponse()
+        await provider.authorize(
+            client,
+            { codeChallenge: 'c', redirectUri: REDIRECT_URI },
+            secure.response
+        )
+        expect(secure.sent.options['__Host-standup_connect']).toMatchObject({
+            secure: true,
+            path: '/',
+            httpOnly: true,
+        })
+
+        const local = fakeResponse()
+        await new StandupOAuthProvider(store, {
+            mcpUrl: new URL('http://localhost/mcp'),
+            now: () => now,
+        }).authorize(
+            client,
+            { codeChallenge: 'c', redirectUri: REDIRECT_URI },
+            local.response
+        )
+        expect(Object.keys(local.sent.cookies)).toEqual(['standup_connect'])
     })
 
     test('refuses a token for another resource', async () => {
@@ -111,6 +142,32 @@ describe('authorize', () => {
         )
         expect(sent.location).toStartWith('/connect/')
     })
+})
+
+describe('client registration', () => {
+    const register = async (redirect: string) =>
+        provider.clientsStore.registerClient!({
+            client_id: 'new',
+            redirect_uris: [redirect],
+        } as OAuthClientInformationFull)
+
+    test.each([
+        'https://claude.ai/api/mcp/auth_callback',
+        'http://localhost:33418/callback',
+        'http://127.0.0.1:9000/cb',
+        'http://[::1]:9000/cb',
+        'cursor://anysphere.cursor-retrieval/oauth/callback',
+    ])('accepts %s', async redirect => {
+        await expect(register(redirect)).resolves.toBeDefined()
+    })
+
+    test.each(['http://attacker.example.com/cb', 'javascript:alert(1)'])(
+        'refuses %s',
+        async redirect => {
+            await expect(register(redirect)).rejects.toThrow(/redirect/i)
+            expect(store.clients.get('new')).toBeUndefined()
+        }
+    )
 })
 
 describe('authorization code', () => {

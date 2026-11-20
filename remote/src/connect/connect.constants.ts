@@ -1,4 +1,9 @@
+// Over https the cookie carries the __Host- prefix: it is then host-only
+// and secure, so a sibling subdomain cannot plant one of its own and walk
+// the user into someone else's sign-in. Plain http (local runs) cannot use
+// the prefix.
 export const CONNECT_COOKIE = 'standup_connect'
+export const SECURE_CONNECT_COOKIE = '__Host-standup_connect'
 export const TOKEN_FORM_LIMIT_PER_MINUTE = 10
 
 // The exact callback URLs (origin and path, query ignored) of the MCP
