@@ -48,6 +48,9 @@ jobs:
     deploy:
         needs: ci
         if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (inputs.image_tag || needs.ci.result == 'success') }}
+        # The production environment only admits main, so its protection rules
+        # and secrets hold even if this condition is ever loosened.
+        environment: production
         runs-on: ubuntu-latest
         timeout-minutes: 15
         # Never cancel a deploy halfway through `compose up`.
