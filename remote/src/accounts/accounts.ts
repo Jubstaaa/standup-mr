@@ -7,8 +7,9 @@ import type { FetchLike, ProviderKind } from '../../../src/standup.types'
 import { errorDetail } from '../errors/errors'
 import type { AccountRepository } from '../store/account-repository'
 import type { Upstream } from '../upstream/upstream'
+import type { UpstreamTokens } from '../upstream/upstream.types'
 
-import { REFRESH_MARGIN_MS } from './accounts.constants'
+import { REFRESH_CLAIM_MS, REFRESH_MARGIN_MS } from './accounts.constants'
 import type { Account } from './accounts.types'
 
 export class AccountError extends Error {}
@@ -64,20 +65,47 @@ function isCurrent(account: Account, now: number): boolean {
     )
 }
 
-// Only the host saying no to the refresh token means it is dead; a network
-// or database error is worth another try, not a reconnect.
+// Only the host saying no to the refresh token means it is dead; RFC 6749
+// answers every token error with 400, so the status alone says nothing.
 function isRefusedGrant(error: unknown): boolean {
     return (
         error instanceof oauth.ResponseBodyError &&
-        (error.error === 'invalid_grant' ||
-            error.status === 400 ||
-            error.status === 401)
+        error.error === 'invalid_grant'
+    )
+}
+
+// The host refused the sign-in app itself (a rotated or revoked secret):
+// reconnecting goes through the same app, so it cannot help.
+function isRejectedClient(error: unknown): boolean {
+    return (
+        error instanceof oauth.ResponseBodyError &&
+        (error.error === 'invalid_client' ||
+            error.error === 'unauthorized_client')
+    )
+}
+
+function refreshFailure(account: Account, cause: unknown): Error {
+    if (isRefusedGrant(cause)) {
+        return new AccountError(
+            `The ${describeAccount(account)} login could not be renewed. Reconnect the connector.`
+        )
+    }
+    if (isRejectedClient(cause)) {
+        return new Error(
+            `The ${account.host} sign-in app was rejected, so the ${describeAccount(account)} login cannot be renewed. The server operator has to fix the app; reconnecting will not help.`,
+            { cause }
+        )
+    }
+    return new Error(
+        `The ${describeAccount(account)} login could not be renewed right now. Try again in a few minutes.`,
+        { cause }
     )
 }
 
 // OAuth tokens expire (GitHub after 8h, GitLab after 2h) and their refresh
-// tokens are single-use. Refreshes are shared per account, so two
-// concurrent tool calls never spend the same refresh token twice.
+// tokens are single-use. Refreshes are shared per account within a process
+// and claimed in the database across processes, so no two calls ever spend
+// the same refresh token.
 export function createTokenRefresher(
     upstream: Pick<Upstream, 'refresh' | 'resolve'>,
     accounts: AccountRepository
@@ -104,15 +132,16 @@ export function createTokenRefresher(
                 `The ${describeAccount(account)} login has expired. Reconnect the connector.`
             )
         }
-        try {
-            const tokens = await upstream.refresh(
-                app,
-                account.refreshToken,
-                now
+        if (!accounts.claimRefresh(account.id, now, now + REFRESH_CLAIM_MS)) {
+            throw new Error(
+                `The ${describeAccount(account)} login is being renewed by another request. Try again in a moment.`
             )
-            accounts.updateTokens(account.id, tokens)
-            return tokens.accessToken
+        }
+        let tokens: UpstreamTokens
+        try {
+            tokens = await upstream.refresh(app, account.refreshToken, now)
         } catch (cause) {
+            accounts.releaseRefresh(account.id)
             const refusal =
                 cause instanceof oauth.ResponseBodyError
                     ? ` (${cause.error}, HTTP ${cause.status})`
@@ -120,16 +149,21 @@ export function createTokenRefresher(
             console.error(
                 `token renewal failed for ${describeAccount(account)}: ${errorDetail(cause)}${refusal}`
             )
-            if (isRefusedGrant(cause)) {
-                throw new AccountError(
-                    `The ${describeAccount(account)} login could not be renewed. Reconnect the connector.`
-                )
-            }
-            throw new Error(
-                `The ${describeAccount(account)} login could not be renewed right now. Try again in a few minutes.`,
-                { cause }
+            throw refreshFailure(account, cause)
+        }
+        // The old refresh token is spent now: a save that fails cannot be
+        // retried with it, so this is never reported as temporary.
+        try {
+            accounts.updateTokens(account.id, tokens)
+        } catch (cause) {
+            console.error(
+                `renewed tokens for ${describeAccount(account)} could not be saved: ${errorDetail(cause)}`
+            )
+            throw new AccountError(
+                `The ${describeAccount(account)} login was renewed but could not be saved. Reconnect the connector.`
             )
         }
+        return tokens.accessToken
     }
 
     return async function freshAccessToken(

@@ -110,4 +110,24 @@ describe('AccountRepository', () => {
             })
         ).toThrow(/missing/)
     })
+
+    test('lets one caller claim a refresh until it ends or expires', () => {
+        const { id } = store.accounts.add(account())
+        expect(store.accounts.claimRefresh(id, 0, 1_000)).toBe(true)
+        expect(store.accounts.claimRefresh(id, 500, 1_500)).toBe(false)
+        expect(store.accounts.claimRefresh(id, 1_000, 2_000)).toBe(true)
+        store.accounts.releaseRefresh(id)
+        expect(store.accounts.claimRefresh(id, 1_100, 2_100)).toBe(true)
+    })
+
+    test('saving renewed tokens ends the refresh claim', () => {
+        const { id } = store.accounts.add(account())
+        store.accounts.claimRefresh(id, 0, 1_000)
+        store.accounts.updateTokens(id, {
+            accessToken: 'a',
+            refreshToken: null,
+            expiresAt: null,
+        })
+        expect(store.accounts.claimRefresh(id, 10, 1_010)).toBe(true)
+    })
 })

@@ -196,6 +196,109 @@ describe('createTokenRefresher', () => {
         expect(String(error)).toMatch(/Reconnect/)
     })
 
+    test.each([
+        ['invalid_request', 400],
+        ['invalid_scope', 400],
+    ])(
+        'calls a %s refusal temporary, not a reason to reconnect',
+        async (code, status) => {
+            refreshResult = async () => {
+                throw refused(code, status)
+            }
+            const logged = spyOn(console, 'error').mockImplementation(() => {})
+            try {
+                const fresh = createTokenRefresher(upstream(), store.accounts)
+                const error = await fresh(linked, 9_999_000).catch(
+                    (caught: unknown) => caught
+                )
+                expect(error).not.toBeInstanceOf(AccountError)
+                expect(String(error)).toMatch(/try again/i)
+            } finally {
+                logged.mockRestore()
+            }
+        }
+    )
+
+    test('says the sign-in app was rejected instead of asking for a reconnect', async () => {
+        refreshResult = async () => {
+            throw refused('invalid_client', 401)
+        }
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        try {
+            const fresh = createTokenRefresher(upstream(), store.accounts)
+            const error = await fresh(linked, 9_999_000).catch(
+                (caught: unknown) => caught
+            )
+            expect(error).not.toBeInstanceOf(AccountError)
+            expect(String(error)).toMatch(/sign-in app/)
+        } finally {
+            logged.mockRestore()
+        }
+    })
+
+    test('a renewal that cannot be saved asks for a reconnect, not a retry', async () => {
+        refreshResult = async () => {
+            store.accounts.remove(linked.connectionId, linked.id)
+            return { accessToken: 'new', refreshToken: 'r2', expiresAt: 1 }
+        }
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        try {
+            const fresh = createTokenRefresher(upstream(), store.accounts)
+            const error = await fresh(linked, 9_999_000).catch(
+                (caught: unknown) => caught
+            )
+            expect(error).toBeInstanceOf(AccountError)
+            expect(String(error)).toMatch(/could not be saved/)
+        } finally {
+            logged.mockRestore()
+        }
+    })
+
+    test('leaves a refresh another server is running to that server', async () => {
+        let finish: (tokens: UpstreamTokens) => void = () => undefined
+        refreshResult = () =>
+            new Promise(resolve => {
+                finish = resolve
+            })
+        // Two refreshers on one database stand in for two processes.
+        const first = createTokenRefresher(upstream(), store.accounts)
+        const second = createTokenRefresher(upstream(), store.accounts)
+
+        const running = first(linked, 9_999_000)
+        await Bun.sleep(0)
+        await expect(second(linked, 9_999_000)).rejects.toThrow(/try again/i)
+        expect(refreshCalls).toBe(1)
+
+        finish({
+            accessToken: 'new',
+            refreshToken: 'r2',
+            expiresAt: 38_800_000,
+        })
+        expect(await running).toBe('new')
+        expect(await second(linked, 9_999_000)).toBe('new')
+        expect(refreshCalls).toBe(1)
+    })
+
+    test('a failed refresh frees the account for the next try', async () => {
+        refreshResult = async () => {
+            throw new Error('ECONNRESET')
+        }
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        try {
+            const fresh = createTokenRefresher(upstream(), store.accounts)
+            await expect(fresh(linked, 9_999_000)).rejects.toThrow()
+            refreshResult = async () => ({
+                accessToken: 'new',
+                refreshToken: 'r2',
+                expiresAt: 38_800_000,
+            })
+            expect(await fresh(linked, 9_999_000)).toBe('new')
+            expect(refreshCalls).toBe(2)
+        } finally {
+            logged.mockRestore()
+        }
+    })
+
     test('calls a network failure temporary, not a reason to reconnect', async () => {
         refreshResult = async () => {
             throw new Error('ECONNRESET')

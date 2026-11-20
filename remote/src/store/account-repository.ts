@@ -94,11 +94,33 @@ export class AccountRepository {
             .run(connectionId, accountId)
     }
 
+    // True only for the caller that took the claim; one left by a server
+    // that died lapses at its expiry.
+    claimRefresh(accountId: string, now: number, until: number): boolean {
+        return (
+            this.db
+                .query(
+                    `UPDATE accounts SET refresh_claimed_until = ? WHERE id = ?
+                     AND (refresh_claimed_until IS NULL OR refresh_claimed_until <= ?)`
+                )
+                .run(until, accountId, now).changes === 1
+        )
+    }
+
+    releaseRefresh(accountId: string): void {
+        this.db
+            .query(
+                'UPDATE accounts SET refresh_claimed_until = NULL WHERE id = ?'
+            )
+            .run(accountId)
+    }
+
     updateTokens(accountId: string, tokens: UpstreamTokens): void {
         const result = this.db
             .query(
                 `UPDATE accounts SET access_token = ?,
-                 refresh_token = COALESCE(?, refresh_token), expires_at = ? WHERE id = ?`
+                 refresh_token = COALESCE(?, refresh_token), expires_at = ?,
+                 refresh_claimed_until = NULL WHERE id = ?`
             )
             .run(
                 seal(this.key, tokens.accessToken),

@@ -125,6 +125,9 @@ CREATE INDEX IF NOT EXISTS schedules_next_run ON schedules (next_run_at);
     // A run that posted but could not read every account says so here,
     // apart from last_error, which means the run did not post at all.
     'ALTER TABLE schedules ADD COLUMN last_warning TEXT',
+    // A refresh token is single-use: the server about to spend it claims the
+    // account here first, so two servers sharing the database never both do.
+    'ALTER TABLE accounts ADD COLUMN refresh_claimed_until INTEGER',
 ]
 
 const CONNECTION_INSTANCES = `
