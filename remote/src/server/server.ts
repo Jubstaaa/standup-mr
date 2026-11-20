@@ -94,7 +94,11 @@ export function createApp(
     const app = express()
     const { fetchImpl, freshAccessToken, now, upstream } = services
     const mcpUrl = new URL('/mcp', config.baseUrl)
-    const provider = new StandupOAuthProvider(store, { mcpUrl, now })
+    const provider = new StandupOAuthProvider(store, {
+        mcpUrl,
+        now,
+        siteUrl: config.baseUrl,
+    })
     const authLimit = { keyGenerator: clientKey }
 
     // Finish redirects a form POST to the client's callback, which a

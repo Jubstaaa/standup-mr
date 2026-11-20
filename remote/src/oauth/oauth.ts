@@ -19,7 +19,7 @@ import type {
 } from '@modelcontextprotocol/sdk/shared/auth.js'
 import type { Response } from 'express'
 
-import { connectCookieName } from '../connect/connect-cookie'
+import { connectCookie } from '../connect/connect-cookie'
 import { LOOPBACK_HOSTS } from '../connect/connect.constants'
 import { randomToken } from '../crypto/crypto'
 import type { Store } from '../store/store'
@@ -32,6 +32,8 @@ import {
 export interface OAuthProviderOptions {
     mcpUrl: URL
     now?: () => number
+    // The configured site URL, which the connect pages read the cookie by.
+    siteUrl: URL
 }
 
 const SCRIPT_SCHEMES = ['javascript:', 'data:', 'vbscript:', 'file:']
@@ -62,6 +64,7 @@ export class StandupOAuthProvider implements OAuthServerProvider {
 
     private readonly mcpUrl: URL
     private readonly now: () => number
+    private readonly siteUrl: URL
 
     constructor(
         private readonly store: Store,
@@ -69,6 +72,7 @@ export class StandupOAuthProvider implements OAuthServerProvider {
     ) {
         this.mcpUrl = options.mcpUrl
         this.now = options.now ?? Date.now
+        this.siteUrl = options.siteUrl
         this.clientsStore = {
             getClient: id => store.clients.get(id),
             registerClient: client => {
@@ -107,14 +111,8 @@ export class StandupOAuthProvider implements OAuthServerProvider {
             },
             this.now()
         )
-        const secure = this.mcpUrl.protocol === 'https:'
-        res.cookie(connectCookieName(this.mcpUrl), browserSecret, {
-            httpOnly: true,
-            secure,
-            sameSite: 'lax',
-            // __Host- requires the root path.
-            path: secure ? '/' : '/connect',
-        })
+        const cookie = connectCookie(this.siteUrl)
+        res.cookie(cookie.name, browserSecret, cookie.options)
         res.redirect(`/connect/${pendingId}`)
     }
 

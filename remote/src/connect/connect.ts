@@ -31,7 +31,7 @@ import { GITHUB_HOST, GITLAB_HOST } from '../upstream/upstream.constants'
 import type { UpstreamTokens } from '../upstream/upstream.types'
 
 import { identifyClient } from './client-identity'
-import { connectCookieName } from './connect-cookie'
+import { connectCookie } from './connect-cookie'
 import { digestErrorCode, hostErrorCode } from './connect-errors'
 import { renderConnectPage, renderMessagePage } from './connect-page'
 import {
@@ -172,7 +172,7 @@ function redirectToClient(
 
 export function createConnectRouter(deps: ConnectDeps): Router {
     const { store, upstream } = deps
-    const cookieName = connectCookieName(deps.baseUrl)
+    const cookieName = connectCookie(deps.baseUrl).name
     const router = Router()
 
     function browserSecret(req: Request): string | undefined {

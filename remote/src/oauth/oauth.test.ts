@@ -61,6 +61,7 @@ beforeEach(() => {
     provider = new StandupOAuthProvider(store, {
         mcpUrl: MCP_URL,
         now: () => now,
+        siteUrl: new URL('/', MCP_URL),
     })
     store.clients.save(client, now)
 })
@@ -106,6 +107,7 @@ describe('authorize', () => {
         await new StandupOAuthProvider(store, {
             mcpUrl: new URL('http://localhost/mcp'),
             now: () => now,
+            siteUrl: new URL('http://localhost/'),
         }).authorize(
             client,
             { codeChallenge: 'c', redirectUri: REDIRECT_URI },
