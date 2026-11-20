@@ -40,6 +40,8 @@ jobs:
                   scan-ref: .
                   scanners: vuln,secret,misconfig
                   severity: HIGH,CRITICAL
+                  # Explicit, so a scanner upgrade shows up in review.
+                  version: v0.70.0
                   # A finding with no fixed version would block every PR with
                   # nothing to act on; bun audit reports those advisories too.
                   ignore-unfixed: true
@@ -109,6 +111,17 @@ jobs:
             # The production compose file itself, so CI exercises exactly the
             # hardening, healthcheck and limits the droplet runs. The key is
             # throwaway: the candidate only ever sees an empty database.
+            # OS packages and the bun runtime inside the image, which the
+            # repository scan in check cannot see.
+            - name: Trivy (candidate image)
+              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+              with:
+                  scan-type: image
+                  image-ref: ${{ env.IMAGE }}:candidate
+                  version: v0.70.0
+                  severity: HIGH,CRITICAL
+                  ignore-unfixed: true
+                  exit-code: '1'
             - name: Start candidate
               env:
                   IMAGE_TAG: candidate

@@ -16,9 +16,6 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-    outputs:
-      name: ${{ steps.package.outputs.name }}
-      version: ${{ steps.package.outputs.version }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -108,11 +105,6 @@ jobs:
             exit 1
           fi
 
-      - id: package
-        run: |
-          echo "name=$(node -p "require('./package.json').name")" >> "$GITHUB_OUTPUT"
-          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
-
       - name: Pack the package
         run: npm pack --pack-destination "$RUNNER_TEMP/package"
 
@@ -147,8 +139,10 @@ jobs:
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          EXPECTED: ${{ needs.verify.outputs.name }}@${{ needs.verify.outputs.version }}
         run: |
+          # From trusted inputs only, not from verify's outputs: verify runs
+          # dependency code and could rewrite its outputs along with the tarball.
+          EXPECTED="standup-mr@${GITHUB_REF_NAME#v}"
           # Check what is about to be signed instead of trusting a glob.
           shopt -s nullglob
           # ./ matters: npm reads a bare dir/file.tgz as a GitHub shorthand.
@@ -169,7 +163,7 @@ jobs:
           npm publish "${tarballs[0]}" --provenance
 
   mcp-registry:
-    needs: [verify, npm]
+    needs: npm
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -180,8 +174,7 @@ jobs:
       # registry_1.8.1_checksums.txt from the v1.8.1 release.
       MCP_PUBLISHER_URL: https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz
       MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
-      PACKAGE: ${{ needs.verify.outputs.name }}
-      VER: ${{ needs.verify.outputs.version }}
+      PACKAGE: standup-mr
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -194,6 +187,7 @@ jobs:
       - name: Publish to the MCP registry
         run: |
           NAME=$(jq -r .name server.json)
+          VER="${GITHUB_REF_NAME#v}"
           ENCODED=$(jq -rn --arg n "$NAME" '$n | @uri')
           if curl -fsS -o /dev/null "https://registry.modelcontextprotocol.io/v0/servers/$ENCODED/versions/$VER"; then
             echo "$NAME@$VER is already in the MCP registry; nothing to publish."
