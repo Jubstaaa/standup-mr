@@ -1,0 +1,9 @@
+{
+    "path": ["src", "mcp", "remote/src"],
+    "format": ["typescript"],
+    "minTokens": 60,
+    "threshold": 1,
+    "reporters": ["console"],
+    "ignore": ["**/*.test.ts", "**/*.fixtures.ts", "**/*.cases.ts"],
+    "gitignore": true
+}

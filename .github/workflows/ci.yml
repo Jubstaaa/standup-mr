@@ -31,6 +31,16 @@ jobs:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
+            # Before install, so it scans the repository (lockfiles, Dockerfile,
+            # compose file, secrets) rather than node_modules.
+            - name: Trivy (vulnerabilities, secrets, misconfiguration)
+              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+              with:
+                  scan-type: fs
+                  scan-ref: .
+                  scanners: vuln,secret,misconfig
+                  severity: HIGH,CRITICAL
+                  exit-code: '1'
             - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
               with:
                   bun-version-file: package.json
@@ -45,6 +55,12 @@ jobs:
             - run: bun test
             - run: bun run test:tz
             - run: bun run audit
+            # Dead code and unused dependencies (knip.json), duplication
+            # (.jscpd.json threshold) and the module graph: no cycles, no orphans,
+            # no dev dependency in shipped code (.dependency-cruiser.cjs).
+            - run: bun run knip
+            - run: bun run duplication
+            - run: bun run deps:graph
             - run: bun run build
             - name: actionlint
               run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color

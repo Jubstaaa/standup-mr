@@ -1,0 +1,9 @@
+{
+    "$schema": "https://unpkg.com/knip@6/schema.json",
+    "workspaces": {
+        ".": {
+            "entry": ["src/dates/*.cases.ts", "scripts/*.mjs"]
+        },
+        "remote": {}
+    }
+}
