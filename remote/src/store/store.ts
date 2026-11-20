@@ -19,6 +19,7 @@ const TABLES = [
     'accounts',
     'clients',
     'codes',
+    'connection_instances',
     'connections',
     'instances',
     'pending',
@@ -100,7 +101,7 @@ export class Store {
             this.db.query('DELETE FROM tokens WHERE expires_at < ?').run(now)
             this.db
                 .query(
-                    'DELETE FROM instances WHERE verified_at IS NULL AND created_at < ?'
+                    'DELETE FROM connection_instances WHERE verified_at IS NULL AND created_at < ?'
                 )
                 .run(now - UNVERIFIED_INSTANCE_TTL_MS)
             // Dynamic registration is open, so clients nobody uses go too.

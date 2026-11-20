@@ -103,28 +103,29 @@ CREATE INDEX IF NOT EXISTS schedules_next_run ON schedules (next_run_at);
     // A self-hosted OAuth application belongs to the connection that
     // registered it; one shared per host let anyone lock it or harvest the
     // tokens of everyone signing in through it. Who registered a shared
-    // row was never stored, so each one goes to every connection whose
-    // OAuth account was issued by it (they need it to refresh); one nobody
-    // signed in with is dropped and set up again by whoever needs it.
+    // row was never stored, so each one is copied to every connection whose
+    // OAuth account it issued (they need it to refresh). The shared table
+    // stays untouched for the previous release, which a failed deploy rolls
+    // back to; this code never reads it, and a later release drops it.
     db => {
-        const dropped = db
+        db.exec(CONNECTION_INSTANCES)
+        const skipped = db
             .query<{ n: number }, []>(
                 `SELECT COUNT(*) AS n FROM instances WHERE NOT EXISTS (
                  SELECT 1 FROM accounts WHERE accounts.provider = instances.kind
                  AND accounts.host = instances.host AND accounts.source = 'oauth')`
             )
             .get()!.n
-        db.exec(SCOPE_INSTANCES_TO_CONNECTIONS)
-        if (dropped > 0) {
+        if (skipped > 0) {
             console.error(
-                `schema migration 2: dropped ${dropped} self-hosted OAuth app(s) nobody had signed in with; they are set up again on the connect page`
+                `schema migration 2: ${skipped} self-hosted OAuth app(s) nobody had signed in with were not carried over; they are set up again on the connect page`
             )
         }
     },
 ]
 
-const SCOPE_INSTANCES_TO_CONNECTIONS = `
-CREATE TABLE instances_by_connection (
+const CONNECTION_INSTANCES = `
+CREATE TABLE connection_instances (
     connection_id TEXT NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
     kind TEXT NOT NULL,
     host TEXT NOT NULL,
@@ -135,16 +136,13 @@ CREATE TABLE instances_by_connection (
     PRIMARY KEY (connection_id, kind, host)
 );
 
-INSERT INTO instances_by_connection
+INSERT INTO connection_instances
 SELECT DISTINCT accounts.connection_id, instances.kind, instances.host,
     instances.client_id, instances.client_secret, instances.created_at,
     instances.verified_at
 FROM instances
 JOIN accounts ON accounts.provider = instances.kind
     AND accounts.host = instances.host AND accounts.source = 'oauth';
-
-DROP TABLE instances;
-ALTER TABLE instances_by_connection RENAME TO instances;
 `
 
 export function schemaVersion(db: Database): number {

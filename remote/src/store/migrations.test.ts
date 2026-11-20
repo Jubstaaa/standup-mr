@@ -25,6 +25,7 @@ describe('migrate', () => {
             'accounts',
             'clients',
             'codes',
+            'connection_instances',
             'connections',
             'instances',
             'pending',
@@ -162,7 +163,7 @@ describe('migrate', () => {
         try {
             migrate(db, MIGRATIONS)
             expect(String(logged.mock.calls[0])).toContain(
-                'dropped 1 self-hosted OAuth app'
+                '1 self-hosted OAuth app(s) nobody had signed in with'
             )
         } finally {
             logged.mockRestore()
@@ -171,7 +172,7 @@ describe('migrate', () => {
         expect(
             db
                 .query(
-                    'SELECT connection_id, host, client_id, verified_at FROM instances ORDER BY connection_id'
+                    'SELECT connection_id, host, client_id, verified_at FROM connection_instances ORDER BY connection_id'
                 )
                 .all()
         ).toEqual([
@@ -190,6 +191,10 @@ describe('migrate', () => {
         ])
         expect(db.query('SELECT COUNT(*) AS n FROM accounts').get()).toEqual({
             n: 3,
+        })
+        // The shared table stays as it was, for the previous release.
+        expect(db.query('SELECT COUNT(*) AS n FROM instances').get()).toEqual({
+            n: 2,
         })
     })
 
@@ -217,5 +222,32 @@ describe('migrate', () => {
             waiting.close()
             rmSync(dir, { recursive: true, force: true })
         }
+    })
+
+    // An unhealthy deploy rolls back to the previous image, which still
+    // reads and writes the shared table with these statements.
+    test('keeps the previous release working on a migrated database', () => {
+        const db = new Database(':memory:')
+        migrate(db, MIGRATIONS)
+        const save = db.query(
+            `INSERT INTO instances (kind, host, client_id, client_secret, created_at)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT (kind, host) DO UPDATE SET
+             client_id = excluded.client_id, client_secret = excluded.client_secret,
+             created_at = excluded.created_at
+             WHERE instances.verified_at IS NULL`
+        )
+        save.run('gitlab', 'git.example.com', 'one', 'sealed', 1)
+        save.run('gitlab', 'git.example.com', 'two', 'sealed', 1)
+        db.query(
+            'UPDATE instances SET verified_at = ? WHERE kind = ? AND host = ? AND verified_at IS NULL'
+        ).run(2, 'gitlab', 'git.example.com')
+        expect(
+            db
+                .query(
+                    'SELECT client_id FROM instances WHERE kind = ? AND host = ?'
+                )
+                .get('gitlab', 'git.example.com')
+        ).toEqual({ client_id: 'two' })
     })
 })

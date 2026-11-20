@@ -26,7 +26,7 @@ export class InstanceRepository {
     ): Instance | undefined {
         const row = this.db
             .query<InstanceRow, [string, string, string]>(
-                'SELECT * FROM instances WHERE connection_id = ? AND kind = ? AND host = ?'
+                'SELECT * FROM connection_instances WHERE connection_id = ? AND kind = ? AND host = ?'
             )
             .get(connectionId, kind, host)
         if (!row) return undefined
@@ -49,12 +49,12 @@ export class InstanceRepository {
     ): boolean {
         const result = this.db
             .query(
-                `INSERT INTO instances (connection_id, kind, host, client_id, client_secret, created_at)
+                `INSERT INTO connection_instances (connection_id, kind, host, client_id, client_secret, created_at)
                  VALUES (?, ?, ?, ?, ?, ?)
                  ON CONFLICT (connection_id, kind, host) DO UPDATE SET
                  client_id = excluded.client_id, client_secret = excluded.client_secret,
                  created_at = excluded.created_at
-                 WHERE instances.verified_at IS NULL`
+                 WHERE connection_instances.verified_at IS NULL`
             )
             .run(
                 connectionId,
@@ -75,7 +75,7 @@ export class InstanceRepository {
     ): void {
         this.db
             .query(
-                `UPDATE instances SET verified_at = ?
+                `UPDATE connection_instances SET verified_at = ?
                  WHERE connection_id = ? AND kind = ? AND host = ? AND verified_at IS NULL`
             )
             .run(now, connectionId, kind, host)
