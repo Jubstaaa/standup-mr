@@ -1,5 +1,5 @@
 import { classify, markMissingPipelines } from '../../buckets/buckets'
-import { isoDay, localAt } from '../../dates/dates'
+import { isoDay, localDay } from '../../dates/dates'
 import { MS_PER_DAY } from '../../dates/dates.constants'
 import type {
     ActivityEvent,
@@ -233,7 +233,7 @@ export class GitHubProvider implements Provider {
             draft: pull.draft,
             branch: pull.head?.ref ?? '',
             target: pull.base?.ref ?? '',
-            updated: localAt(pull.updated_at).slice(0, 10),
+            updated: localDay(pull.updated_at),
             url: pull.html_url,
             mergeStatus: pull.mergeable_state ?? null,
             pipeline,
@@ -277,7 +277,7 @@ export class GitHubProvider implements Provider {
                     {},
                     2
                 )
-                const updated = localAt(item.updated_at).slice(0, 10)
+                const updated = localDay(item.updated_at)
 
                 return {
                     provider: 'github' as const,

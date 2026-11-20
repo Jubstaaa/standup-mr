@@ -1,5 +1,5 @@
 import { classify, markMissingPipelines } from '../../buckets/buckets'
-import { isoDay } from '../../dates/dates'
+import { isoDay, localAt, localDay } from '../../dates/dates'
 import { MS_PER_DAY } from '../../dates/dates.constants'
 import type {
     ActivityEvent,
@@ -127,7 +127,7 @@ export class GitLabProvider implements Provider {
             .map(event => {
                 const push = event.push_data ?? {}
                 return {
-                    at: String(event.created_at).slice(0, 16),
+                    at: localAt(event.created_at),
                     action: event.action_name,
                     project: paths.get(event.project_id ?? -1) ?? '',
                     targetType: event.target_type ?? '',
@@ -184,7 +184,7 @@ export class GitLabProvider implements Provider {
             draft: mr.draft,
             branch: mr.source_branch,
             target: mr.target_branch,
-            updated: String(mr.updated_at).slice(0, 10),
+            updated: localDay(mr.updated_at),
             url: mr.web_url,
             mergeStatus: mr.detailed_merge_status ?? null,
             pipeline: latest?.status ?? null,
@@ -234,22 +234,25 @@ export class GitLabProvider implements Provider {
         )
 
         const rows = await Promise.all(
-            raw.map(async mr => ({
-                provider: 'gitlab' as const,
-                project: String(mr.references.full).split('!')[0]!,
-                iid: mr.iid as number,
-                title: mr.title as string,
-                author: mr.author.name as string,
-                updated: String(mr.updated_at).slice(0, 10),
-                draft: mr.draft as boolean,
-                url: mr.web_url as string,
-                fresh: String(mr.updated_at).slice(0, 10) >= cutoff,
-                approvedByMe: await this.approvedByMe(
-                    mr.project_id,
-                    mr.iid,
-                    identity.id
-                ),
-            }))
+            raw.map(async mr => {
+                const updated = localDay(mr.updated_at)
+                return {
+                    provider: 'gitlab' as const,
+                    project: String(mr.references.full).split('!')[0]!,
+                    iid: mr.iid,
+                    title: mr.title,
+                    author: mr.author.name,
+                    updated,
+                    draft: mr.draft,
+                    url: mr.web_url,
+                    fresh: updated >= cutoff,
+                    approvedByMe: await this.approvedByMe(
+                        mr.project_id,
+                        mr.iid,
+                        identity.id
+                    ),
+                }
+            })
         )
 
         return rows.sort((a, b) => b.updated.localeCompare(a.updated))

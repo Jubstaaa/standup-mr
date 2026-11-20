@@ -14,6 +14,12 @@ export function localAt(iso: string): string {
     return `${isoDay(at)}T${hours}:${minutes}`
 }
 
+// Calendar day of an API timestamp on the user's wall clock, so a late-evening
+// UTC instant lands on the day the user actually worked.
+export function localDay(iso: string): string {
+    return localAt(iso).slice(0, 10)
+}
+
 export function label(day: Date, lang = 'en'): string {
     const locale = lang === 'tr' ? 'tr' : 'en'
     const parts = new Intl.DateTimeFormat(locale, {
