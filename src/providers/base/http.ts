@@ -104,6 +104,62 @@ export function timedFetch(
         base(url, { ...init, signal: init?.signal ?? AbortSignal.timeout(ms) })
 }
 
+// Response bodies come from hosts the user picks and land in a small
+// container, so none is buffered whole. Job logs keep their tail, where the
+// failure is; JSON over the cap is refused rather than cut mid-document.
+export const LOG_BYTES_CAP = 2 * 1024 * 1024
+export const JSON_BYTES_CAP = 8 * 1024 * 1024
+
+async function* chunksOf(response: Response): AsyncGenerator<Uint8Array> {
+    if (!response.body) return
+    const reader = response.body.getReader()
+    try {
+        for (;;) {
+            const { done, value } = await reader.read()
+            if (done) return
+            yield value
+        }
+    } finally {
+        await reader.cancel()
+    }
+}
+
+export async function readTail(
+    response: Response,
+    maxBytes: number = LOG_BYTES_CAP
+): Promise<string> {
+    const kept: Uint8Array[] = []
+    let size = 0
+    for await (const chunk of chunksOf(response)) {
+        kept.push(chunk)
+        size += chunk.byteLength
+        while (kept.length > 1 && size - kept[0]!.byteLength >= maxBytes) {
+            size -= kept.shift()!.byteLength
+        }
+    }
+    const bytes = Buffer.concat(kept)
+    return bytes.subarray(Math.max(0, bytes.length - maxBytes)).toString('utf8')
+}
+
+export async function readJsonCapped(
+    response: Response,
+    maxBytes: number,
+    host: string
+): Promise<unknown> {
+    const kept: Uint8Array[] = []
+    let size = 0
+    for await (const chunk of chunksOf(response)) {
+        size += chunk.byteLength
+        if (size > maxBytes) {
+            throw new ApiError(
+                `${host} sent more than ${maxBytes} bytes in one response.`
+            )
+        }
+        kept.push(chunk)
+    }
+    return JSON.parse(Buffer.concat(kept).toString('utf8'))
+}
+
 export const RETRY_ATTEMPTS = 3
 export const RETRY_BACKOFF_MS = [250, 750]
 

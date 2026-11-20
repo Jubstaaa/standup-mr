@@ -15,8 +15,12 @@ import { extractErrors } from '../../trace/trace'
 import type { Provider } from '../base/base.types'
 import { degradable, undiagnosed } from '../base/diagnosis'
 import {
+    ApiError,
     assertUsable,
     buildUrl,
+    JSON_BYTES_CAP,
+    readJsonCapped,
+    readTail,
     REQUEST_CONCURRENCY,
     sendWithRetry,
     timedFetch,
@@ -63,17 +67,20 @@ export class GitLabProvider implements Provider {
     async getJson<T>(path: string, params?: Params): Promise<T | null> {
         const response = await this.send(buildUrl(this.api, path, params))
         if (!response.ok) return null
+        let body: unknown
         try {
-            return (await response.json()) as T
+            body = await readJsonCapped(response, JSON_BYTES_CAP, this.host)
         } catch (cause) {
+            if (cause instanceof ApiError) throw cause
             throw unreachable(this.host, cause)
         }
+        return body as T
     }
 
     async getText(path: string): Promise<string> {
         const response = await this.send(buildUrl(this.api, path))
         if (!response.ok) return ''
-        return await response.text()
+        return await readTail(response)
     }
 
     async getPaged<T>(
