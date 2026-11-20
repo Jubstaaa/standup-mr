@@ -219,22 +219,28 @@ describe('createTokenRefresher', () => {
         }
     )
 
-    test('says the sign-in app was rejected instead of asking for a reconnect', async () => {
-        refreshResult = async () => {
-            throw refused('invalid_client', 401)
+    test.each([
+        ['invalid_client', 401],
+        ['unauthorized_client', 400],
+    ])(
+        'says the sign-in app was rejected on %s instead of asking for a reconnect',
+        async (code, status) => {
+            refreshResult = async () => {
+                throw refused(code, status)
+            }
+            const logged = spyOn(console, 'error').mockImplementation(() => {})
+            try {
+                const fresh = createTokenRefresher(upstream(), store.accounts)
+                const error = await fresh(linked, 9_999_000).catch(
+                    (caught: unknown) => caught
+                )
+                expect(error).not.toBeInstanceOf(AccountError)
+                expect(String(error)).toMatch(/sign-in app/)
+            } finally {
+                logged.mockRestore()
+            }
         }
-        const logged = spyOn(console, 'error').mockImplementation(() => {})
-        try {
-            const fresh = createTokenRefresher(upstream(), store.accounts)
-            const error = await fresh(linked, 9_999_000).catch(
-                (caught: unknown) => caught
-            )
-            expect(error).not.toBeInstanceOf(AccountError)
-            expect(String(error)).toMatch(/sign-in app/)
-        } finally {
-            logged.mockRestore()
-        }
-    })
+    )
 
     test('a renewal that cannot be saved asks for a reconnect, not a retry', async () => {
         refreshResult = async () => {
