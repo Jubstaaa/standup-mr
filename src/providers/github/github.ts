@@ -1,3 +1,5 @@
+import pMap from 'p-map'
+
 import { classify, markMissingPipelines } from '../../buckets/buckets'
 import { isoDay, localDay } from '../../dates/dates'
 import { MS_PER_DAY } from '../../dates/dates.constants'
@@ -16,6 +18,7 @@ import {
     ApiError,
     assertUsable,
     buildUrl,
+    REQUEST_CONCURRENCY,
     sendWithRetry,
     timedFetch,
     unreachable,
@@ -250,7 +253,9 @@ export class GitHubProvider implements Provider {
             `is:pr is:open author:${login} archived:false`,
             SEARCH_CAP
         )
-        const shaped = await Promise.all(items.map(item => this.shapePr(item)))
+        const shaped = await pMap(items, item => this.shapePr(item), {
+            concurrency: REQUEST_CONCURRENCY,
+        })
         const rows = shaped.filter((row): row is MergeRequest => row !== null)
 
         markMissingPipelines(rows)
@@ -269,8 +274,9 @@ export class GitHubProvider implements Provider {
             new Date(today.getTime() - FRESH_REVIEW_DAYS * MS_PER_DAY)
         )
 
-        const rows = await Promise.all(
-            items.map(async item => {
+        const rows = await pMap(
+            items,
+            async item => {
                 const project = repoFromUrl(item.repository_url)
                 const reviews = await this.getPaged<PullReview>(
                     `repos/${project}/pulls/${item.number}/reviews`,
@@ -291,7 +297,8 @@ export class GitHubProvider implements Provider {
                     fresh: updated >= cutoff,
                     approvedByMe: approvedBy(reviews, identity.username),
                 }
-            })
+            },
+            { concurrency: REQUEST_CONCURRENCY }
         )
 
         return rows.sort((a, b) => b.updated.localeCompare(a.updated))
@@ -388,7 +395,9 @@ export class GitHubProvider implements Provider {
 
     async getBlockers(mrs: MergeRequest[]): Promise<Blocker[]> {
         const red = mrs.filter(mr => mr.pipeline === 'failed')
-        const diagnosed = await Promise.all(red.map(mr => this.tryDiagnose(mr)))
+        const diagnosed = await pMap(red, mr => this.tryDiagnose(mr), {
+            concurrency: REQUEST_CONCURRENCY,
+        })
         return diagnosed.filter((row): row is Blocker => row !== null)
     }
 

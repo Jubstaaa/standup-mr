@@ -92,6 +92,8 @@ export function unreachable(host: string, cause: unknown): ApiError {
 
 // A host that accepts the socket and never answers would otherwise hang the
 // CLI and the MCP tool call for good; fetch has no default timeout.
+export const REQUEST_CONCURRENCY = 4
+
 export const REQUEST_TIMEOUT_MS = 30_000
 
 export function timedFetch(

@@ -315,6 +315,11 @@ describe('instructions command failure', () => {
                 join(dir, 'package.json'),
                 JSON.stringify({ type: 'module' })
             )
+            // An installed copy has its runtime dependencies next to it.
+            symlinkSync(
+                join(repoRoot, 'node_modules'),
+                join(dir, 'node_modules')
+            )
             const fakeCli = join(dir, 'dist', 'cli.js')
 
             try {

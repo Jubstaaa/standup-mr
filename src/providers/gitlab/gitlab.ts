@@ -1,3 +1,5 @@
+import pMap from 'p-map'
+
 import { classify, markMissingPipelines } from '../../buckets/buckets'
 import { isoDay, localAt, localDay } from '../../dates/dates'
 import { MS_PER_DAY } from '../../dates/dates.constants'
@@ -15,6 +17,7 @@ import { degradable, undiagnosed } from '../base/diagnosis'
 import {
     assertUsable,
     buildUrl,
+    REQUEST_CONCURRENCY,
     sendWithRetry,
     timedFetch,
     unreachable,
@@ -118,8 +121,10 @@ export class GitLabProvider implements Provider {
             ...new Set(raw.map(e => e.project_id).filter(Boolean)),
         ] as number[]
         const paths = new Map(
-            await Promise.all(
-                ids.map(async id => [id, await this.projectPath(id)] as const)
+            await pMap(
+                ids,
+                async id => [id, await this.projectPath(id)] as const,
+                { concurrency: REQUEST_CONCURRENCY }
             )
         )
 
@@ -200,7 +205,9 @@ export class GitLabProvider implements Provider {
             scope: 'created_by_me',
             state: 'opened',
         })
-        const rows = await Promise.all(raw.map(mr => this.shapeMr(mr)))
+        const rows = await pMap(raw, mr => this.shapeMr(mr), {
+            concurrency: REQUEST_CONCURRENCY,
+        })
 
         markMissingPipelines(rows)
         for (const row of rows) {
@@ -233,8 +240,9 @@ export class GitLabProvider implements Provider {
             new Date(today.getTime() - FRESH_REVIEW_DAYS * MS_PER_DAY)
         )
 
-        const rows = await Promise.all(
-            raw.map(async mr => {
+        const rows = await pMap(
+            raw,
+            async mr => {
                 const updated = localDay(mr.updated_at)
                 return {
                     provider: 'gitlab' as const,
@@ -252,7 +260,8 @@ export class GitLabProvider implements Provider {
                         identity.id
                     ),
                 }
-            })
+            },
+            { concurrency: REQUEST_CONCURRENCY }
         )
 
         return rows.sort((a, b) => b.updated.localeCompare(a.updated))
@@ -293,7 +302,9 @@ export class GitLabProvider implements Provider {
 
     async getBlockers(mrs: MergeRequest[]): Promise<Blocker[]> {
         const red = mrs.filter(mr => mr.pipeline === 'failed')
-        const diagnosed = await Promise.all(red.map(mr => this.tryDiagnose(mr)))
+        const diagnosed = await pMap(red, mr => this.tryDiagnose(mr), {
+            concurrency: REQUEST_CONCURRENCY,
+        })
         return diagnosed.filter((row): row is Blocker => row !== null)
     }
 }
