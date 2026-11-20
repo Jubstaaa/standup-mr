@@ -9,7 +9,10 @@ import type { FetchLike } from '../../../src/standup.types'
 
 import {
     MAX_REDIRECTS,
+    MAX_REQUEST_BYTES,
+    MAX_RESPONSE_BYTES,
     NULL_BODY_STATUSES,
+    REQUEST_DEADLINE_MS,
     REQUEST_TIMEOUT_MS,
 } from './ssrf.constants'
 
@@ -160,6 +163,47 @@ export function redirectGuard(blocked: ReadonlySet<string>) {
     }
 }
 
+interface RequestLimits {
+    deadlineMs: number
+    maxResponseBytes: number
+}
+
+const DEFAULT_LIMITS: RequestLimits = {
+    deadlineMs: REQUEST_DEADLINE_MS,
+    maxResponseBytes: MAX_RESPONSE_BYTES,
+}
+
+// The idle timeout alone lets a host that trickles bytes hold a request
+// open forever, and an unbounded body can exhaust the container's memory:
+// both are capped here, and the caller's own signal still cancels.
+export function guardedRequestConfig(
+    url: string,
+    init: RequestInit | undefined,
+    lookup: Lookup,
+    blocked: ReadonlySet<string>,
+    limits: RequestLimits = DEFAULT_LIMITS
+): AxiosRequestConfig {
+    const deadline = AbortSignal.timeout(limits.deadlineMs)
+    return {
+        url,
+        method: init?.method ?? 'GET',
+        headers: plainHeaders(init),
+        data: init?.body,
+        adapter: 'http',
+        lookup: lookup as AxiosRequestConfig['lookup'],
+        responseType: 'arraybuffer',
+        timeout: REQUEST_TIMEOUT_MS,
+        signal: init?.signal
+            ? AbortSignal.any([deadline, init.signal])
+            : deadline,
+        maxContentLength: limits.maxResponseBytes,
+        maxBodyLength: MAX_REQUEST_BYTES,
+        maxRedirects: init?.redirect === 'manual' ? 0 : MAX_REDIRECTS,
+        beforeRedirect: redirectGuard(blocked),
+        validateStatus: () => true,
+    }
+}
+
 // The providers speak fetch; this answers in fetch's shape while every
 // connection — redirects included — goes through the guarded lookup.
 // Authorization is dropped by follow-redirects when a redirect changes host.
@@ -169,19 +213,9 @@ export function createGuardedFetch(
 ): FetchLike {
     return async (url, init) => {
         assertPublicTarget(new URL(url), blocked)
-        const response = await axios.request<ArrayBuffer>({
-            url,
-            method: init?.method ?? 'GET',
-            headers: plainHeaders(init),
-            data: init?.body,
-            adapter: 'http',
-            lookup: lookup as AxiosRequestConfig['lookup'],
-            responseType: 'arraybuffer',
-            timeout: REQUEST_TIMEOUT_MS,
-            maxRedirects: init?.redirect === 'manual' ? 0 : MAX_REDIRECTS,
-            beforeRedirect: redirectGuard(blocked),
-            validateStatus: () => true,
-        })
+        const response = await axios.request<ArrayBuffer>(
+            guardedRequestConfig(url, init, lookup, blocked)
+        )
         const headers = new Headers()
         for (const [name, value] of Object.entries(response.headers)) {
             if (value === undefined || value === null) continue

@@ -12,6 +12,7 @@ import {
     nextRunAt,
     parseSchedule,
     runDueSchedules,
+    startScheduler,
 } from './schedule'
 import { CATCH_UP_LIMIT_MS } from './schedule.constants'
 import type { SchedulerDeps } from './schedule.types'
@@ -198,5 +199,98 @@ describe('runDueSchedules', () => {
         expect(store.schedules.get(connectionId)!.lastError).toMatch(
             /No webhook/
         )
+    })
+
+    test('posts the accounts that worked and names the one that failed', async () => {
+        linkGitLab('git.one.com')
+        linkGitLab('git.bad.com')
+        deps.fetchImpl = async (url, init) =>
+            url.startsWith('https://git.bad.com/')
+                ? new Response('down', { status: 500 })
+                : fakeFetch(url, init)
+        await runDueSchedules(deps)
+
+        expect(posted).toHaveLength(1)
+        expect(posted[0]).toContain('gitlab · git.one.com · ilker')
+        expect(posted[0]).toContain(
+            'Could not read this account: git.bad.com returned 500'
+        )
+        expect(store.schedules.get(connectionId)!.lastError).toBeNull()
+    })
+
+    test('records a failure when no account could be read', async () => {
+        linkGitLab('git.bad.com')
+        deps.fetchImpl = async (url, init) =>
+            url.startsWith('https://git.bad.com/')
+                ? new Response('down', { status: 500 })
+                : fakeFetch(url, init)
+        await runDueSchedules(deps)
+
+        expect(posted).toHaveLength(0)
+        expect(store.schedules.get(connectionId)!.lastError).toMatch(/500/)
+    })
+
+    test('advances and records a schedule whose next run cannot be found', async () => {
+        linkGitLab('git.one.com')
+        store.schedules.set(
+            connectionId,
+            { ...WEEKDAYS_0930, timezone: 'Mars/Olympus' },
+            MONDAY_0930
+        )
+        await runDueSchedules(deps)
+
+        const schedule = store.schedules.get(connectionId)!
+        expect(schedule.lastError).toBeTruthy()
+        expect(schedule.nextRunAt).toBeGreaterThan(MONDAY_0930)
+    })
+
+    test('gives up on a schedule that runs past its deadline', async () => {
+        linkGitLab('git.one.com')
+        deps.scheduleDeadlineMs = 50
+        deps.fetchImpl = (url, init) =>
+            url.startsWith('https://git.one.com/api/v4/user')
+                ? fakeFetch(url, init)
+                : new Promise((_resolve, reject) => {
+                      const abort = () =>
+                          reject(new Error('aborted by the deadline'))
+                      if (init?.signal?.aborted) abort()
+                      init?.signal?.addEventListener('abort', abort)
+                  })
+        await runDueSchedules(deps)
+
+        expect(posted).toHaveLength(0)
+        expect(store.schedules.get(connectionId)!.lastError).toMatch(/deadline/)
+    })
+})
+
+describe('startScheduler', () => {
+    test('stopping waits for the run in flight', async () => {
+        store.connections.setWebhook(connectionId, {
+            kind: 'slack',
+            url: WEBHOOK,
+        })
+        store.schedules.set(connectionId, WEEKDAYS_0930, MONDAY_0930)
+        linkGitLab('git.one.com')
+        let release = () => {}
+        let started = () => {}
+        const running = new Promise<void>(resolve => (started = resolve))
+        deps.fetchImpl = async (url, init) => {
+            if (url === WEBHOOK) {
+                started()
+                await new Promise<void>(resolve => (release = resolve))
+            }
+            return fakeFetch(url, init)
+        }
+        const stop = startScheduler(deps, 5)
+        await running
+
+        let stopped = false
+        const stopping = stop().then(() => (stopped = true))
+        await Bun.sleep(20)
+        expect(stopped).toBe(false)
+
+        release()
+        await stopping
+        expect(posted).toHaveLength(1)
     })
 })

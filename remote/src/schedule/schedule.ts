@@ -4,14 +4,17 @@ import { z } from 'zod'
 import { postWebhook } from '../../../src/notify/notify'
 import { toChatDigest } from '../../../src/render/digest'
 import { collect } from '../../../src/report/report'
+import type { FetchLike } from '../../../src/standup.types'
 import { describeAccount, providerFor } from '../accounts/accounts'
 import { errorMessage } from '../errors/errors'
 import type { Schedule, ScheduleSettings } from '../store/store.types'
 
 import {
+    BROKEN_SCHEDULE_RETRY_MS,
     CATCH_UP_LIMIT_MS,
     DAY_NAMES,
     EVERY_DAY,
+    SCHEDULE_DEADLINE_MS,
     TICK_INTERVAL_MS,
     TIMEZONES,
     WEEKDAYS,
@@ -69,7 +72,9 @@ export function describeSchedule(settings: ScheduleSettings): string {
     return `Posts ${days} at ${settings.time} ${settings.timezone}`
 }
 
-// One message for the whole connection: a section per linked account.
+// One message for the whole connection: a section per linked account. An
+// account that cannot be read gets a line saying so instead of costing
+// everyone else's section; only when none can be read does the run fail.
 async function composeDigest(
     deps: SchedulerDeps,
     connectionId: string
@@ -78,25 +83,37 @@ async function composeDigest(
     if (accounts.length === 0) {
         throw new ScheduleError('No account is linked.')
     }
-    const sections: string[] = []
-    for (const account of accounts) {
-        const token = await deps.freshAccessToken(account, deps.now())
-        const report = await collect({
-            providerImpl: providerFor(
-                account.provider,
-                account.host,
-                token,
-                deps.fetchImpl
-            ),
+    const results = await Promise.allSettled(
+        accounts.map(async account => {
+            const token = await deps.freshAccessToken(account, deps.now())
+            const report = await collect({
+                providerImpl: providerFor(
+                    account.provider,
+                    account.host,
+                    token,
+                    deps.fetchImpl
+                ),
+            })
+            return toChatDigest(report)
         })
-        const digest = toChatDigest(report)
-        sections.push(
-            accounts.length === 1
-                ? digest
-                : `**${describeAccount(account)}**\n${digest}`
-        )
+    )
+    const firstFailure = results.find(result => result.status === 'rejected')
+    if (firstFailure && results.every(result => result.status === 'rejected')) {
+        throw firstFailure.reason
     }
-    return sections.join('\n')
+    const sections = results.map(result =>
+        result.status === 'fulfilled'
+            ? result.value
+            : `Could not read this account: ${errorMessage(result.reason)}`
+    )
+    return accounts.length === 1
+        ? sections[0]!
+        : sections
+              .map(
+                  (section, index) =>
+                      `**${describeAccount(accounts[index]!)}**\n${section}`
+              )
+              .join('\n')
 }
 
 export async function sendDigest(
@@ -109,19 +126,38 @@ export async function sendDigest(
     await postWebhook(webhook.url, text, webhook.kind, deps.fetchImpl)
 }
 
+// Every request a run makes carries the run's deadline, so one slow host
+// cannot hold up the schedules queued behind it.
+function withDeadline(fetchImpl: FetchLike, deadline: AbortSignal): FetchLike {
+    return (url, init) =>
+        fetchImpl(url, {
+            ...init,
+            signal: init?.signal
+                ? AbortSignal.any([deadline, init.signal])
+                : deadline,
+        })
+}
+
 async function runSchedule(
     deps: SchedulerDeps,
     schedule: Schedule
 ): Promise<void> {
     const now = deps.now()
-    const next = nextRunAt(schedule, now)
-    if (now - schedule.nextRunAt > CATCH_UP_LIMIT_MS) {
-        deps.store.schedules.setNextRun(schedule.connectionId, next)
-        return
-    }
-    deps.store.connections.touch(schedule.connectionId, now)
+    let next = now + BROKEN_SCHEDULE_RETRY_MS
     try {
-        await sendDigest(deps, schedule.connectionId)
+        next = nextRunAt(schedule, now)
+        if (now - schedule.nextRunAt > CATCH_UP_LIMIT_MS) {
+            deps.store.schedules.setNextRun(schedule.connectionId, next)
+            return
+        }
+        deps.store.connections.touch(schedule.connectionId, now)
+        const deadline = AbortSignal.timeout(
+            deps.scheduleDeadlineMs ?? SCHEDULE_DEADLINE_MS
+        )
+        await sendDigest(
+            { ...deps, fetchImpl: withDeadline(deps.fetchImpl, deadline) },
+            schedule.connectionId
+        )
         deps.store.schedules.markSent(schedule.connectionId, deps.now(), next)
     } catch (error) {
         deps.store.schedules.markFailed(
@@ -145,16 +181,21 @@ export async function runDueSchedules(deps: SchedulerDeps): Promise<void> {
 }
 
 // A tick is skipped while the previous one is still sending, so a slow host
-// cannot make the same schedule post twice.
-export function startScheduler(deps: SchedulerDeps): () => void {
-    let running = false
+// cannot make the same schedule post twice. Stopping waits for that tick.
+export function startScheduler(
+    deps: SchedulerDeps,
+    tickMs = TICK_INTERVAL_MS
+): () => Promise<void> {
+    let running: Promise<void> | undefined
     const timer = setInterval(() => {
         if (running) return
-        running = true
-        void runDueSchedules(deps).finally(() => {
-            running = false
+        running = runDueSchedules(deps).finally(() => {
+            running = undefined
         })
-    }, TICK_INTERVAL_MS)
+    }, tickMs)
     timer.unref()
-    return () => clearInterval(timer)
+    return async () => {
+        clearInterval(timer)
+        await running
+    }
 }

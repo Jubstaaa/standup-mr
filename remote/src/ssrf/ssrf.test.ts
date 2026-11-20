@@ -1,10 +1,12 @@
-import { describe, expect, test } from 'bun:test'
+import axios from 'axios'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
 import {
     blockedSet,
     createGuardedFetch,
     createGuardedLookup,
     createHostCheck,
+    guardedRequestConfig,
     HostError,
     isPublicAddress,
     normalizeHost,
@@ -154,6 +156,85 @@ describe('createGuardedFetch', () => {
             })
         )
         await expect(guardedFetch(url)).rejects.toThrow(HostError)
+    })
+})
+
+describe('guardedRequestConfig', () => {
+    let server: ReturnType<typeof Bun.serve>
+
+    beforeAll(() => {
+        server = Bun.serve({
+            port: 0,
+            hostname: '127.0.0.1',
+            fetch(request) {
+                const path = new URL(request.url).pathname
+                if (path === '/huge') {
+                    return new Response(new Uint8Array(64 * 1024))
+                }
+                // Trickles a byte every 20ms forever: the idle timeout never
+                // fires, only a total deadline ends it.
+                const body = new ReadableStream({
+                    async pull(controller) {
+                        await Bun.sleep(20)
+                        controller.enqueue(new Uint8Array(1))
+                    },
+                })
+                return new Response(body)
+            },
+        })
+    })
+
+    afterAll(() => server.stop(true))
+
+    // The real config, sent over plain http to a local server: only the
+    // SSRF-specific pieces (https, lookup, redirect guard) are left out.
+    function send(path: string, init?: RequestInit, deadlineMs = 5_000) {
+        const config = guardedRequestConfig(
+            'https://git.example.com/',
+            init,
+            resolvesTo('140.82.112.3'),
+            new Set(),
+            { deadlineMs, maxResponseBytes: 1024 }
+        )
+        return axios.request({
+            ...config,
+            url: `http://127.0.0.1:${server.port}${path}`,
+            lookup: undefined,
+            beforeRedirect: undefined,
+        })
+    }
+
+    test('stops reading a response larger than the cap', async () => {
+        await expect(send('/huge')).rejects.toThrow(/maxContentLength/)
+    })
+
+    test('ends a response that trickles past the total deadline', async () => {
+        const started = Date.now()
+        await expect(send('/trickle', undefined, 150)).rejects.toThrow()
+        expect(Date.now() - started).toBeLessThan(2_000)
+    })
+
+    test("honours the caller's abort signal", async () => {
+        const controller = new AbortController()
+        const sent = send('/trickle', { signal: controller.signal })
+        setTimeout(() => controller.abort(), 50)
+        await expect(sent).rejects.toThrow()
+    })
+})
+
+describe('createGuardedFetch signal', () => {
+    test('never dials when the signal is already aborted', async () => {
+        let looked = false
+        const guardedFetch = createGuardedFetch((_host, _options, callback) => {
+            looked = true
+            callback(null, [{ address: '140.82.112.3', family: 4 }])
+        })
+        await expect(
+            guardedFetch('https://git.example.com/', {
+                signal: AbortSignal.abort(),
+            })
+        ).rejects.toThrow(/cancel|abort/i)
+        expect(looked).toBe(false)
     })
 })
 

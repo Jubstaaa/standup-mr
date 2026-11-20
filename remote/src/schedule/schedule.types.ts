@@ -6,6 +6,8 @@ export interface SchedulerDeps {
     fetchImpl: FetchLike
     freshAccessToken: TokenRefresher
     now: () => number
+    // Overrides SCHEDULE_DEADLINE_MS, the most one run may take.
+    scheduleDeadlineMs?: number
     store: Store
 }
 

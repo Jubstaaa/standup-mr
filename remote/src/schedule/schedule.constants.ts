@@ -4,6 +4,10 @@ export const TICK_INTERVAL_MS = MINUTE
 // A run missed by more than this (the server was down) is skipped, so a
 // morning standup does not land in the channel in the afternoon.
 export const CATCH_UP_LIMIT_MS = 30 * MINUTE
+// The most one run may take; the schedules behind it wait for it.
+export const SCHEDULE_DEADLINE_MS = 2 * MINUTE
+// A schedule whose next run cannot be computed is retried a day later.
+export const BROKEN_SCHEDULE_RETRY_MS = 24 * 60 * MINUTE
 
 export const TIMEZONES: readonly string[] = Intl.supportedValuesOf('timeZone')
 
