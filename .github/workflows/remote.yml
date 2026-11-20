@@ -3,7 +3,7 @@ name: Remote
 on:
     push:
         branches: [main]
-        paths: &remote-paths
+        paths:
             - 'remote/**'
             - 'src/**'
             - 'mcp/**'
@@ -12,8 +12,7 @@ on:
             - 'package.json'
             - 'bun.lock'
             - '.github/workflows/remote.yml'
-    pull_request:
-        paths: *remote-paths
+            - '.github/workflows/ci.yml'
     workflow_dispatch:
         inputs:
             image_tag:
@@ -21,6 +20,11 @@ on:
                 required: false
                 default: ''
                 type: string
+            restore_snapshot:
+                description: 'Rollback across a migration: start image_tag on the newest database snapshot taken while it ran, discarding every write since. Needs image_tag.'
+                required: false
+                default: false
+                type: boolean
 
 permissions:
     contents: read
@@ -29,51 +33,21 @@ env:
     IMAGE: ghcr.io/jubstaaa/standup-mr-remote
 
 jobs:
-    # On main the deploy runs behind the same gate as every PR.
+    # Builds, smoke-tests and pushes the release image. The check job is not
+    # re-run: the ruleset only merges up-to-date branches whose check passed.
+    # A rollback skips this entirely: that SHA's image already exists.
     ci:
-        if: ${{ github.event_name != 'pull_request' && !inputs.image_tag }}
+        if: ${{ !inputs.image_tag }}
         uses: ./.github/workflows/ci.yml
-
-    # Builds the image on every PR touching the server, so a broken Dockerfile
-    # shows up before merge; pushes only from main.
-    build:
-        needs: ci
-        if: ${{ !cancelled() && !inputs.image_tag && (github.event_name == 'pull_request' || needs.ci.result == 'success') }}
-        runs-on: ubuntu-latest
-        timeout-minutes: 20
+        with:
+            run-check: false
         permissions:
             contents: read
             packages: write
-        steps:
-            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-              with:
-                  persist-credentials: false
-            - id: meta
-              uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-              with:
-                  images: ${{ env.IMAGE }}
-                  # Only the commit SHA: :latest moves after production reports healthy.
-                  tags: type=sha,format=long,prefix=
-            - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-            - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-              if: github.ref == 'refs/heads/main'
-              with:
-                  registry: ghcr.io
-                  username: ${{ github.actor }}
-                  password: ${{ secrets.GITHUB_TOKEN }}
-            - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-              with:
-                  context: .
-                  file: remote/Dockerfile
-                  push: ${{ github.ref == 'refs/heads/main' }}
-                  tags: ${{ steps.meta.outputs.tags }}
-                  labels: ${{ steps.meta.outputs.labels }}
-                  cache-from: type=gha
-                  cache-to: type=gha,mode=max
 
     deploy:
-        needs: build
-        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (inputs.image_tag || needs.build.result == 'success') }}
+        needs: ci
+        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (inputs.image_tag || needs.ci.result == 'success') }}
         runs-on: ubuntu-latest
         timeout-minutes: 15
         # Never cancel a deploy halfway through `compose up`.
@@ -85,9 +59,18 @@ jobs:
             packages: write
         env:
             IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+            RESTORE_SNAPSHOT: ${{ inputs.restore_snapshot && 'true' || 'false' }}
         steps:
-            - name: Validate the tag
-              run: '[[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::image_tag must be a full 40-char commit SHA"; exit 1; }'
+            - name: Validate inputs and confirm the image exists
+              env:
+                  ROLLBACK_TAG: ${{ inputs.image_tag }}
+              run: |
+                  [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::image_tag must be a full 40-char commit SHA"; exit 1; }
+                  if [[ "$RESTORE_SNAPSHOT" == true && -z "$ROLLBACK_TAG" ]]; then
+                      echo "::error::restore_snapshot needs image_tag: the snapshot to restore is the one taken while that release ran"
+                      exit 1
+                  fi
+                  docker buildx imagetools inspect "$IMAGE:$IMAGE_TAG" > /dev/null
             # The compose file comes from the repository, so the server never drifts from git.
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -100,7 +83,7 @@ jobs:
                   registry: ghcr.io
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
-            - uses: Jubstaaa/deploy-actions/ssh@1d9b582d7547aa6f02352b655c0721dd5a88071f # v1.3.0
+            - uses: Jubstaaa/deploy-actions/ssh@233419e4b4936a17bf710cb7038f7dbc23a8a5f5 # v1.4.0
               with:
                   host: ${{ secrets.DO_HOST }}
                   user: ${{ secrets.DO_USER }}
@@ -110,7 +93,13 @@ jobs:
             # non-root bun user (uid 1000) cannot write the database into.
             - name: Prepare the data directory
               run: ssh droplet 'mkdir -p /opt/standup-mr/data && chown 1000:1000 /opt/standup-mr/data'
-            - uses: Jubstaaa/deploy-actions/compose@1d9b582d7547aa6f02352b655c0721dd5a88071f # v1.3.0
+            # Health-gated `compose up` with automatic rollback. The database is
+            # snapshotted (SQLite online backup, integrity-checked) before the new
+            # tag starts and applies its schema migrations; an automatic rollback
+            # puts that snapshot back before the previous tag starts, so the old
+            # code never runs on a schema it does not know. /health reads the
+            # database, so a release that cannot read its data is rolled back.
+            - uses: Jubstaaa/deploy-actions/compose@233419e4b4936a17bf710cb7038f7dbc23a8a5f5 # v1.4.0
               with:
                   app-dir: /opt/standup-mr
                   compose-file: remote/docker-compose.yml
@@ -118,3 +107,5 @@ jobs:
                   image: ${{ env.IMAGE }}
                   tag: ${{ env.IMAGE_TAG }}
                   health-url: http://127.0.0.1:3007/health
+                  sqlite-snapshot: /opt/standup-mr/data/standup.db
+                  restore-snapshot: ${{ env.RESTORE_SNAPSHOT }}

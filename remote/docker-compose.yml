@@ -45,5 +45,7 @@ services:
         env_file: .env
         ports:
             - '127.0.0.1:3007:3000'
+        # The host path defaults to the droplet's; CI points it at a temp
+        # directory to boot the candidate image with this same file.
         volumes:
-            - /opt/standup-mr/data:/data
+            - ${DATA_DIR:-/opt/standup-mr/data}:/data

@@ -2,17 +2,29 @@ name: CI
 
 on:
     pull_request:
+    # remote.yml reuses the image job to build and push the release image.
     workflow_call:
+        inputs:
+            run-check:
+                description: 'Run the check job. remote.yml skips it: the ruleset only merges up-to-date branches whose check passed, so main already holds a checked tree.'
+                type: boolean
+                default: true
 
 permissions:
     contents: read
 
 concurrency:
-    group: ci-${{ github.ref }}
-    cancel-in-progress: true
+    group: ci-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+    IMAGE: ghcr.io/jubstaaa/standup-mr-remote
 
 jobs:
     check:
+        # A pull_request has no inputs (null == false in expressions), so test the
+        # event explicitly. In a called workflow, event_name is the caller's event.
+        if: ${{ github.event_name == 'pull_request' || inputs.run-check }}
         runs-on: ubuntu-latest
         timeout-minutes: 15
         steps:
@@ -36,3 +48,83 @@ jobs:
             - run: bun run build
             - name: actionlint
               run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color
+
+    # Builds the remote server image and boots it with the production compose
+    # file, so a broken Dockerfile, a missing runtime file or a hardening flag the
+    # app cannot live with fails here instead of in the deploy. On main it then
+    # pushes exactly that image.
+    image:
+        needs: check
+        # Also runs when remote.yml skipped the check, never after a failed one.
+        if: ${{ !cancelled() && (needs.check.result == 'success' || needs.check.result == 'skipped') }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        permissions:
+            contents: read
+            packages: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - id: meta
+              uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+              with:
+                  images: ${{ env.IMAGE }}
+                  # `candidate` is what docker-compose.yml runs below (IMAGE_TAG);
+                  # the full commit SHA is what deploy and rollback address.
+                  tags: |
+                      type=raw,value=candidate
+                      type=sha,format=long,prefix=
+            - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+            - name: Build candidate
+              uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+              with:
+                  context: .
+                  file: remote/Dockerfile
+                  load: true
+                  push: false
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
+            # The production compose file itself, so CI exercises exactly the
+            # hardening, healthcheck and limits the droplet runs. The key is
+            # throwaway: the candidate only ever sees an empty database.
+            - name: Start candidate
+              env:
+                  IMAGE_TAG: candidate
+                  DATA_DIR: ${{ runner.temp }}/data
+              run: |
+                  # The image runs as the non-root bun user (uid 1000).
+                  mkdir -p "$DATA_DIR" && sudo chown 1000:1000 "$DATA_DIR"
+                  {
+                      echo "PUBLIC_URL=http://127.0.0.1:3007"
+                      echo "ENCRYPTION_KEY=$(openssl rand -base64 32)"
+                  } > remote/.env
+                  docker compose -f remote/docker-compose.yml up -d --wait --wait-timeout 120 app
+            - name: Smoke test
+              run: |
+                  base=http://127.0.0.1:3007
+                  curl -fsS "$base/health" | grep -q '"ok":true'
+                  curl -fsS "$base/" | grep -q '<title>'
+                  curl -fsS "$base/.well-known/oauth-authorization-server" | grep -q '"issuer"'
+                  curl -fsS -o /dev/null "$base/icon.png"
+                  status=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$base/mcp")
+                  [ "$status" = 401 ] || { echo "::error::POST /mcp without a token answered $status, expected 401"; exit 1; }
+            - name: Candidate logs
+              if: failure()
+              env:
+                  IMAGE_TAG: candidate
+                  DATA_DIR: ${{ runner.temp }}/data
+              run: docker compose -f remote/docker-compose.yml logs app
+            - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+              if: github.ref == 'refs/heads/main'
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+            # Push the exact image that passed the smoke test, by SHA only: :latest
+            # moves in remote.yml after production reports healthy.
+            - name: Push the SHA tag
+              if: github.ref == 'refs/heads/main'
+              run: docker push "$IMAGE:$GITHUB_SHA"
