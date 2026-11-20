@@ -63,6 +63,21 @@ describe('getEvents', () => {
     })
 
     it('warns on an empty feed instead of implying a quiet day', async () => {
+        const gh = new GitHubProvider(
+            'github.com',
+            't',
+            routedFetch({
+                '/users/dev/events': [],
+                '/user': { id: 1, login: 'dev' },
+            })
+        )
+
+        await gh.getEvents(new Date(2026, 7, 21))
+
+        expect(gh.warnings().join('')).toMatch(/events feed/i)
+    })
+
+    it('reports the warning as data and leaves stderr alone', async () => {
         const written: string[] = []
         const original = process.stderr.write
         process.stderr.write = ((chunk: unknown) => {
@@ -84,7 +99,7 @@ describe('getEvents', () => {
             process.stderr.write = original
         }
 
-        expect(written.join('')).toMatch(/events feed/i)
+        expect(written).toEqual([])
     })
 
     it('stops at the documented event feed cap instead of asking for a page beyond it', async () => {

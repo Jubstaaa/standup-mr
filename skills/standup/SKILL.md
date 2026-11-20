@@ -68,6 +68,7 @@ English rather than passing a value that won't take effect.
 | `reviews` | Review requests, with `fresh` and `approvedByMe` |
 | `reviewPendingCount` | Reviews genuinely awaiting action |
 | `blockers` | Failed CI runs with real error lines pulled from the job log |
+| `warnings` | Things the report could not see (an empty or private events feed, a host that failed). Mention them in one line; never write them up as activity |
 
 Each entry in `previousDays` carries its own `events` — `action`, `project`,
 `branch`, `commits`, `commitTitle`. **Every active day gets its own section in
@@ -156,6 +157,11 @@ failed Actions job's log or from a non-Actions check's summary. The rule does
 not change with the provider: what matters is what `errors` says, not which
 job produced it. Collapse several merge/pull requests sharing one root cause
 into a single blocker.
+
+A blocker with job `unknown` is a red merge/pull request whose failure could
+not be read; its `errors` line gives the reason (`diagnosis unavailable: …`,
+`job log unavailable: HTTP 410`). Still list it, say the cause is unknown and
+link it; never drop it or invent a cause.
 
 > The CI token cannot pull the private packages — `npm ci` gets a 404. Two
 > pipelines are red for the same reason; the third passes because it has no such

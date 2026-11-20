@@ -3,6 +3,19 @@ import { describe, expect, it } from 'bun:test'
 import { toChatText } from './chat'
 
 describe('toChatText', () => {
+    it('escapes Slack control characters so a title cannot ping the channel', () => {
+        expect(toChatText('- <!channel> fix: a & b <@U1> **x**', 'slack')).toBe(
+            '- &lt;!channel&gt; fix: a &amp; b &lt;@U1&gt; *x*'
+        )
+    })
+
+    it('breaks Google Chat mention syntax without entities it would show literally', () => {
+        const text = toChatText('fix: <users/all> & a > b **x**', 'google-chat')
+
+        expect(text).not.toContain('<users/all>')
+        expect(text).toBe('fix: <\u2060users/all> & a > b *x*')
+    })
+
     it('leaves Discord alone, since it speaks standard Markdown', () => {
         const md = '## Dün\n\n- **bold** and `code`'
         expect(toChatText(md, 'discord')).toBe(md)

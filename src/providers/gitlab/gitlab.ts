@@ -1,5 +1,7 @@
+import pMap from 'p-map'
+
 import { classify, markMissingPipelines } from '../../buckets/buckets'
-import { isoDay } from '../../dates/dates'
+import { isoDay, localAt, localDay } from '../../dates/dates'
 import { MS_PER_DAY } from '../../dates/dates.constants'
 import type {
     ActivityEvent,
@@ -13,11 +15,14 @@ import { extractErrors } from '../../trace/trace'
 import type { Provider } from '../base/base.types'
 import { degradable, undiagnosed } from '../base/diagnosis'
 import {
+    ApiError,
     assertUsable,
     buildUrl,
+    readJsonResponse,
+    readTail,
+    REQUEST_CONCURRENCY,
     sendWithRetry,
     timedFetch,
-    unreachable,
 } from '../base/http'
 
 import { FRESH_REVIEW_DAYS, PAGE_SIZE } from './gitlab.constants'
@@ -60,17 +65,13 @@ export class GitLabProvider implements Provider {
     async getJson<T>(path: string, params?: Params): Promise<T | null> {
         const response = await this.send(buildUrl(this.api, path, params))
         if (!response.ok) return null
-        try {
-            return (await response.json()) as T
-        } catch (cause) {
-            throw unreachable(this.host, cause)
-        }
+        return (await readJsonResponse(response, this.host, path)) as T
     }
 
     async getText(path: string): Promise<string> {
         const response = await this.send(buildUrl(this.api, path))
         if (!response.ok) return ''
-        return await response.text()
+        return await readTail(response)
     }
 
     async getPaged<T>(
@@ -118,8 +119,10 @@ export class GitLabProvider implements Provider {
             ...new Set(raw.map(e => e.project_id).filter(Boolean)),
         ] as number[]
         const paths = new Map(
-            await Promise.all(
-                ids.map(async id => [id, await this.projectPath(id)] as const)
+            await pMap(
+                ids,
+                async id => [id, await this.projectPath(id)] as const,
+                { concurrency: REQUEST_CONCURRENCY }
             )
         )
 
@@ -127,7 +130,7 @@ export class GitLabProvider implements Provider {
             .map(event => {
                 const push = event.push_data ?? {}
                 return {
-                    at: String(event.created_at).slice(0, 16),
+                    at: localAt(event.created_at),
                     action: event.action_name,
                     project: paths.get(event.project_id ?? -1) ?? '',
                     targetType: event.target_type ?? '',
@@ -184,7 +187,7 @@ export class GitLabProvider implements Provider {
             draft: mr.draft,
             branch: mr.source_branch,
             target: mr.target_branch,
-            updated: String(mr.updated_at).slice(0, 10),
+            updated: localDay(mr.updated_at),
             url: mr.web_url,
             mergeStatus: mr.detailed_merge_status ?? null,
             pipeline: latest?.status ?? null,
@@ -200,7 +203,9 @@ export class GitLabProvider implements Provider {
             scope: 'created_by_me',
             state: 'opened',
         })
-        const rows = await Promise.all(raw.map(mr => this.shapeMr(mr)))
+        const rows = await pMap(raw, mr => this.shapeMr(mr), {
+            concurrency: REQUEST_CONCURRENCY,
+        })
 
         markMissingPipelines(rows)
         for (const row of rows) {
@@ -233,23 +238,28 @@ export class GitLabProvider implements Provider {
             new Date(today.getTime() - FRESH_REVIEW_DAYS * MS_PER_DAY)
         )
 
-        const rows = await Promise.all(
-            raw.map(async mr => ({
-                provider: 'gitlab' as const,
-                project: String(mr.references.full).split('!')[0]!,
-                iid: mr.iid as number,
-                title: mr.title as string,
-                author: mr.author.name as string,
-                updated: String(mr.updated_at).slice(0, 10),
-                draft: mr.draft as boolean,
-                url: mr.web_url as string,
-                fresh: String(mr.updated_at).slice(0, 10) >= cutoff,
-                approvedByMe: await this.approvedByMe(
-                    mr.project_id,
-                    mr.iid,
-                    identity.id
-                ),
-            }))
+        const rows = await pMap(
+            raw,
+            async mr => {
+                const updated = localDay(mr.updated_at)
+                return {
+                    provider: 'gitlab' as const,
+                    project: String(mr.references.full).split('!')[0]!,
+                    iid: mr.iid,
+                    title: mr.title,
+                    author: mr.author.name,
+                    updated,
+                    draft: mr.draft,
+                    url: mr.web_url,
+                    fresh: updated >= cutoff,
+                    approvedByMe: await this.approvedByMe(
+                        mr.project_id,
+                        mr.iid,
+                        identity.id
+                    ),
+                }
+            },
+            { concurrency: REQUEST_CONCURRENCY }
         )
 
         return rows.sort((a, b) => b.updated.localeCompare(a.updated))
@@ -259,10 +269,14 @@ export class GitLabProvider implements Provider {
         const jobs =
             (await this.getJson<RawJob[]>(
                 `projects/${mr.projectId}/pipelines/${mr.pipelineId}/jobs`,
-                { per_page: PAGE_SIZE }
+                { 'per_page': PAGE_SIZE, 'scope[]': 'failed' }
             )) ?? []
         const job = jobs.find(j => j.status === 'failed')
-        if (!job) return null
+        if (!job) {
+            throw new ApiError(
+                `no failed job found in pipeline ${mr.pipelineId}`
+            )
+        }
 
         const trace = await this.getText(
             `projects/${mr.projectId}/jobs/${job.id}/trace`
@@ -290,7 +304,9 @@ export class GitLabProvider implements Provider {
 
     async getBlockers(mrs: MergeRequest[]): Promise<Blocker[]> {
         const red = mrs.filter(mr => mr.pipeline === 'failed')
-        const diagnosed = await Promise.all(red.map(mr => this.tryDiagnose(mr)))
+        const diagnosed = await pMap(red, mr => this.tryDiagnose(mr), {
+            concurrency: REQUEST_CONCURRENCY,
+        })
         return diagnosed.filter((row): row is Blocker => row !== null)
     }
 }

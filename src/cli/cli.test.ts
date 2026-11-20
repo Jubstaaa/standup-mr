@@ -157,6 +157,7 @@ describe('main', () => {
         const [, init] = fetchSpy.mock.calls[0]!
         expect(JSON.parse(String((init as RequestInit).body))).toEqual({
             content: 'hi',
+            allowed_mentions: { parse: [] },
         })
         stdout.mockRestore()
         stderr.mockRestore()
@@ -233,6 +234,12 @@ describe('main', () => {
         expect(String(stdout.mock.calls[0]![0])).toContain(
             '"provider": "github"'
         )
+        expect(stderr.mock.calls.flat().join('')).toMatch(
+            /Warning: .*events feed/
+        )
+        expect(
+            JSON.parse(String(stdout.mock.calls[0]![0])).warnings[0]
+        ).toMatch(/events feed/)
         stdout.mockRestore()
         stderr.mockRestore()
     })
@@ -314,6 +321,11 @@ describe('instructions command failure', () => {
             writeFileSync(
                 join(dir, 'package.json'),
                 JSON.stringify({ type: 'module' })
+            )
+            // An installed copy has its runtime dependencies next to it.
+            symlinkSync(
+                join(repoRoot, 'node_modules'),
+                join(dir, 'node_modules')
             )
             const fakeCli = join(dir, 'dist', 'cli.js')
 

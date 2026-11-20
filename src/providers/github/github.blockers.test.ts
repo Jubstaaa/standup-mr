@@ -136,7 +136,7 @@ describe('getBlockers', () => {
         ])
     })
 
-    it('reports nothing when no failed job and no usable summary can be found', async () => {
+    it('keeps the red pull request as undiagnosed when no failed job or usable summary is found', async () => {
         const gh = new GitHubProvider(
             'github.com',
             't',
@@ -158,10 +158,14 @@ describe('getBlockers', () => {
             })
         )
 
-        await expect(gh.getBlockers([pr()])).resolves.toEqual([])
+        const [blocker] = await gh.getBlockers([pr()])
+        expect(blocker).toMatchObject({ mr: 6, job: 'unknown' })
+        expect(blocker!.errors[0]).toMatch(
+            /diagnosis unavailable: no failed job found for commit abc123/
+        )
     })
 
-    it('reports nothing when the head sha cannot be read', async () => {
+    it('keeps the red pull request as undiagnosed when the head sha cannot be read', async () => {
         const gh = new GitHubProvider(
             'github.com',
             't',
@@ -176,7 +180,36 @@ describe('getBlockers', () => {
             })
         )
 
-        await expect(gh.getBlockers([pr()])).resolves.toEqual([])
+        const [blocker] = await gh.getBlockers([pr()])
+        expect(blocker!.errors[0]).toMatch(/head commit .* could not be read/)
+    })
+
+    it('asks only for the latest attempt of each job', async () => {
+        const urls: string[] = []
+        const inner = routedFetch(ACTIONS_ROUTES)
+        const gh = new GitHubProvider('github.com', 't', async (url, init) => {
+            urls.push(url)
+            return await inner(url, init)
+        })
+
+        await gh.getBlockers([pr()])
+
+        expect(urls.find(url => url.includes('/runs/500/jobs'))).toContain(
+            'filter=latest'
+        )
+    })
+
+    it('names the job when its log cannot be downloaded', async () => {
+        const gh = new GitHubProvider('github.com', 't', async (url, init) =>
+            url.startsWith('https://blob.example.com')
+                ? new Response('denied', { status: 403 })
+                : await routedFetch(ACTIONS_ROUTES)(url, init)
+        )
+
+        const [blocker] = await gh.getBlockers([pr()])
+
+        expect(blocker).toMatchObject({ job: 'quality' })
+        expect(blocker!.errors).toEqual(['job log unavailable: HTTP 403'])
     })
 
     it('diagnoses several failed pull requests', async () => {

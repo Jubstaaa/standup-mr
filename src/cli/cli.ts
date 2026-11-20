@@ -44,6 +44,9 @@ export async function main(argv: string[]): Promise<number> {
                 new Date(),
                 values.lang
             )
+            for (const warning of report.warnings) {
+                process.stderr.write(`Warning: ${warning}\n`)
+            }
             const output = values.markdown
                 ? toMarkdown(report, values.lang)
                 : JSON.stringify(report, null, 1)

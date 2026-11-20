@@ -35,7 +35,7 @@ describe('getEvents', () => {
             routedFetch({
                 '/events': [
                     {
-                        created_at: '2026-08-27T10:57:00.000+03:00',
+                        created_at: '2026-08-27T10:57:00.000Z',
                         action_name: 'pushed to',
                         project_id: 12,
                         target_type: 'Project',

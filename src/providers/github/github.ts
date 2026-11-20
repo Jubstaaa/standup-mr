@@ -1,5 +1,7 @@
+import pMap from 'p-map'
+
 import { classify, markMissingPipelines } from '../../buckets/buckets'
-import { isoDay, localAt } from '../../dates/dates'
+import { isoDay, localDay } from '../../dates/dates'
 import { MS_PER_DAY } from '../../dates/dates.constants'
 import type {
     ActivityEvent,
@@ -16,6 +18,9 @@ import {
     ApiError,
     assertUsable,
     buildUrl,
+    readJsonResponse,
+    readTail,
+    REQUEST_CONCURRENCY,
     sendWithRetry,
     timedFetch,
     unreachable,
@@ -55,6 +60,7 @@ export class GitHubProvider implements Provider {
     private readonly token: string
     private readonly fetchImpl: FetchLike
     private identity: Identity | null = null
+    private readonly warningList: string[] = []
 
     constructor(
         host: string,
@@ -91,11 +97,7 @@ export class GitHubProvider implements Provider {
         const response = await this.send(buildUrl(this.api, path, params))
         assertUsable(response, this.host)
         if (!response.ok) return null
-        try {
-            return (await response.json()) as T
-        } catch (cause) {
-            throw unreachable(this.host, cause)
-        }
+        return (await readJsonResponse(response, this.host, path)) as T
     }
 
     async getPaged<T>(
@@ -147,7 +149,7 @@ export class GitHubProvider implements Provider {
             )
                 return ''
             assertUsable(first, this.host)
-            return first.ok ? await first.text() : ''
+            return first.ok ? await readTail(first) : ''
         }
 
         let blob: Response
@@ -156,8 +158,17 @@ export class GitHubProvider implements Provider {
         } catch (cause) {
             throw unreachable(this.host, cause)
         }
-        if (!blob.ok) return ''
-        return await blob.text()
+        if (!blob.ok) {
+            throw new ApiError(
+                `job log unavailable: HTTP ${blob.status}`,
+                blob.status
+            )
+        }
+        return await readTail(blob)
+    }
+
+    warnings(): string[] {
+        return [...this.warningList]
     }
 
     async getIdentity(): Promise<Identity> {
@@ -182,9 +193,9 @@ export class GitHubProvider implements Provider {
         )
 
         if (raw.length === 0) {
-            process.stderr.write(
-                `Warning: the ${this.host} events feed returned nothing. Private activity ` +
-                    'is only visible to a token that belongs to the same account.\n'
+            this.warningList.push(
+                `the ${this.host} events feed returned nothing. Private activity ` +
+                    'is only visible to a token that belongs to the same account.'
             )
         }
 
@@ -233,7 +244,7 @@ export class GitHubProvider implements Provider {
             draft: pull.draft,
             branch: pull.head?.ref ?? '',
             target: pull.base?.ref ?? '',
-            updated: localAt(pull.updated_at).slice(0, 10),
+            updated: localDay(pull.updated_at),
             url: pull.html_url,
             mergeStatus: pull.mergeable_state ?? null,
             pipeline,
@@ -250,7 +261,9 @@ export class GitHubProvider implements Provider {
             `is:pr is:open author:${login} archived:false`,
             SEARCH_CAP
         )
-        const shaped = await Promise.all(items.map(item => this.shapePr(item)))
+        const shaped = await pMap(items, item => this.shapePr(item), {
+            concurrency: REQUEST_CONCURRENCY,
+        })
         const rows = shaped.filter((row): row is MergeRequest => row !== null)
 
         markMissingPipelines(rows)
@@ -269,15 +282,16 @@ export class GitHubProvider implements Provider {
             new Date(today.getTime() - FRESH_REVIEW_DAYS * MS_PER_DAY)
         )
 
-        const rows = await Promise.all(
-            items.map(async item => {
+        const rows = await pMap(
+            items,
+            async item => {
                 const project = repoFromUrl(item.repository_url)
                 const reviews = await this.getPaged<PullReview>(
                     `repos/${project}/pulls/${item.number}/reviews`,
                     {},
                     2
                 )
-                const updated = localAt(item.updated_at).slice(0, 10)
+                const updated = localDay(item.updated_at)
 
                 return {
                     provider: 'github' as const,
@@ -291,7 +305,8 @@ export class GitHubProvider implements Provider {
                     fresh: updated >= cutoff,
                     approvedByMe: approvedBy(reviews, identity.username),
                 }
-            })
+            },
+            { concurrency: REQUEST_CONCURRENCY }
         )
 
         return rows.sort((a, b) => b.updated.localeCompare(a.updated))
@@ -314,7 +329,7 @@ export class GitHubProvider implements Provider {
 
         const jobs = await this.getJson<{ jobs?: WorkflowJob[] }>(
             `repos/${mr.project}/actions/runs/${run.id}/jobs`,
-            { per_page: PAGE_SIZE }
+            { filter: 'latest', per_page: PAGE_SIZE }
         )
         const job = (jobs?.jobs ?? []).find(
             row =>
@@ -323,9 +338,17 @@ export class GitHubProvider implements Provider {
         )
         if (!job) return null
 
-        const log = await this.getLogText(
-            `repos/${mr.project}/actions/jobs/${job.id}/logs`
-        )
+        let errors: string[]
+        try {
+            errors = extractErrors(
+                await this.getLogText(
+                    `repos/${mr.project}/actions/jobs/${job.id}/logs`
+                )
+            )
+        } catch (cause) {
+            if (!degradable(cause)) throw cause
+            errors = [cause.message]
+        }
         return {
             provider: 'github',
             project: mr.project,
@@ -334,7 +357,7 @@ export class GitHubProvider implements Provider {
             job: job.name,
             stage: run.name ?? '',
             url: mr.url,
-            errors: extractErrors(log),
+            errors,
         }
     }
 
@@ -379,16 +402,26 @@ export class GitHubProvider implements Provider {
             `repos/${mr.project}/pulls/${mr.iid}`
         )
         const sha = pull?.head?.sha
-        if (!sha) return null
+        if (!sha) {
+            throw new ApiError(
+                `the head commit of #${mr.iid} could not be read`
+            )
+        }
 
         const actions = await this.actionsBlocker(mr, sha)
         if (actions?.errors.length) return actions
-        return (await this.checkRunBlocker(mr, sha)) ?? actions
+        const blocker = (await this.checkRunBlocker(mr, sha)) ?? actions
+        if (!blocker) {
+            throw new ApiError(`no failed job found for commit ${sha}`)
+        }
+        return blocker
     }
 
     async getBlockers(mrs: MergeRequest[]): Promise<Blocker[]> {
         const red = mrs.filter(mr => mr.pipeline === 'failed')
-        const diagnosed = await Promise.all(red.map(mr => this.tryDiagnose(mr)))
+        const diagnosed = await pMap(red, mr => this.tryDiagnose(mr), {
+            concurrency: REQUEST_CONCURRENCY,
+        })
         return diagnosed.filter((row): row is Blocker => row !== null)
     }
 

@@ -80,4 +80,5 @@ export interface StandupReport {
     today: { date: string; label: string }
     todayEvents: ActivityEvent[]
     user: string
+    warnings: string[]
 }

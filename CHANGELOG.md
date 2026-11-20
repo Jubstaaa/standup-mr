@@ -6,6 +6,56 @@ All notable changes to standup-mr are recorded here. The format follows
 
 ## [Unreleased]
 
+The report gains a field, so the next release is a minor version.
+
+### Added
+
+- **`warnings` on the report.** The JSON from `standup fetch` and the
+  `get_standup_data` tool carries `warnings: string[]`: things the report could
+  not see, such as an empty or private GitHub events feed. The CLI also prints
+  each one to stderr as `Warning: …`. Providers can supply them through an
+  optional `warnings()` method.
+
+### Changed
+
+- **Long job logs keep their last 2 MiB** and start with
+  `[log truncated to its last 2 MiB]`, instead of being read whole.
+- **A JSON answer over 8 MiB is refused** with an error naming the API path,
+  instead of being buffered whole.
+- **A body that is not JSON is named as such**: "answered <path> with something
+  that is not JSON (content-type …)", where it used to read as "Could not reach
+  <host>".
+- **GitLab events and merge requests are dated on your local wall clock**, as
+  GitHub's already were. An event near midnight can move to the neighbouring
+  day.
+- **A `gh` or `glab` that times out or crashes raises a configuration error**
+  naming the CLI, instead of reading as "no token".
+- Per-item API requests (diagnoses, merge request details) run at most four at
+  a time.
+
+### Fixed
+
+- **A red merge request is never dropped from `blockers`.** When its failure
+  cannot be diagnosed, it is still listed with job `unknown` and the reason,
+  such as `job log unavailable: HTTP 410` or `no failed job found …`.
+- Provider warnings now reach MCP callers, not only the CLI's stderr.
+
+### Security
+
+- **Webhook kind inference is an allow-list.** A URL is recognised only when it
+  is https, has no credentials or custom port, and starts with a known webhook
+  path on hooks.slack.com, chat.googleapis.com or discord.com. A URL that was
+  inferred before (http, a custom port, another path) now needs `kind` passed
+  explicitly. Webhook redirects are no longer followed.
+- **Mentions in a posted note cannot ping anyone.** Discord posts set
+  `allowed_mentions: { parse: [] }`, Slack gets `&`, `<` and `>` escaped, and
+  Google Chat gets a word joiner after each `<`, so `<!channel>` or
+  `<users/all>` in a merge request title stays text.
+
+### Dependencies
+
+- `p-map` is a new runtime dependency, used to cap concurrent API requests.
+
 ## [1.1.3] - 2026-11-20
 
 ### Changed

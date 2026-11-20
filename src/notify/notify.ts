@@ -21,7 +21,14 @@ export async function postWebhook(
     const response = await fetchImpl(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: toChatText(text, kind) }),
+        body: JSON.stringify({
+            [field]: toChatText(text, kind),
+            // The note quotes titles written by other people and text from an
+            // LLM; neither may ping @everyone, a role or a user.
+            ...(kind === 'discord' && { allowed_mentions: { parse: [] } }),
+        }),
+        // A webhook that answers with a redirect is not one we vetted.
+        redirect: 'manual',
     })
 
     if (!response.ok) {
@@ -31,19 +38,47 @@ export async function postWebhook(
     }
 }
 
-const WEBHOOK_HOSTS: Record<string, WebhookKind> = {
-    'hooks.slack.com': 'slack',
-    'chat.googleapis.com': 'google-chat',
-    'discord.com': 'discord',
-    'discordapp.com': 'discord',
-    'ptb.discord.com': 'discord',
-    'canary.discord.com': 'discord',
+interface WebhookEndpoint {
+    host: string
+    kind: WebhookKind
+    path: RegExp
 }
 
+const SLACK_PATH = /^\/(services|workflows|triggers)\//
+// Discord documents both /api/webhooks/ and the versioned /api/vN/webhooks/.
+const DISCORD_PATH = /^\/api\/(v\d+\/)?webhooks\//
+
+const WEBHOOK_ENDPOINTS: readonly WebhookEndpoint[] = [
+    { host: 'hooks.slack.com', kind: 'slack', path: SLACK_PATH },
+    {
+        host: 'chat.googleapis.com',
+        kind: 'google-chat',
+        path: /^\/v1\/spaces\//,
+    },
+    ...[
+        'discord.com',
+        'discordapp.com',
+        'ptb.discord.com',
+        'canary.discord.com',
+    ].map(host => ({ host, kind: 'discord' as const, path: DISCORD_PATH })),
+]
+
+// Doubles as the allow-list for a server that posts to a stored URL: only an
+// https webhook path on a known chat host, with no credentials or custom port.
 export function inferWebhookKind(url: string): WebhookKind | null {
+    let parsed: URL
     try {
-        return WEBHOOK_HOSTS[new URL(url).hostname] ?? null
+        parsed = new URL(url)
     } catch {
         return null
     }
+    if (parsed.protocol !== 'https:') return null
+    if (parsed.port || parsed.username || parsed.password) return null
+
+    const endpoint = WEBHOOK_ENDPOINTS.find(
+        candidate =>
+            candidate.host === parsed.hostname &&
+            candidate.path.test(parsed.pathname)
+    )
+    return endpoint?.kind ?? null
 }
