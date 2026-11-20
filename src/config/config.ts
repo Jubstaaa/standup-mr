@@ -79,6 +79,20 @@ export function resolveToken(
     )
 }
 
+interface ExecFailure {
+    code?: string
+    signal?: NodeJS.Signals | null
+    status?: number | null
+}
+
+// A missing cli or a non-zero exit (not logged in, unknown host) means "no
+// token here"; a timeout or a crash is a broken cli the user has to see.
+function meansNoToken(error: unknown): boolean {
+    const failure = error as ExecFailure
+    if (failure.code === 'ENOENT') return true
+    return typeof failure.status === 'number' && failure.status !== 0
+}
+
 function cliCapture(cli: string, args: string[]): string {
     try {
         return execFileSync(cli, args, {
@@ -86,8 +100,17 @@ function cliCapture(cli: string, args: string[]): string {
             timeout: CLI_TIMEOUT_MS,
             stdio: ['ignore', 'pipe', 'ignore'],
         }).trim()
-    } catch {
-        return ''
+    } catch (error) {
+        if (meansNoToken(error)) return ''
+        const { code, signal } = error as ExecFailure
+        const reason =
+            code === 'ETIMEDOUT'
+                ? `timed out after ${CLI_TIMEOUT_MS / 1000}s`
+                : `was stopped by ${signal ?? code ?? 'an unknown error'}`
+        throw new ConfigError(
+            `\`${cli} ${args.join(' ')}\` ${reason}. Run it yourself to see ` +
+                'what is wrong, or pass the token directly.'
+        )
     }
 }
 
