@@ -1,4 +1,4 @@
-// Run by `bun run deps:check` in the required CI check.
+// Part of the required CI check: every rule at severity 'error' blocks merging.
 
 // Tests, fixtures and the timezone cases only ever run under `bun test`.
 const TEST_ONLY = '[.](?:test|fixtures|cases)[.]ts$'

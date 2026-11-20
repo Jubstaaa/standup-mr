@@ -26,7 +26,8 @@ jobs:
 
       # main only ever holds trees that passed the required check (the ruleset
       # merges up-to-date branches whose check is green), so a tag on main
-      # publishes exactly what CI gated. A tag anywhere else is refused.
+      # publishes exactly what CI gated. A tag anywhere else is refused. verify
+      # re-runs only what shapes the packed tarball (types, tests, build).
       - name: Verify the tag points at a commit on main
         run: |
           if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
@@ -168,10 +169,12 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-      # mcp-publisher login github-oidc
+      # The registry authorises io.github.Jubstaaa/* through this run's GitHub
+      # OIDC token, so no registry secret is stored.
       id-token: write
     env:
-      # registry_1.8.1_checksums.txt from the v1.8.1 release.
+      # From registry_1.8.1_checksums.txt, so a replaced release asset never
+      # runs with id-token: write. Bump the URL and the hash together.
       MCP_PUBLISHER_URL: https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz
       MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
       PACKAGE: standup-mr

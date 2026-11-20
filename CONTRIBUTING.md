@@ -67,6 +67,11 @@ bun run typecheck
 bun run lint
 bun run format:check
 
+# Dead code, duplication, module boundaries
+bun run knip
+bun run duplication
+bun run deps:check
+
 # Build (CLI + library + MCP server bundle)
 bun run build
 ```
@@ -89,6 +94,10 @@ bun run build
       (regular dependencies of the package). `remote/` is a separate
       workspace with its own dependencies and never ships to npm
     - Kebab-case file names
+    - `bun run deps:check` enforces the boundaries between them: `src/` and
+      `mcp/` never import `remote/`, `src/` never imports `mcp/`, shipped code
+      uses no Bun-only module or dev dependency, and cycles or orphan modules
+      fail the check
 
 3. **Test your changes**:
 
@@ -99,10 +108,16 @@ bun run build
     bun test
     bun run test:tz
     bun run audit
+    bun run knip          # unused files, exports and dependencies
+    bun run duplication   # copy-paste above the .jscpd.json threshold
+    bun run deps:check    # module boundaries, cycles, orphans
     bun run build
     ```
 
-    That is the same list the CI `check` job gates every pull request on.
+    That is the list the CI `check` job gates every pull request on. CI also
+    runs Trivy (fixable HIGH/CRITICAL vulnerabilities, secrets and
+    misconfiguration) and actionlint; locally both are optional:
+    `trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --ignore-unfixed --skip-dirs node_modules,dist .`
 
     If you touch anything in `src/dates/` or anything that computes "today"
     or "the previous day", run the suite under more than one timezone -
@@ -217,6 +232,30 @@ either way isn't covering anything.
 5. Request review from maintainers
 6. Address any feedback
 7. Merge once approved!
+
+## Releasing (maintainers)
+
+1. On an up-to-date branch, move the `[Unreleased]` entries in `CHANGELOG.md`
+   under a `## [x.y.z] - YYYY-MM-DD` heading. The GitHub release notes are cut
+   from that heading, and the release fails without it.
+2. `npm version <patch|minor|major> --no-git-tag-version`. The `version` script
+   (`scripts/sync-versions.mjs`) also bumps `.claude-plugin/*.json`,
+   `gemini-extension.json` and `server.json`; the release refuses a tag whose
+   manifests disagree with `package.json`.
+3. Merge that through a pull request, then tag the merge commit on `main`:
+   `git tag vX.Y.Z <sha>` and `git push origin vX.Y.Z`.
+
+The `Release` workflow then runs four jobs:
+
+- **verify** refuses a tag that is not on `main`, type-checks, tests, builds
+  and packs the tarball. It holds no publishing credential.
+- **npm** publishes that tarball with npm provenance (`npm audit signatures`
+  verifies it). It installs and runs nothing from the repository.
+- **mcp-registry** waits for the version on npm, then publishes `server.json`
+  with the checksum-pinned `mcp-publisher` through GitHub OIDC.
+- **github-release** creates the release from the changelog entry.
+
+Each publishing job skips work already done, so re-running a failed job is safe.
 
 ## Commit Message Format
 
