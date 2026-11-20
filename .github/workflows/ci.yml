@@ -65,7 +65,7 @@ jobs:
                   skip-dirs: node_modules,dist
                   severity: HIGH,CRITICAL
                   # Explicit, so a scanner upgrade shows up in review.
-                  version: v0.70.0
+                  version: v0.76.2
                   # A finding with no fixed version would block every PR with
                   # nothing to act on; bun audit reports those advisories too.
                   ignore-unfixed: true
@@ -127,7 +127,7 @@ jobs:
               with:
                   scan-type: image
                   image-ref: ${{ env.IMAGE }}:candidate
-                  version: v0.70.0
+                  version: v0.76.2
                   severity: HIGH,CRITICAL
                   ignore-unfixed: true
                   exit-code: '1'
