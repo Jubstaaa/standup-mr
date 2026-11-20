@@ -30,8 +30,10 @@ jobs:
       # re-runs only what shapes the packed tarball (types, tests, build).
       - name: Verify the tag points at a commit on main
         run: |
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on main; release only from main."
+          # First parents only: the commits of a merged branch are ancestors of
+          # main too, but only the merge commits themselves passed the check.
+          if ! git rev-list --first-parent origin/main | grep -qx "$GITHUB_SHA"; then
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not a commit on main's first-parent history; release only from main."
             exit 1
           fi
 
@@ -63,6 +65,11 @@ jobs:
       - name: Verify the tag matches package.json
         run: |
           TAG="${GITHUB_REF_NAME#v}"
+          # A prerelease would need its own npm dist-tag and a non-latest
+          # GitHub release; refuse it until that path exists.
+          case "$TAG" in
+            *-*) echo "::error::Prerelease tags are not supported: $GITHUB_REF_NAME"; exit 1 ;;
+          esac
           PKG=$(node -p "require('./package.json').version")
           if [ "$TAG" != "$PKG" ]; then
             echo "Tag v$TAG does not match package.json version $PKG"
@@ -192,10 +199,12 @@ jobs:
           NAME=$(jq -r .name server.json)
           VER="${GITHUB_REF_NAME#v}"
           ENCODED=$(jq -rn --arg n "$NAME" '$n | @uri')
-          if curl -fsS -o /dev/null "https://registry.modelcontextprotocol.io/v0/servers/$ENCODED/versions/$VER"; then
-            echo "$NAME@$VER is already in the MCP registry; nothing to publish."
-            exit 0
-          fi
+          STATUS=$(curl -sS -o /dev/null -w '%{http_code}' "https://registry.modelcontextprotocol.io/v0/servers/$ENCODED/versions/$VER")
+          case "$STATUS" in
+            200) echo "$NAME@$VER is already in the MCP registry; nothing to publish."; exit 0 ;;
+            404) ;;
+            *) echo "::error::The MCP registry answered $STATUS for $NAME@$VER"; exit 1 ;;
+          esac
           for i in $(seq 1 30); do
             npm view "$PACKAGE@$VER" version >/dev/null 2>&1 && break
             if [ "$i" = 30 ]; then

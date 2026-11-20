@@ -53,8 +53,9 @@ jobs:
             - run: bun run duplication
             - run: bun run deps:check
             - run: bun run build
-            # Last, so a new advisory never hides lint or test feedback. Lockfiles,
-            # Dockerfile, compose file and secrets; not installed or built output.
+            # Last, so a new advisory never hides lint or test feedback. Lockfiles
+            # and the Dockerfile, plus secrets anywhere in the tree; not installed
+            # or built output.
             - name: Trivy (vulnerabilities, secrets, misconfiguration)
               uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
               with:

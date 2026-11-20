@@ -75,6 +75,22 @@ export default defineConfig([
             ],
         },
     },
+    // The package runs on Node (engines.node); Bun's global only exists in
+    // tests and in remote/, which runs under Bun.
+    {
+        files: ['src/**/*.ts', 'mcp/**/*.ts'],
+        ignores: ['**/*.test.ts', '**/*.cases.ts', '**/*.fixtures.ts'],
+        rules: {
+            'no-restricted-globals': [
+                'error',
+                {
+                    name: 'Bun',
+                    message:
+                        'src/ and mcp/ ship to Node; use a Node API instead.',
+                },
+            ],
+        },
+    },
     {
         // The remote server reaches the package only through these modules.
         // Everything else in src/ (env and gh / glab discovery, the CLI) and
