@@ -84,3 +84,24 @@ describe('post_standup_note', () => {
 test('registers the three tools', () => {
     expect(() => createRemoteServer(context)).not.toThrow()
 })
+
+// The server reaches accounts only through the tokens linked on the connect
+// page. Loading the local CLI's discovery (env pairs, gh / glab sessions)
+// into this process is what the boundary forbids, transitively too.
+test('the server module graph leaves out local credential discovery', async () => {
+    const build = await Bun.build({
+        entrypoints: [new URL('../index.ts', import.meta.url).pathname],
+        target: 'bun',
+        packages: 'external',
+        metafile: true,
+        throw: true,
+    })
+    const modules = Object.keys(build.metafile?.inputs ?? {})
+
+    expect(modules.length).toBeGreaterThan(0)
+    expect(
+        modules.filter(path =>
+            /^(mcp\/|src\/config\/|src\/providers\/select)/.test(path)
+        )
+    ).toEqual([])
+})

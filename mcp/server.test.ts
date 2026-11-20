@@ -2,16 +2,16 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { describe, expect, it } from 'bun:test'
 
+import { runInstructionsTool } from '../src/mcp-tools/mcp-tools'
+import { INSTRUCTIONS_TOOL_DESCRIPTION } from '../src/mcp-tools/mcp-tools.constants'
 import { WEBHOOK_KINDS } from '../src/notify/notify.constants'
 import type { Provider } from '../src/providers/base/base.types'
 
 import { createServer } from './server'
 import {
     collect,
-    INSTRUCTIONS_TOOL_DESCRIPTION,
     POST_TOOL_DESCRIPTION,
     POST_TOOL_SCHEMA,
-    runInstructionsTool,
     runPostTool,
     runStandupTool,
     STANDUP_TOOL_DESCRIPTION,

@@ -1,6 +1,6 @@
 import js from '@eslint/js'
 import prettierConfig from 'eslint-config-prettier'
-import importPlugin from 'eslint-plugin-import-x'
+import importPlugin, { createNodeResolver } from 'eslint-plugin-import-x'
 import perfectionistPlugin from 'eslint-plugin-perfectionist'
 import prettierPlugin from 'eslint-plugin-prettier'
 import { defineConfig, globalIgnores } from 'eslint/config'
@@ -72,6 +72,49 @@ export default defineConfig([
             'perfectionist/sort-named-imports': [
                 'warn',
                 { order: 'asc', type: 'alphabetical' },
+            ],
+        },
+    },
+    {
+        // The remote server reaches the package only through these modules.
+        // Everything else in src/ (env and gh / glab discovery, the CLI) and
+        // all of mcp/ belong to the local stdio process.
+        files: ['remote/src/**/*.ts'],
+        settings: {
+            // Sources import each other without extensions, as Bun and tsup do.
+            'import-x/resolver-next': [
+                createNodeResolver({ extensions: ['.ts', '.js'] }),
+            ],
+        },
+        rules: {
+            'import-x/no-restricted-paths': [
+                'error',
+                {
+                    zones: [
+                        {
+                            target: './remote/src',
+                            from: './mcp',
+                            message:
+                                'mcp/ is the local stdio server; share code through src/mcp-tools instead.',
+                        },
+                        {
+                            target: './remote/src',
+                            from: './src',
+                            except: [
+                                './mcp-tools',
+                                './notify',
+                                './providers/base/base.types.ts',
+                                './providers/github/github.ts',
+                                './providers/gitlab/gitlab.ts',
+                                './render/digest.ts',
+                                './report/report.ts',
+                                './standup.types.ts',
+                            ],
+                            message:
+                                'remote/ may import only the public src/ modules listed in eslint.config.js.',
+                        },
+                    ],
+                },
             ],
         },
     },
