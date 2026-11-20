@@ -48,9 +48,18 @@ export async function shutdown(deps: ShutdownDeps): Promise<void> {
         deps.server.close(() => resolve())
         deps.server.closeIdleConnections()
     })
-    await deps.stopScheduler()
-    await serverClosed
+    try {
+        await deps.stopScheduler()
+        await serverClosed
+        deps.closeStore()
+    } catch (error) {
+        // Exiting 0 here would tell the orchestrator a clean stop happened
+        // while the database may not have been closed.
+        console.error(`shutdown failed: ${errorMessage(error)}`)
+        clearTimeout(forced)
+        deps.exit(1)
+        return
+    }
     clearTimeout(forced)
-    deps.closeStore()
     deps.exit(0)
 }

@@ -98,4 +98,28 @@ describe('shutdown', () => {
             socket.destroy()
         }
     })
+
+    test('exits 1 and logs when a step of the shutdown throws', async () => {
+        const server = await started()
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        try {
+            const code = await new Promise<number>(resolve => {
+                void shutdown({
+                    server,
+                    stopScheduler: async () => {},
+                    closeStore: () => {
+                        throw new Error('database is locked')
+                    },
+                    exit: resolve,
+                    timeoutMs: 1_000,
+                })
+            })
+            expect(code).toBe(1)
+            expect(logged.mock.calls.flat().join(' ')).toContain(
+                'database is locked'
+            )
+        } finally {
+            logged.mockRestore()
+        }
+    })
 })
