@@ -322,6 +322,50 @@ describe('guardedRequestConfig and toFetchResponse', () => {
         expect(await byteCount(read)).toBe(MIB)
     })
 
+    // How the provider readers consume a body (src/providers/base/http.ts):
+    // `for await` that stops at a byte cap. Leaving the loop early cancels
+    // the stream, and only that cancel gives the download slot back.
+    async function readCapped(
+        response: Response,
+        maxBytes: number
+    ): Promise<number> {
+        let size = 0
+        for await (const chunk of response.body!) {
+            size += chunk.byteLength
+            if (size > maxBytes) throw new Error(`more than ${maxBytes}`)
+        }
+        return size
+    }
+
+    test('a read stopped at its cap frees the download slot', async () => {
+        const downloads = pLimit(1)
+        const big = await send('/endless', { downloads })
+
+        await expect(readCapped(big, MIB)).rejects.toThrow(/more than/)
+        await Bun.sleep(0)
+        expect(downloads.activeCount).toBe(0)
+
+        // A leaked slot would park this read until its deadline.
+        const next = await send(`/sized?bytes=${MIB}`, { downloads })
+        expect(await readCapped(next, 2 * MIB)).toBe(MIB)
+        await Bun.sleep(0)
+        expect(downloads.activeCount).toBe(0)
+    })
+
+    test('a read that fails mid-body frees the download slot', async () => {
+        const downloads = pLimit(1)
+        const controller = new AbortController()
+        const response = await send('/trickle', {
+            downloads,
+            init: { signal: controller.signal },
+        })
+        setTimeout(() => controller.abort(), 30)
+
+        await expect(readCapped(response, MIB)).rejects.toThrow()
+        await Bun.sleep(0)
+        expect(downloads.activeCount).toBe(0)
+    })
+
     test('ends a response that trickles past the total deadline', async () => {
         const started = Date.now()
         const response = await send('/trickle', { deadlineMs: 150 })
