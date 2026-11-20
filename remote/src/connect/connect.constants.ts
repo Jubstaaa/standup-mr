@@ -39,6 +39,8 @@ export const DEFAULT_CLIENT_NAME = 'An MCP client'
 // the URL cannot put words in the page's mouth. {host} is the validated
 // host from the same URL.
 export const CONNECT_ERRORS = {
+    'account-expired':
+        'The test digest was not posted: a linked login has expired. Remove the account and link it again.',
     'finish-no-account': 'Link at least one account first.',
     'host-credentials': 'The host must not contain credentials.',
     'host-invalid': 'That is not a valid host.',
@@ -49,7 +51,10 @@ export const CONNECT_ERRORS = {
     'instance-fields': 'Both the application ID and the secret are required.',
     'instance-locked':
         'Sign-in for {host} is already set up. Use the sign-in button.',
+    'schedule-accounts-unreadable':
+        'The test digest was not posted: no linked account could be read. Try again in a few minutes.',
     'schedule-days': 'Pick at least one day.',
+    'schedule-invalid': 'Check the schedule and try again.',
     'schedule-never': 'The schedule never runs.',
     'schedule-no-account':
         'The test digest was not posted: no account is linked.',

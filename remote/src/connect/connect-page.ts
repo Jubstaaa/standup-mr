@@ -225,6 +225,9 @@ function selfHostedSection(base: string, panel?: SelfHostedPanel): string {
 
 function scheduleStatus(schedule?: Schedule): string {
     if (!schedule) return ''
+    const warning = schedule.lastWarning
+        ? ` ${escapeHtml(schedule.lastWarning)}`
+        : ''
     const last = schedule.lastError
         ? `<p class="hint">Last run failed: ${escapeHtml(schedule.lastError)}</p>`
         : schedule.lastSentAt
@@ -234,7 +237,7 @@ function scheduleStatus(schedule?: Schedule): string {
                     dateStyle: 'medium',
                     timeStyle: 'short',
                 })
-            )}.</p>`
+            )}.${warning}</p>`
           : ''
     return `<p class="saved">${escapeHtml(describeSchedule(schedule))}.</p>${last}`
 }

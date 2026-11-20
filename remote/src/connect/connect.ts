@@ -1,6 +1,11 @@
 import cookieParser from 'cookie-parser'
 import { Router, urlencoded } from 'express'
-import type { Request, RequestHandler, Response } from 'express'
+import type {
+    ErrorRequestHandler,
+    Request,
+    RequestHandler,
+    Response,
+} from 'express'
 import { rateLimit } from 'express-rate-limit'
 
 import { inferWebhookKind } from '../../../src/notify/notify'
@@ -8,7 +13,7 @@ import type { FetchLike, ProviderKind } from '../../../src/standup.types'
 import { providerFor } from '../accounts/accounts'
 import type { TokenRefresher } from '../accounts/accounts'
 import { randomToken } from '../crypto/crypto'
-import { errorMessage } from '../errors/errors'
+import { errorDetail } from '../errors/errors'
 import { clientKey } from '../rate-limit/rate-limit'
 import {
     nextRunAt,
@@ -16,7 +21,7 @@ import {
     ScheduleError,
     sendDigest,
 } from '../schedule/schedule'
-import { HostError, normalizeHost } from '../ssrf/ssrf'
+import { normalizeHost } from '../ssrf/ssrf'
 import type { HostCheck } from '../ssrf/ssrf'
 import type { Store } from '../store/store'
 import type { PendingAuthorization } from '../store/store.types'
@@ -27,6 +32,7 @@ import type { UpstreamTokens } from '../upstream/upstream.types'
 
 import { identifyClient } from './client-identity'
 import { connectCookieName } from './connect-cookie'
+import { digestErrorCode, hostErrorCode } from './connect-errors'
 import { renderConnectPage, renderMessagePage } from './connect-page'
 import {
     CONNECT_ERRORS,
@@ -135,13 +141,6 @@ function pageMessages(req: Request): { error?: string; notice?: string } {
             ? { notice: CONNECT_NOTICES[notice] }
             : {}),
     }
-}
-
-function hostErrorCode(
-    error: unknown,
-    otherwise: ConnectErrorCode = 'host-unreachable'
-): ConnectErrorCode {
-    return error instanceof HostError ? error.code : otherwise
 }
 
 function setupUrl(kind: ProviderKind, host: string): string {
@@ -307,6 +306,11 @@ export function createConnectRouter(deps: ConnectDeps): Router {
         const app =
             isSameApp &&
             upstream.resolve(login.kind, login.host, login.pending.connectionId)
+        if (login && route && !isSameApp) {
+            console.error(
+                `upstream callback for ${route.kind} ${route.host} came back for a login started with ${login.kind} ${login.host}; refused`
+            )
+        }
         if (!app || !login || login.pending.finishedRedirect) {
             return sendExpired(res)
         }
@@ -314,9 +318,21 @@ export function createConnectRouter(deps: ConnectDeps): Router {
         const panel = app.isInstance
             ? { provider: app.kind, host: app.host }
             : { provider: app.kind }
+        const failed = app.isInstance
+            ? 'signin-failed-instance'
+            : 'signin-failed'
         if (!query(req, 'code')) {
+            const upstreamError = query(req, 'error')
+            if (upstreamError === 'access_denied') {
+                return res.redirect(
+                    pageUrl(pending.id, { ...panel, error: 'signin-cancelled' })
+                )
+            }
+            console.error(
+                `sign-in to ${app.kind} ${app.host} returned no code: error=${upstreamError || '(none)'} ${query(req, 'error_description')}`
+            )
             return res.redirect(
-                pageUrl(pending.id, { ...panel, error: 'signin-cancelled' })
+                pageUrl(pending.id, { ...panel, error: failed })
             )
         }
         try {
@@ -339,16 +355,9 @@ export function createConnectRouter(deps: ConnectDeps): Router {
             res.redirect(pageUrl(pending.id))
         } catch (error) {
             console.error(
-                `sign-in to ${app.kind} ${app.host} failed: ${errorMessage(error)}`
+                `sign-in to ${app.kind} ${app.host} failed: ${errorDetail(error)}`
             )
-            res.redirect(
-                pageUrl(pending.id, {
-                    ...panel,
-                    error: app.isInstance
-                        ? 'signin-failed-instance'
-                        : 'signin-failed',
-                })
-            )
+            res.redirect(pageUrl(pending.id, { ...panel, error: failed }))
         }
     }
 
@@ -409,9 +418,6 @@ export function createConnectRouter(deps: ConnectDeps): Router {
             )
             res.redirect(pageUrl(pending.id))
         } catch (error) {
-            if (!(error instanceof HostError)) {
-                console.error(`pasted token refused: ${errorMessage(error)}`)
-            }
             res.redirect(
                 pageUrl(pending.id, {
                     error: hostErrorCode(error, 'token-rejected'),
@@ -476,17 +482,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
             await sendDigest(deps, pending.connectionId)
             res.redirect(pageUrl(pending.id, { notice: 'test-posted' }))
         } catch (error) {
-            if (!(error instanceof ScheduleError)) {
-                console.error(`test digest failed: ${errorMessage(error)}`)
-            }
-            res.redirect(
-                pageUrl(pending.id, {
-                    error:
-                        error instanceof ScheduleError
-                            ? error.code
-                            : 'test-failed',
-                })
-            )
+            res.redirect(pageUrl(pending.id, { error: digestErrorCode(error) }))
         }
     }
 
@@ -545,6 +541,22 @@ export function createConnectRouter(deps: ConnectDeps): Router {
     router.post('/:pendingId/schedule/test', tokenLimit, withPending(sendTest))
     router.post('/:pendingId/finish', withPending(finish))
     router.post('/:pendingId/cancel', withPending(cancel))
+
+    // Express hands anything a handler throws here; without it the user
+    // gets Express's bare error page and nothing says which step failed.
+    const handleError: ErrorRequestHandler = (error, req, res, next) => {
+        console.error(
+            `connect ${req.method} ${req.route?.path ?? req.path}: ${errorDetail(error)}`
+        )
+        if (res.headersSent) return next(error)
+        res.status(500).send(
+            renderMessagePage(
+                'Something went wrong',
+                'The connect page hit an error. Go back to your app and connect again; if it keeps happening, report it on the support page.'
+            )
+        )
+    }
+    router.use(handleError)
 
     return router
 }

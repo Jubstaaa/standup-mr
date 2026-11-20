@@ -285,6 +285,54 @@ describe('claude.ai connect flow', () => {
         expect(location).not.toContain('evil')
     })
 
+    test('an upstream error other than a refusal is logged and shown as failed', async () => {
+        await browser(
+            `${pagePath}/instances`,
+            form({
+                provider: 'gitlab',
+                host: 'broken.example.com',
+                client_id: 'broken-app',
+                client_secret: 'broken-secret',
+            })
+        )
+        const link = await browser(`${pagePath}/link/gitlab/broken.example.com`)
+        const state = new URL(link.headers.get('location')!).searchParams.get(
+            'state'
+        )
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        try {
+            const callback = await browser(
+                `/connect/callback/gitlab/broken.example.com?error=server_error&error_description=db+down&state=${state}`
+            )
+            expect(callback.headers.get('location')).toContain(
+                'error=signin-failed-instance'
+            )
+            const line = logged.mock.calls.flat().join(' ')
+            expect(line).toContain('server_error')
+            expect(line).toContain('db down')
+        } finally {
+            logged.mockRestore()
+        }
+    })
+
+    test('an unexpected error renders a message page and is logged', async () => {
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        const broken = spyOn(store.accounts, 'list').mockImplementation(() => {
+            throw new Error('disk I/O error')
+        })
+        try {
+            const response = await browser(pagePath)
+            expect(response.status).toBe(500)
+            expect(await response.text()).toContain('Something went wrong')
+            expect(logged.mock.calls.flat().join(' ')).toContain(
+                'disk I/O error'
+            )
+        } finally {
+            broken.mockRestore()
+            logged.mockRestore()
+        }
+    })
+
     test('finish is refused until an account is linked', async () => {
         const response = await browser(`${pagePath}/finish`, form({}))
         expect(response.headers.get('location')).toContain('error=')
@@ -434,9 +482,18 @@ describe('claude.ai connect flow', () => {
         )
         const before = tokenRequests.length
 
-        const callback = await browser(
-            `/connect/callback/gitlab/git.example.com?code=granted&state=${state}`
-        )
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        let callback: Response
+        try {
+            callback = await browser(
+                `/connect/callback/gitlab/git.example.com?code=granted&state=${state}`
+            )
+            expect(logged.mock.calls.flat().join(' ')).toContain(
+                'gitlab other.example.com'
+            )
+        } finally {
+            logged.mockRestore()
+        }
 
         expect(callback.status).toBe(410)
         expect(tokenRequests).toHaveLength(before)
@@ -503,6 +560,18 @@ describe('claude.ai connect flow', () => {
         const page = await (await browser(pagePath)).text()
         expect(page).toContain('Posts on Mon, Wed at 08:15 America/New_York')
         expect(page).toContain('<option selected>America/New_York</option>')
+    })
+
+    test('a run that left accounts out says so on the page', async () => {
+        const connectionId = connectionOf(pagePath)
+        store.schedules.markSent(
+            connectionId,
+            Date.now(),
+            Date.now() + 60_000,
+            '1 of 2 accounts could not be read.'
+        )
+        const page = await (await browser(pagePath)).text()
+        expect(page).toContain('1 of 2 accounts could not be read.')
     })
 
     test('a test digest is posted to the webhook', async () => {
