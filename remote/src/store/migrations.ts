@@ -2,7 +2,10 @@ import type { Database } from 'bun:sqlite'
 
 // Each entry runs once, in order, and leaves PRAGMA user_version at its
 // position in the list. Never edit an entry that has shipped: append one.
-export const MIGRATIONS: readonly string[] = [
+// A migration is SQL, or a function when it has something to report.
+export type Migration = string | ((db: Database) => void)
+
+export const MIGRATIONS: readonly Migration[] = [
     // The schema every release used before versioning existed. It keeps
     // IF NOT EXISTS so it is a no-op on those databases, still at version 0.
     `
@@ -103,7 +106,24 @@ CREATE INDEX IF NOT EXISTS schedules_next_run ON schedules (next_run_at);
     // row was never stored, so each one goes to every connection whose
     // OAuth account was issued by it (they need it to refresh); one nobody
     // signed in with is dropped and set up again by whoever needs it.
-    `
+    db => {
+        const dropped = db
+            .query<{ n: number }, []>(
+                `SELECT COUNT(*) AS n FROM instances WHERE NOT EXISTS (
+                 SELECT 1 FROM accounts WHERE accounts.provider = instances.kind
+                 AND accounts.host = instances.host AND accounts.source = 'oauth')`
+            )
+            .get()!.n
+        db.exec(SCOPE_INSTANCES_TO_CONNECTIONS)
+        if (dropped > 0) {
+            console.error(
+                `schema migration 2: dropped ${dropped} self-hosted OAuth app(s) nobody had signed in with; they are set up again on the connect page`
+            )
+        }
+    },
+]
+
+const SCOPE_INSTANCES_TO_CONNECTIONS = `
 CREATE TABLE instances_by_connection (
     connection_id TEXT NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
     kind TEXT NOT NULL,
@@ -125,8 +145,7 @@ JOIN accounts ON accounts.provider = instances.kind
 
 DROP TABLE instances;
 ALTER TABLE instances_by_connection RENAME TO instances;
-`,
-]
+`
 
 export function schemaVersion(db: Database): number {
     const row = db
@@ -145,33 +164,59 @@ export function schemaVersion(db: Database): number {
 // it. foreign_key_check then proves the rebuild left no dangling reference.
 // The transaction is IMMEDIATE because the old and the new container
 // overlap during a deploy and both open the database.
-export function migrate(db: Database, migrations: readonly string[]): void {
+export function migrate(db: Database, migrations: readonly Migration[]): void {
     const enforced = foreignKeysEnabled(db)
     db.exec('PRAGMA foreign_keys = OFF')
     try {
         db.transaction(() => {
             const current = schemaVersion(db)
-            migrations.slice(current).forEach((sql, offset) => {
+            const pending = migrations.slice(current)
+            pending.forEach((migration, offset) => {
                 const version = current + offset + 1
                 try {
-                    db.exec(sql)
+                    if (typeof migration === 'string') db.exec(migration)
+                    else migration(db)
                 } catch (cause) {
-                    throw new Error(`Schema migration ${version} failed`, {
-                        cause,
-                    })
+                    throw new MigrationError(
+                        `Schema migration ${version} failed`,
+                        { cause }
+                    )
                 }
                 db.exec(`PRAGMA user_version = ${version}`)
             })
-            const dangling = db.query('PRAGMA foreign_key_check').all()
-            if (dangling.length > 0) {
-                throw new Error(
-                    `Schema migration left ${dangling.length} rows with a broken foreign key`
-                )
-            }
+            if (pending.length > 0) assertNoDanglingReferences(db)
         }).immediate()
+    } catch (error) {
+        if (error instanceof MigrationError) throw error
+        // BEGIN IMMEDIATE itself failed: another process holds the lock.
+        throw new Error('Could not lock the database to migrate it', {
+            cause: error,
+        })
     } finally {
         if (enforced) db.exec('PRAGMA foreign_keys = ON')
     }
+}
+
+class MigrationError extends Error {}
+
+interface ForeignKeyViolation {
+    parent: string
+    rowid: number
+    table: string
+}
+
+function assertNoDanglingReferences(db: Database): void {
+    const dangling = db
+        .query<ForeignKeyViolation, []>('PRAGMA foreign_key_check')
+        .all()
+    if (dangling.length === 0) return
+    const shown = dangling
+        .slice(0, 10)
+        .map(row => `${row.table} row ${row.rowid} -> ${row.parent}`)
+        .join(', ')
+    throw new MigrationError(
+        `Schema migration left ${dangling.length} rows with a broken foreign key: ${shown}`
+    )
 }
 
 function foreignKeysEnabled(db: Database): boolean {

@@ -1,5 +1,9 @@
 import { Database } from 'bun:sqlite'
-import { describe, expect, test } from 'bun:test'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { describe, expect, spyOn, test } from 'bun:test'
 
 import { migrate, MIGRATIONS, schemaVersion } from './migrations'
 
@@ -33,7 +37,8 @@ describe('migrate', () => {
         const db = new Database(':memory:')
         // What every release before versioning ran on open: the first
         // migration's SQL, with user_version left at 0.
-        db.exec(MIGRATIONS[0]!)
+        migrate(db, MIGRATIONS.slice(0, 1))
+        db.exec('PRAGMA user_version = 0')
         db.query(
             'INSERT INTO connections (id, created_at, last_used_at) VALUES (?, ?, ?)'
         ).run('live', 1, 2)
@@ -125,7 +130,7 @@ describe('migrate', () => {
                 'SELECT 1',
                 "INSERT INTO child VALUES ('c', 'missing')",
             ])
-        ).toThrow(/foreign key/)
+        ).toThrow(/foreign key: child row 1 -> parent/)
         expect(schemaVersion(db)).toBe(1)
         expect(db.query('SELECT * FROM child').all()).toEqual([])
     })
@@ -153,7 +158,15 @@ describe('migrate', () => {
                    ('gitlab', 'unused.example.com', 'idle', 'sealed', 1, NULL);
         `)
 
-        migrate(db, MIGRATIONS)
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        try {
+            migrate(db, MIGRATIONS)
+            expect(String(logged.mock.calls[0])).toContain(
+                'dropped 1 self-hosted OAuth app'
+            )
+        } finally {
+            logged.mockRestore()
+        }
 
         expect(
             db
@@ -178,5 +191,31 @@ describe('migrate', () => {
         expect(db.query('SELECT COUNT(*) AS n FROM accounts').get()).toEqual({
             n: 3,
         })
+    })
+
+    test('does not check references when no migration ran', () => {
+        const db = new Database(':memory:')
+        db.exec(`CREATE TABLE parent (id TEXT PRIMARY KEY);
+                 CREATE TABLE child (id TEXT, parent_id TEXT REFERENCES parent(id));
+                 INSERT INTO child VALUES ('c', 'missing');`)
+        expect(() => migrate(db, [])).not.toThrow()
+    })
+
+    test('says when it cannot lock the database', () => {
+        const dir = mkdtempSync(join(tmpdir(), 'standup-lock-'))
+        const path = join(dir, 'db')
+        const holder = new Database(path, { create: true })
+        const waiting = new Database(path)
+        try {
+            holder.exec('BEGIN IMMEDIATE')
+            expect(() => migrate(waiting, ['CREATE TABLE a (x)'])).toThrow(
+                /lock the database/
+            )
+        } finally {
+            holder.exec('ROLLBACK')
+            holder.close()
+            waiting.close()
+            rmSync(dir, { recursive: true, force: true })
+        }
     })
 })
