@@ -124,6 +124,12 @@ async function* chunksOf(response: Response): AsyncGenerator<Uint8Array> {
     }
 }
 
+const MIB = 1024 * 1024
+
+function sizeLabel(bytes: number): string {
+    return bytes % MIB === 0 ? `${bytes / MIB} MiB` : `${bytes} bytes`
+}
+
 export async function readTail(
     response: Response,
     maxBytes: number = LOG_BYTES_CAP
@@ -138,13 +144,16 @@ export async function readTail(
         }
     }
     const bytes = Buffer.concat(kept)
-    return bytes.subarray(Math.max(0, bytes.length - maxBytes)).toString('utf8')
+    if (bytes.length <= maxBytes) return bytes.toString('utf8')
+    const tail = bytes.subarray(bytes.length - maxBytes).toString('utf8')
+    return `[log truncated to its last ${sizeLabel(maxBytes)}]\n${tail}`
 }
 
 export async function readJsonCapped(
     response: Response,
     maxBytes: number,
-    host: string
+    host: string,
+    path: string
 ): Promise<unknown> {
     const kept: Uint8Array[] = []
     let size = 0
@@ -152,12 +161,20 @@ export async function readJsonCapped(
         size += chunk.byteLength
         if (size > maxBytes) {
             throw new ApiError(
-                `${host} sent more than ${maxBytes} bytes in one response.`
+                `${host} sent more than ${sizeLabel(maxBytes)} for ${path}.`
             )
         }
         kept.push(chunk)
     }
-    return JSON.parse(Buffer.concat(kept).toString('utf8'))
+    try {
+        return JSON.parse(Buffer.concat(kept).toString('utf8'))
+    } catch {
+        // The parser message would quote the body, which may be a login page.
+        const type = response.headers.get('content-type') ?? 'none'
+        throw new ApiError(
+            `${host} answered ${path} with something that is not JSON (content-type ${type}).`
+        )
+    }
 }
 
 export const RETRY_ATTEMPTS = 3

@@ -100,7 +100,12 @@ export class GitHubProvider implements Provider {
         if (!response.ok) return null
         let body: unknown
         try {
-            body = await readJsonCapped(response, JSON_BYTES_CAP, this.host)
+            body = await readJsonCapped(
+                response,
+                JSON_BYTES_CAP,
+                this.host,
+                path
+            )
         } catch (cause) {
             if (cause instanceof ApiError) throw cause
             throw unreachable(this.host, cause)
