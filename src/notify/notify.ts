@@ -41,29 +41,26 @@ export async function postWebhook(
 interface WebhookEndpoint {
     host: string
     kind: WebhookKind
-    pathPrefixes: readonly string[]
+    path: RegExp
 }
 
-const SLACK_PATHS = ['/services/', '/workflows/', '/triggers/']
-const DISCORD_PATHS = ['/api/webhooks/']
+const SLACK_PATH = /^\/(services|workflows|triggers)\//
+// Discord documents both /api/webhooks/ and the versioned /api/vN/webhooks/.
+const DISCORD_PATH = /^\/api\/(v\d+\/)?webhooks\//
 
 const WEBHOOK_ENDPOINTS: readonly WebhookEndpoint[] = [
-    { host: 'hooks.slack.com', kind: 'slack', pathPrefixes: SLACK_PATHS },
+    { host: 'hooks.slack.com', kind: 'slack', path: SLACK_PATH },
     {
         host: 'chat.googleapis.com',
         kind: 'google-chat',
-        pathPrefixes: ['/v1/spaces/'],
+        path: /^\/v1\/spaces\//,
     },
     ...[
         'discord.com',
         'discordapp.com',
         'ptb.discord.com',
         'canary.discord.com',
-    ].map(host => ({
-        host,
-        kind: 'discord' as const,
-        pathPrefixes: DISCORD_PATHS,
-    })),
+    ].map(host => ({ host, kind: 'discord' as const, path: DISCORD_PATH })),
 ]
 
 // Doubles as the allow-list for a server that posts to a stored URL: only an
@@ -81,9 +78,7 @@ export function inferWebhookKind(url: string): WebhookKind | null {
     const endpoint = WEBHOOK_ENDPOINTS.find(
         candidate =>
             candidate.host === parsed.hostname &&
-            candidate.pathPrefixes.some(prefix =>
-                parsed.pathname.startsWith(prefix)
-            )
+            candidate.path.test(parsed.pathname)
     )
     return endpoint?.kind ?? null
 }

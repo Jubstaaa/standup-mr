@@ -143,6 +143,22 @@ describe('inferWebhookKind', () => {
         ).toBe('slack')
     })
 
+    it('accepts the versioned Discord webhook paths Discord documents', () => {
+        for (const version of ['v8', 'v9', 'v10']) {
+            expect(
+                inferWebhookKind(
+                    `https://discord.com/api/${version}/webhooks/1/x`
+                )
+            ).toBe('discord')
+        }
+        expect(
+            inferWebhookKind('https://discord.com/api/vx/webhooks/1/x')
+        ).toBeNull()
+        expect(
+            inferWebhookKind('https://discord.com/api/v10/users/1')
+        ).toBeNull()
+    })
+
     it('rejects plain http, credentials and custom ports', () => {
         expect(
             inferWebhookKind('http://hooks.slack.com/services/T0/B0/x')
