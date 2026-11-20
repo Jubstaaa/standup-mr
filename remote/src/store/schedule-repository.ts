@@ -76,12 +76,15 @@ export class ScheduleRepository {
             .map(toSchedule)
     }
 
-    setNextRun(connectionId: string, nextRunAt: number): void {
-        this.db
-            .query(
-                'UPDATE schedules SET next_run_at = ? WHERE connection_id = ?'
-            )
-            .run(nextRunAt, connectionId)
+    // True only for the caller that moved the run off `due`.
+    claim(connectionId: string, due: number, nextRunAt: number): boolean {
+        return (
+            this.db
+                .query(
+                    'UPDATE schedules SET next_run_at = ? WHERE connection_id = ? AND next_run_at = ?'
+                )
+                .run(nextRunAt, connectionId, due).changes === 1
+        )
     }
 
     markSent(

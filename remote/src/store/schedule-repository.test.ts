@@ -22,6 +22,13 @@ beforeEach(() => {
 })
 
 describe('ScheduleRepository', () => {
+    test('claims a due run once, then only for the run it now holds', () => {
+        expect(store.schedules.claim(connectionId, 100, 200)).toBe(true)
+        expect(store.schedules.claim(connectionId, 100, 200)).toBe(false)
+        expect(store.schedules.get(connectionId)!.nextRunAt).toBe(200)
+        expect(store.schedules.claim(connectionId, 200, 300)).toBe(true)
+    })
+
     test('stores the settings and the next run', () => {
         expect(store.schedules.get(connectionId)).toEqual({
             ...SETTINGS,
@@ -69,9 +76,7 @@ describe('ScheduleRepository', () => {
         })
     })
 
-    test('moves the next run and deletes the schedule', () => {
-        store.schedules.setNextRun(connectionId, 500)
-        expect(store.schedules.get(connectionId)?.nextRunAt).toBe(500)
+    test('deletes the schedule', () => {
         store.schedules.delete(connectionId)
         expect(store.schedules.get(connectionId)).toBeUndefined()
     })

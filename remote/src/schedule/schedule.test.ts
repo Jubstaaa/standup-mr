@@ -163,7 +163,16 @@ describe('runDueSchedules', () => {
         expect(posted).toHaveLength(0)
         const schedule = store.schedules.get(connectionId)!
         expect(schedule.lastSentAt).toBeNull()
+        expect(schedule.lastError).toMatch(/skipped/i)
         expect(schedule.nextRunAt).toBe(Date.parse('2026-10-13T06:30:00Z'))
+    })
+
+    test('posts once when two servers run the same due schedule', async () => {
+        linkGitLab('git.one.com')
+        // A second process sharing the database during a deploy overlap.
+        const other: SchedulerDeps = { ...deps }
+        await Promise.all([runDueSchedules(deps), runDueSchedules(other)])
+        expect(posted).toHaveLength(1)
     })
 
     test('still sends a run that is a little late', async () => {

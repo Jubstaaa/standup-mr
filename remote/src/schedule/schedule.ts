@@ -228,8 +228,17 @@ async function runSchedule(
         )
         return
     }
+    // Moving next_run_at only if it still holds this run makes the claim
+    // atomic, so two servers sharing the database never post it twice.
+    if (!deps.store.schedules.claim(connectionId, schedule.nextRunAt, next)) {
+        return
+    }
     if (now - schedule.nextRunAt > CATCH_UP_LIMIT_MS) {
-        deps.store.schedules.setNextRun(connectionId, next)
+        deps.store.schedules.markFailed(
+            connectionId,
+            `Skipped: the server was busy or down at the scheduled time and the run was over ${describeDuration(CATCH_UP_LIMIT_MS)} late.`,
+            next
+        )
         return
     }
     deps.store.connections.touch(connectionId, now)
