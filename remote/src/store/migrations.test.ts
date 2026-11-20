@@ -88,4 +88,53 @@ describe('migrate', () => {
         expect(schemaVersion(db)).toBe(1)
         expect(tables(db)).toEqual(['a'])
     })
+
+    test('rebuilding a parent table keeps the rows that reference it', () => {
+        const db = new Database(':memory:')
+        db.exec('PRAGMA foreign_keys = ON')
+        migrate(db, [
+            `CREATE TABLE parent (id TEXT PRIMARY KEY);
+             CREATE TABLE child (id TEXT, parent_id TEXT REFERENCES parent(id) ON DELETE CASCADE);
+             INSERT INTO parent VALUES ('p'); INSERT INTO child VALUES ('c', 'p');`,
+        ])
+
+        migrate(db, [
+            `CREATE TABLE parent (id TEXT PRIMARY KEY);
+             CREATE TABLE child (id TEXT, parent_id TEXT REFERENCES parent(id) ON DELETE CASCADE);
+             INSERT INTO parent VALUES ('p'); INSERT INTO child VALUES ('c', 'p');`,
+            `CREATE TABLE parent_new (id TEXT PRIMARY KEY, extra TEXT);
+             INSERT INTO parent_new (id) SELECT id FROM parent;
+             DROP TABLE parent;
+             ALTER TABLE parent_new RENAME TO parent;`,
+        ])
+
+        expect(db.query('SELECT id FROM child').all()).toEqual([{ id: 'c' }])
+        expect(
+            db.query<{ foreign_keys: number }, []>('PRAGMA foreign_keys').get()
+        ).toEqual({ foreign_keys: 1 })
+    })
+
+    test('refuses a migration that leaves a dangling reference', () => {
+        const db = new Database(':memory:')
+        migrate(db, [
+            `CREATE TABLE parent (id TEXT PRIMARY KEY);
+             CREATE TABLE child (id TEXT, parent_id TEXT REFERENCES parent(id));`,
+        ])
+        expect(() =>
+            migrate(db, [
+                'SELECT 1',
+                "INSERT INTO child VALUES ('c', 'missing')",
+            ])
+        ).toThrow(/foreign key/)
+        expect(schemaVersion(db)).toBe(1)
+        expect(db.query('SELECT * FROM child').all()).toEqual([])
+    })
+
+    test('leaves a database a newer release migrated untouched', () => {
+        const db = new Database(':memory:')
+        migrate(db, MIGRATIONS)
+        db.exec(`PRAGMA user_version = ${MIGRATIONS.length + 1}`)
+        migrate(db, MIGRATIONS)
+        expect(schemaVersion(db)).toBe(MIGRATIONS.length + 1)
+    })
 })

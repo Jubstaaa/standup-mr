@@ -109,17 +109,45 @@ export function schemaVersion(db: Database): number {
 // About fifteen lines of user_version bookkeeping; the bun:sqlite migration
 // packages are unmaintained (last release 2023) and umzug needs a custom
 // storage adapter for user_version plus five dependencies.
+//
+// SQLite ignores PRAGMA foreign_keys inside a transaction, so it is switched
+// off around it: a migration that rebuilds a parent table (create, copy,
+// drop, rename) would otherwise cascade-delete every row that references
+// it. foreign_key_check then proves the rebuild left no dangling reference.
+// The transaction is IMMEDIATE because the old and the new container
+// overlap during a deploy and both open the database.
 export function migrate(db: Database, migrations: readonly string[]): void {
-    db.transaction(() => {
-        const current = schemaVersion(db)
-        migrations.slice(current).forEach((sql, offset) => {
-            const version = current + offset + 1
-            try {
-                db.exec(sql)
-            } catch (cause) {
-                throw new Error(`Schema migration ${version} failed`, { cause })
+    const enforced = foreignKeysEnabled(db)
+    db.exec('PRAGMA foreign_keys = OFF')
+    try {
+        db.transaction(() => {
+            const current = schemaVersion(db)
+            migrations.slice(current).forEach((sql, offset) => {
+                const version = current + offset + 1
+                try {
+                    db.exec(sql)
+                } catch (cause) {
+                    throw new Error(`Schema migration ${version} failed`, {
+                        cause,
+                    })
+                }
+                db.exec(`PRAGMA user_version = ${version}`)
+            })
+            const dangling = db.query('PRAGMA foreign_key_check').all()
+            if (dangling.length > 0) {
+                throw new Error(
+                    `Schema migration left ${dangling.length} rows with a broken foreign key`
+                )
             }
-            db.exec(`PRAGMA user_version = ${version}`)
-        })
-    })()
+        }).immediate()
+    } finally {
+        if (enforced) db.exec('PRAGMA foreign_keys = ON')
+    }
+}
+
+function foreignKeysEnabled(db: Database): boolean {
+    const row = db
+        .query<{ foreign_keys: number }, []>('PRAGMA foreign_keys')
+        .get()
+    return row?.foreign_keys === 1
 }

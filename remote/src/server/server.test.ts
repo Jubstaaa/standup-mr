@@ -1,14 +1,24 @@
 import { createHash, randomBytes } from 'node:crypto'
 import type { Server } from 'node:http'
 
-import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test'
+import {
+    afterAll,
+    afterEach,
+    beforeAll,
+    describe,
+    expect,
+    spyOn,
+    test,
+} from 'bun:test'
 
 import type { RemoteConfig } from '../config/config.types'
 import { MIGRATIONS } from '../store/migrations'
 import { Store } from '../store/store'
-import { openStoreOnDisk } from '../store/store.fixtures'
+import { openStoreOnDisk, removeStoresOnDisk } from '../store/store.fixtures'
 
 import { createApp, createServices } from './server'
+
+afterEach(removeStoresOnDisk)
 
 const REDIRECT_URI = 'https://claude.ai/api/mcp/auth_callback'
 const verifier = randomBytes(32).toString('base64url')

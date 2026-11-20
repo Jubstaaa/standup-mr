@@ -1,15 +1,18 @@
 import { randomBytes } from 'node:crypto'
 
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 
 import { Store } from './store'
 import { CODE_TTL_MS, PENDING_TTL_MS } from './store.constants'
 import {
     BROWSER_SECRET,
     openStoreOnDisk,
+    removeStoresOnDisk,
     startConnection,
 } from './store.fixtures'
 import type { PendingAuthorization } from './store.types'
+
+afterEach(removeStoresOnDisk)
 
 const REDIRECT = 'https://claude.ai/api/mcp/auth_callback?code=c'
 
