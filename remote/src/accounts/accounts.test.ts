@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 
 import { beforeEach, describe, expect, spyOn, test } from 'bun:test'
+import * as oauth from 'oauth4webapi'
 
 import { Store } from '../store/store'
 import { startConnection } from '../store/store.fixtures'
@@ -55,6 +56,13 @@ describe('pickAccount', () => {
         expect(() => pickAccount([], {})).toThrow(AccountError)
     })
 })
+
+function refused(error: string, status: number) {
+    return new oauth.ResponseBodyError('refused', {
+        cause: { error },
+        response: new Response(null, { status }),
+    })
+}
 
 describe('createTokenRefresher', () => {
     let store: Store
@@ -176,17 +184,45 @@ describe('createTokenRefresher', () => {
         expect(asked).toEqual([linked.connectionId])
     })
 
-    test('asks for a reconnect when the refresh is refused', async () => {
+    test('asks for a reconnect when the refresh token is refused', async () => {
         refreshResult = async () => {
-            throw new Error('bad_refresh_token')
+            throw refused('invalid_grant', 400)
         }
         const fresh = createTokenRefresher(upstream(), store.accounts)
-        await expect(fresh(linked, 9_999_000)).rejects.toThrow(/Reconnect/)
+        const error = await fresh(linked, 9_999_000).catch(
+            (caught: unknown) => caught
+        )
+        expect(error).toBeInstanceOf(AccountError)
+        expect(String(error)).toMatch(/Reconnect/)
+    })
+
+    test('calls a network failure temporary, not a reason to reconnect', async () => {
+        refreshResult = async () => {
+            throw new Error('ECONNRESET')
+        }
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        try {
+            const fresh = createTokenRefresher(upstream(), store.accounts)
+            const error = await fresh(linked, 9_999_000).catch(
+                (caught: unknown) => caught
+            )
+            expect(error).not.toBeInstanceOf(AccountError)
+            expect(String(error)).toMatch(/try again/i)
+        } finally {
+            logged.mockRestore()
+        }
+    })
+
+    test('refuses to refresh an account that was removed meanwhile', async () => {
+        const fresh = createTokenRefresher(upstream(), store.accounts)
+        store.accounts.remove(linked.connectionId, linked.id)
+        await expect(fresh(linked, 9_999_000)).rejects.toThrow(AccountError)
+        expect(refreshCalls).toBe(0)
     })
 
     test('logs why the refresh failed, without the refresh token', async () => {
         refreshResult = async () => {
-            throw new Error('bad_refresh_token')
+            throw refused('bad_refresh_token', 401)
         }
         const logged = spyOn(console, 'error').mockImplementation(() => {})
         try {

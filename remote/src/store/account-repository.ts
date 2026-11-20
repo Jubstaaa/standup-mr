@@ -95,7 +95,7 @@ export class AccountRepository {
     }
 
     updateTokens(accountId: string, tokens: UpstreamTokens): void {
-        this.db
+        const result = this.db
             .query(
                 `UPDATE accounts SET access_token = ?,
                  refresh_token = COALESCE(?, refresh_token), expires_at = ? WHERE id = ?`
@@ -108,5 +108,12 @@ export class AccountRepository {
                 tokens.expiresAt,
                 accountId
             )
+        // A refresh that lands after the account was removed must not look
+        // like it was saved.
+        if (result.changes !== 1) {
+            throw new Error(
+                `Account ${accountId} is missing; tokens not saved.`
+            )
+        }
     }
 }

@@ -1,8 +1,10 @@
+import * as oauth from 'oauth4webapi'
+
 import type { Provider } from '../../../src/providers/base/base.types'
 import { GitHubProvider } from '../../../src/providers/github/github'
 import { GitLabProvider } from '../../../src/providers/gitlab/gitlab'
 import type { FetchLike, ProviderKind } from '../../../src/standup.types'
-import { errorMessage } from '../errors/errors'
+import { errorDetail } from '../errors/errors'
 import type { AccountRepository } from '../store/account-repository'
 import type { Upstream } from '../upstream/upstream'
 
@@ -62,6 +64,17 @@ function isCurrent(account: Account, now: number): boolean {
     )
 }
 
+// Only the host saying no to the refresh token means it is dead; a network
+// or database error is worth another try, not a reconnect.
+function isRefusedGrant(error: unknown): boolean {
+    return (
+        error instanceof oauth.ResponseBodyError &&
+        (error.error === 'invalid_grant' ||
+            error.status === 400 ||
+            error.status === 401)
+    )
+}
+
 // OAuth tokens expire (GitHub after 8h, GitLab after 2h) and their refresh
 // tokens are single-use. Refreshes are shared per account, so two
 // concurrent tool calls never spend the same refresh token twice.
@@ -74,7 +87,12 @@ export function createTokenRefresher(
     // The caller's copy may predate a refresh that already finished; its
     // refresh token is then spent, so the stored row is the one that counts.
     async function refresh(stale: Account, now: number): Promise<string> {
-        const account = accounts.get(stale.id) ?? stale
+        const account = accounts.get(stale.id)
+        if (!account) {
+            throw new AccountError(
+                `The ${describeAccount(stale)} account is no longer linked. Reconnect the connector.`
+            )
+        }
         if (isCurrent(account, now)) return account.accessToken
         const app = upstream.resolve(
             account.provider,
@@ -95,11 +113,21 @@ export function createTokenRefresher(
             accounts.updateTokens(account.id, tokens)
             return tokens.accessToken
         } catch (cause) {
+            const refusal =
+                cause instanceof oauth.ResponseBodyError
+                    ? ` (${cause.error}, HTTP ${cause.status})`
+                    : ''
             console.error(
-                `token renewal failed for ${describeAccount(account)}: ${errorMessage(cause)}`
+                `token renewal failed for ${describeAccount(account)}: ${errorDetail(cause)}${refusal}`
             )
-            throw new AccountError(
-                `The ${describeAccount(account)} login could not be renewed. Reconnect the connector.`
+            if (isRefusedGrant(cause)) {
+                throw new AccountError(
+                    `The ${describeAccount(account)} login could not be renewed. Reconnect the connector.`
+                )
+            }
+            throw new Error(
+                `The ${describeAccount(account)} login could not be renewed right now. Try again in a few minutes.`,
+                { cause }
             )
         }
     }

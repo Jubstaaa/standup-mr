@@ -100,4 +100,14 @@ describe('AccountRepository', () => {
         store.accounts.remove(connectionId, id)
         expect(store.accounts.list(connectionId)).toEqual([])
     })
+
+    test('refuses to update the tokens of an account that is gone', () => {
+        expect(() =>
+            store.accounts.updateTokens('missing', {
+                accessToken: 'a',
+                refreshToken: null,
+                expiresAt: null,
+            })
+        ).toThrow(/missing/)
+    })
 })

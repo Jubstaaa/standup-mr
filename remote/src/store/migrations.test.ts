@@ -1,8 +1,8 @@
-import { Database } from 'bun:sqlite'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { Database } from 'bun:sqlite'
 import { describe, expect, spyOn, test } from 'bun:test'
 
 import { migrate, MIGRATIONS, schemaVersion } from './migrations'
