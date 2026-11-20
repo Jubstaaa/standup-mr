@@ -70,7 +70,7 @@
         "audit": "bun audit --audit-level=high",
         "knip": "knip",
         "duplication": "jscpd",
-        "deps:graph": "depcruise src mcp remote/src --output-type err"
+        "deps:check": "depcruise src mcp remote/src --output-type err"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.32.1",

@@ -40,6 +40,9 @@ jobs:
                   scan-ref: .
                   scanners: vuln,secret,misconfig
                   severity: HIGH,CRITICAL
+                  # A finding with no fixed version would block every PR with
+                  # nothing to act on; bun audit reports those advisories too.
+                  ignore-unfixed: true
                   exit-code: '1'
             - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
               with:
@@ -60,7 +63,7 @@ jobs:
             # no dev dependency in shipped code (.dependency-cruiser.cjs).
             - run: bun run knip
             - run: bun run duplication
-            - run: bun run deps:graph
+            - run: bun run deps:check
             - run: bun run build
             - name: actionlint
               run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color

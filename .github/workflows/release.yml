@@ -7,21 +7,35 @@ on:
 permissions:
   contents: read
 
-# Three jobs so that the one installing and running third-party code (verify)
-# holds no publishing credential, and the jobs holding credentials run no
-# dependency code: they publish the tarball verify packed, or a checksum-pinned
-# binary.
+# The job that installs and runs third-party code (verify) holds no publishing
+# credential, and the jobs holding credentials run no dependency code: they
+# publish the tarball verify packed, or a checksum-pinned binary.
 jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
+    outputs:
+      name: ${{ steps.package.outputs.name }}
+      version: ${{ steps.package.outputs.version }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The full history, for the ancestry check below.
+          fetch-depth: 0
+
+      # main only ever holds trees that passed the required check (the ruleset
+      # merges up-to-date branches whose check is green), so a tag on main
+      # publishes exactly what CI gated. A tag anywhere else is refused.
+      - name: Verify the tag points at a commit on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on main; release only from main."
+            exit 1
+          fi
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -29,8 +43,7 @@ jobs:
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org
+          node-version: 22
 
       - run: bun install --frozen-lockfile
 
@@ -95,6 +108,11 @@ jobs:
             exit 1
           fi
 
+      - id: package
+        run: |
+          echo "name=$(node -p "require('./package.json').name")" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Pack the package
         run: npm pack --pack-destination "$RUNNER_TEMP/package"
 
@@ -104,6 +122,8 @@ jobs:
           path: ${{ runner.temp }}/package/*.tgz
           if-no-files-found: error
           retention-days: 7
+          # A re-run of verify in the same workflow run replaces it.
+          overwrite: true
 
   npm:
     needs: verify
@@ -125,18 +145,31 @@ jobs:
           path: package
 
       - name: Publish to npm
-        run: |
-          VER="${GITHUB_REF_NAME#v}"
-          if npm view "standup-mr@$VER" version >/dev/null 2>&1; then
-            echo "standup-mr@$VER is already on npm; nothing to publish."
-            exit 0
-          fi
-          npm publish package/*.tgz --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          EXPECTED: ${{ needs.verify.outputs.name }}@${{ needs.verify.outputs.version }}
+        run: |
+          # Check what is about to be signed instead of trusting a glob.
+          shopt -s nullglob
+          # ./ matters: npm reads a bare dir/file.tgz as a GitHub shorthand.
+          tarballs=(./package/*.tgz)
+          if [ "${#tarballs[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one tarball, found ${#tarballs[@]}"
+            exit 1
+          fi
+          packed=$(tar -xOzf "${tarballs[0]}" package/package.json | jq -r '.name + "@" + .version')
+          if [ "$packed" != "$EXPECTED" ]; then
+            echo "::error::The tarball holds $packed, expected $EXPECTED"
+            exit 1
+          fi
+          if npm view "$EXPECTED" version >/dev/null 2>&1; then
+            echo "$EXPECTED is already on npm; nothing to publish."
+            exit 0
+          fi
+          npm publish "${tarballs[0]}" --provenance
 
   mcp-registry:
-    needs: npm
+    needs: [verify, npm]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -147,6 +180,8 @@ jobs:
       # registry_1.8.1_checksums.txt from the v1.8.1 release.
       MCP_PUBLISHER_URL: https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz
       MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+      PACKAGE: ${{ needs.verify.outputs.name }}
+      VER: ${{ needs.verify.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -159,14 +194,17 @@ jobs:
       - name: Publish to the MCP registry
         run: |
           NAME=$(jq -r .name server.json)
-          VER="${GITHUB_REF_NAME#v}"
-          if curl -fsS "https://registry.modelcontextprotocol.io/v0/servers?search=$NAME" \
-            | jq -e --arg v "$VER" 'any(.servers[]; .server.version == $v)' >/dev/null; then
+          ENCODED=$(jq -rn --arg n "$NAME" '$n | @uri')
+          if curl -fsS -o /dev/null "https://registry.modelcontextprotocol.io/v0/servers/$ENCODED/versions/$VER"; then
             echo "$NAME@$VER is already in the MCP registry; nothing to publish."
             exit 0
           fi
-          for _ in $(seq 1 30); do
-            npm view "standup-mr@$VER" version >/dev/null 2>&1 && break
+          for i in $(seq 1 30); do
+            npm view "$PACKAGE@$VER" version >/dev/null 2>&1 && break
+            if [ "$i" = 30 ]; then
+              echo "::error::$PACKAGE@$VER is still not visible on npm after 5 minutes"
+              exit 1
+            fi
             sleep 10
           done
           curl -fsSL -o "$RUNNER_TEMP/mcp-publisher.tar.gz" "$MCP_PUBLISHER_URL"
@@ -202,10 +240,10 @@ jobs:
             index($0, ver) == 1 { grab = 1; next }
             grab && /^## \[/    { exit }
             grab                { print }
-          ' CHANGELOG.md > /tmp/notes.md
-          if [ ! -s /tmp/notes.md ]; then
+          ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if [ ! -s "$RUNNER_TEMP/notes.md" ]; then
             echo "No changelog entry for $VER" >&2
             exit 1
           fi
           gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
-            --notes-file /tmp/notes.md --verify-tag --latest
+            --notes-file "$RUNNER_TEMP/notes.md" --verify-tag --latest
