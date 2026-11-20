@@ -6,9 +6,13 @@
 # (docker, /remote) bumps tag and digest together.
 FROM oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d
 
-# Debian security fixes land on every build instead of waiting for upstream to
-# rebuild the pinned base; CI scans the result for fixable HIGH/CRITICAL CVEs.
-RUN apt-get update \
+# Debian security fixes land daily instead of waiting for upstream to rebuild
+# the pinned base: CI passes the date as APT_REFRESH, which changes this
+# layer's cache key once a day (a cached layer would otherwise never refresh).
+# CI scans the result for fixable HIGH/CRITICAL CVEs.
+ARG APT_REFRESH=unset
+RUN echo "apt refresh ${APT_REFRESH}" \
+    && apt-get update \
     && apt-get -y --no-install-recommends upgrade \
     && rm -rf /var/lib/apt/lists/*
 
