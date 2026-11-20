@@ -8,6 +8,9 @@ describe('identifyClient', () => {
         ['Claude Code', 'http://localhost:33418/callback'],
         ['Cursor', 'cursor://anysphere.cursor-retrieval/oauth/callback'],
         ['Smithery', 'https://connect.smithery.ai/oauth/callback'],
+        ['ChatGPT', 'https://chatgpt.com/connector_platform_oauth_redirect'],
+        ['VS Code', 'https://vscode.dev/redirect'],
+        ['Claude', 'https://claude.com/api/mcp/auth_callback?x=1'],
     ])('trusts %s redirecting to its own host', (name, redirect) => {
         const identity = identifyClient(name, redirect)
         expect(identity.isRecognized).toBe(true)
@@ -41,5 +44,16 @@ describe('identifyClient', () => {
         expect(
             identifyClient('Claude', 'http://claude.ai/cb').isRecognized
         ).toBe(false)
+    })
+
+    test.each([
+        // Anyone can publish a custom GPT and pick its callback path.
+        'https://chatgpt.com/aip/g-0123456789abcdef/oauth/callback',
+        'https://claude.ai/share/some-page',
+        'https://claude.ai/api/mcp/auth_callback_evil',
+        'https://user-space.smithery.ai/oauth/callback',
+        'https://vscode.dev/github/someone/repo',
+    ])('does not trust another path on a shared host: %s', redirect => {
+        expect(identifyClient('Claude', redirect).isRecognized).toBe(false)
     })
 })
