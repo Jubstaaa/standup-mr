@@ -89,6 +89,15 @@ export default defineConfig([
                         'src/ and mcp/ ship to Node; use a Node API instead.',
                 },
             ],
+            'no-restricted-properties': [
+                'error',
+                {
+                    object: 'globalThis',
+                    property: 'Bun',
+                    message:
+                        'src/ and mcp/ ship to Node; use a Node API instead.',
+                },
+            ],
         },
     },
     {

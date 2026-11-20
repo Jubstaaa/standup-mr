@@ -32,7 +32,9 @@ module.exports = {
             comment:
                 'src/ is the core library; the MCP surface builds on it, not the reverse.',
             severity: 'error',
-            from: { path: '^src/' },
+            // The CLI entry is the composition root: `standup mcp` starts the
+            // stdio server.
+            from: { path: '^src/', pathNot: '^src/cli/cli[.]ts$' },
             to: { path: '^mcp/' },
         },
         // builtInModules below treats Bun's modules as core for remote/, which runs

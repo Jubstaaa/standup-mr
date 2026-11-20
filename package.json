@@ -68,9 +68,9 @@
         "prepublishOnly": "tsup",
         "version": "node scripts/sync-versions.mjs && git add -A",
         "audit": "bun audit --audit-level=high",
-        "knip": "knip",
+        "knip": "knip --treat-config-hints-as-errors",
         "duplication": "jscpd",
-        "deps:check": "depcruise src mcp remote/src --output-type err"
+        "deps:check": "depcruise src mcp remote/src --output-type err-long"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.32.1",

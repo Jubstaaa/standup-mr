@@ -109,3 +109,28 @@ jobs:
                   health-url: http://127.0.0.1:3007/health
                   sqlite-snapshot: /opt/standup-mr/data/standup.db
                   restore-snapshot: ${{ env.RESTORE_SNAPSHOT }}
+
+    # A run dispatched by the Dependabot auto-merge belongs to github-actions[bot],
+    # so GitHub's own failure e-mail reaches nobody; an issue does.
+    alert:
+        needs: [ci, deploy]
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            issues: write
+        steps:
+            - name: Open or update the deploy-failure issue
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                  TITLE: Production deploy failed
+              run: |
+                  body="Run: $RUN_URL (commit $GITHUB_SHA). Production may be on the previous release or down; check the deploy log."
+                  existing=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+                  if [ -n "$existing" ]; then
+                      gh issue comment "$existing" --body "$body"
+                  else
+                      gh issue create --title "$TITLE" --body "$body"
+                  fi
