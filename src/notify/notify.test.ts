@@ -40,7 +40,46 @@ describe('postWebhook', () => {
             impl
         )
 
-        expect(sent[0]!.body).toEqual({ content: 'hello' })
+        expect(sent[0]!.body).toEqual({
+            content: 'hello',
+            allowed_mentions: { parse: [] },
+        })
+    })
+
+    it('stops Discord from resolving @everyone or role mentions in the note', async () => {
+        const { impl, sent } = recordingFetch()
+        await postWebhook(
+            'https://discord.com/api/webhooks/1/x',
+            'fix: @everyone <@&42>',
+            'discord',
+            impl
+        )
+
+        expect(sent[0]!.body).toMatchObject({
+            content: 'fix: @everyone <@&42>',
+            allowed_mentions: { parse: [] },
+        })
+    })
+
+    it('does not follow a redirect away from the webhook host', async () => {
+        let redirect: RequestInit['redirect']
+        const moved: FetchLike = async (_url, init) => {
+            redirect = init?.redirect
+            return new Response(null, {
+                status: 302,
+                headers: { location: 'http://169.254.169.254/' },
+            })
+        }
+
+        await expect(
+            postWebhook(
+                'https://hooks.slack.com/services/x',
+                'hi',
+                'slack',
+                moved
+            )
+        ).rejects.toThrow(/302/)
+        expect(redirect).toBe('manual')
     })
 
     it('posts to the given url', async () => {
@@ -88,6 +127,32 @@ describe('inferWebhookKind', () => {
 
     it('returns null for something that is not a url at all', () => {
         expect(inferWebhookKind('not a url')).toBeNull()
+    })
+
+    it('accepts only the webhook path on a known host', () => {
+        expect(inferWebhookKind('https://hooks.slack.com/oauth/x')).toBeNull()
+        expect(inferWebhookKind('https://discord.com/users/1')).toBeNull()
+        expect(
+            inferWebhookKind('https://chat.googleapis.com/v1/other')
+        ).toBeNull()
+        expect(
+            inferWebhookKind('https://ptb.discord.com/api/webhooks/1/x')
+        ).toBe('discord')
+        expect(
+            inferWebhookKind('https://hooks.slack.com/workflows/T0/A0/1/x')
+        ).toBe('slack')
+    })
+
+    it('rejects plain http, credentials and custom ports', () => {
+        expect(
+            inferWebhookKind('http://hooks.slack.com/services/T0/B0/x')
+        ).toBeNull()
+        expect(
+            inferWebhookKind('https://u:p@hooks.slack.com/services/T0/B0/x')
+        ).toBeNull()
+        expect(
+            inferWebhookKind('https://hooks.slack.com:8443/services/T0/B0/x')
+        ).toBeNull()
     })
 })
 

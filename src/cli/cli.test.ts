@@ -157,6 +157,7 @@ describe('main', () => {
         const [, init] = fetchSpy.mock.calls[0]!
         expect(JSON.parse(String((init as RequestInit).body))).toEqual({
             content: 'hi',
+            allowed_mentions: { parse: [] },
         })
         stdout.mockRestore()
         stderr.mockRestore()

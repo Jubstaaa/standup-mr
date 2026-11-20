@@ -43,6 +43,12 @@ describe('toChatText', () => {
                 )
             })
 
+            it('escapes control characters so a title cannot ping the channel', () => {
+                expect(
+                    toChatText('- <!channel> fix: a & b <@U1> **x**', kind)
+                ).toBe('- &lt;!channel&gt; fix: a &amp; b &lt;@U1&gt; *x*')
+            })
+
             it('does not touch an asterisk that is not a bold marker', () => {
                 expect(toChatText('2 * 3 = 6', kind)).toBe('2 * 3 = 6')
             })
