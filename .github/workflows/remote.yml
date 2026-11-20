@@ -129,11 +129,17 @@ jobs:
                   GH_REPO: ${{ github.repository }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
                   TITLE: Production deploy failed
+                  LABEL: deploy-failure
+              # Anyone can open an issue with this title on a public repo, so
+              # only an issue this workflow opened, with its label, is reused.
               run: |
                   body="Run: $RUN_URL (commit $GITHUB_SHA). Production may be on the previous release or down; check the deploy log."
-                  existing=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+                  gh label create "$LABEL" --force --color B60205 --description "Opened by the remote deploy workflow"
+                  # gh filters on github-actions[bot] but reports the bot's login as app/github-actions.
+                  existing=$(gh issue list --state open --author 'github-actions[bot]' --label "$LABEL" --json number,title,author \
+                      --jq 'map(select(.author.is_bot and .author.login == "app/github-actions" and .title == env.TITLE)) | .[0].number // empty')
                   if [ -n "$existing" ]; then
                       gh issue comment "$existing" --body "$body"
                   else
-                      gh issue create --title "$TITLE" --body "$body"
+                      gh issue create --title "$TITLE" --label "$LABEL" --body "$body"
                   fi
