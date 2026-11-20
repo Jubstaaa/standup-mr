@@ -1,4 +1,6 @@
 import { randomBytes } from 'node:crypto'
+import { relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { beforeEach, describe, expect, test } from 'bun:test'
 
@@ -90,15 +92,19 @@ test('registers the three tools', () => {
 // into this process is what the boundary forbids, transitively too.
 test('the server module graph leaves out local credential discovery', async () => {
     const build = await Bun.build({
-        entrypoints: [new URL('../index.ts', import.meta.url).pathname],
+        entrypoints: [fileURLToPath(new URL('../index.ts', import.meta.url))],
         target: 'bun',
         packages: 'external',
         metafile: true,
         throw: true,
     })
-    const modules = Object.keys(build.metafile?.inputs ?? {})
+    // Metafile keys are relative to the working directory, not the entry.
+    const repoRoot = fileURLToPath(new URL('../../../', import.meta.url))
+    const modules = Object.keys(build.metafile?.inputs ?? {}).map(path =>
+        relative(repoRoot, resolve(path))
+    )
 
-    expect(modules.length).toBeGreaterThan(0)
+    expect(modules).toContain('src/mcp-tools/mcp-tools.ts')
     expect(
         modules.filter(path =>
             /^(mcp\/|src\/config\/|src\/providers\/select)/.test(path)
