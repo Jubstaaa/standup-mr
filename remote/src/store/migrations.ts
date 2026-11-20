@@ -122,6 +122,9 @@ CREATE INDEX IF NOT EXISTS schedules_next_run ON schedules (next_run_at);
             )
         }
     },
+    // A run that posted but could not read every account says so here,
+    // apart from last_error, which means the run did not post at all.
+    'ALTER TABLE schedules ADD COLUMN last_warning TEXT',
 ]
 
 const CONNECTION_INSTANCES = `

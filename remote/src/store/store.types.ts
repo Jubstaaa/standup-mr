@@ -17,6 +17,7 @@ export interface Schedule extends ScheduleSettings {
     connectionId: string
     lastError: string | null
     lastSentAt: number | null
+    lastWarning: string | null
     nextRunAt: number
 }
 

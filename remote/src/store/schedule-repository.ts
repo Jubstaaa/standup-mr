@@ -7,6 +7,7 @@ interface ScheduleRow {
     days: string
     last_error: string | null
     last_sent_at: number | null
+    last_warning: string | null
     next_run_at: number
     time: string
     timezone: string
@@ -18,6 +19,7 @@ function toSchedule(row: ScheduleRow): Schedule {
         days: row.days,
         lastError: row.last_error,
         lastSentAt: row.last_sent_at,
+        lastWarning: row.last_warning,
         nextRunAt: row.next_run_at,
         time: row.time,
         timezone: row.timezone,
@@ -82,13 +84,18 @@ export class ScheduleRepository {
             .run(nextRunAt, connectionId)
     }
 
-    markSent(connectionId: string, sentAt: number, nextRunAt: number): void {
+    markSent(
+        connectionId: string,
+        sentAt: number,
+        nextRunAt: number,
+        warning: string | null
+    ): void {
         this.db
             .query(
-                `UPDATE schedules SET last_sent_at = ?, last_error = NULL, next_run_at = ?
-                 WHERE connection_id = ?`
+                `UPDATE schedules SET last_sent_at = ?, last_error = NULL,
+                 last_warning = ?, next_run_at = ? WHERE connection_id = ?`
             )
-            .run(sentAt, nextRunAt, connectionId)
+            .run(sentAt, warning, nextRunAt, connectionId)
     }
 
     markFailed(connectionId: string, error: string, nextRunAt: number): void {

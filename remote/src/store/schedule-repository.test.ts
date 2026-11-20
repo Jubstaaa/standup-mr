@@ -28,6 +28,7 @@ describe('ScheduleRepository', () => {
             connectionId,
             lastError: null,
             lastSentAt: null,
+            lastWarning: null,
             nextRunAt: 100,
         })
     })
@@ -50,7 +51,7 @@ describe('ScheduleRepository', () => {
             lastError: 'boom',
             nextRunAt: 200,
         })
-        store.schedules.markSent(connectionId, 250, 300)
+        store.schedules.markSent(connectionId, 250, 300, null)
         expect(store.schedules.get(connectionId)).toMatchObject({
             lastError: null,
             lastSentAt: 250,
