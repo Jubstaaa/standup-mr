@@ -9,6 +9,7 @@ import {
     JSON_BYTES_CAP,
     LOG_BYTES_CAP,
     readJsonCapped,
+    readJsonResponse,
     readTail,
 } from './http'
 
@@ -121,5 +122,42 @@ describe('provider body caps', () => {
         )
 
         await expect(gh.getJson('user')).rejects.toThrow(/sent more than/)
+    })
+})
+
+describe('readJsonResponse', () => {
+    it('parses a body within the JSON cap', async () => {
+        expect(
+            await readJsonResponse(
+                streamed('{"a":1}'),
+                'git.example.com',
+                'user'
+            )
+        ).toEqual({ a: 1 })
+    })
+
+    it('keeps the cap message when a body is too large', async () => {
+        const big = streamed(`"${'x'.repeat(JSON_BYTES_CAP)}"`)
+        await expect(
+            readJsonResponse(big, 'git.example.com', 'user')
+        ).rejects.toThrow(/more than 8 MiB/)
+    })
+
+    it('reports a connection that drops mid-body as unreachable', async () => {
+        const body = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(new TextEncoder().encode('{"a":'))
+                controller.error(new Error('socket hang up'))
+            },
+        })
+        const error = await readJsonResponse(
+            new Response(body),
+            'git.example.com',
+            'user'
+        ).catch((caught: unknown) => caught)
+        expect(error).toBeInstanceOf(ApiError)
+        expect(String(error)).toMatch(
+            /Could not reach git\.example\.com: socket hang up/
+        )
     })
 })

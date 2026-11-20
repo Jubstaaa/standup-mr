@@ -18,13 +18,11 @@ import {
     ApiError,
     assertUsable,
     buildUrl,
-    JSON_BYTES_CAP,
-    readJsonCapped,
+    readJsonResponse,
     readTail,
     REQUEST_CONCURRENCY,
     sendWithRetry,
     timedFetch,
-    unreachable,
 } from '../base/http'
 
 import { FRESH_REVIEW_DAYS, PAGE_SIZE } from './gitlab.constants'
@@ -67,19 +65,7 @@ export class GitLabProvider implements Provider {
     async getJson<T>(path: string, params?: Params): Promise<T | null> {
         const response = await this.send(buildUrl(this.api, path, params))
         if (!response.ok) return null
-        let body: unknown
-        try {
-            body = await readJsonCapped(
-                response,
-                JSON_BYTES_CAP,
-                this.host,
-                path
-            )
-        } catch (cause) {
-            if (cause instanceof ApiError) throw cause
-            throw unreachable(this.host, cause)
-        }
-        return body as T
+        return (await readJsonResponse(response, this.host, path)) as T
     }
 
     async getText(path: string): Promise<string> {

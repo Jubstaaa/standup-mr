@@ -177,6 +177,22 @@ export async function readJsonCapped(
     }
 }
 
+// What both providers do with a JSON answer: a dropped connection mid-body
+// reads as the host being unreachable, a cap or parse failure keeps its
+// own message.
+export async function readJsonResponse(
+    response: Response,
+    host: string,
+    path: string
+): Promise<unknown> {
+    try {
+        return await readJsonCapped(response, JSON_BYTES_CAP, host, path)
+    } catch (cause) {
+        if (cause instanceof ApiError) throw cause
+        throw unreachable(host, cause)
+    }
+}
+
 export const RETRY_ATTEMPTS = 3
 export const RETRY_BACKOFF_MS = [250, 750]
 

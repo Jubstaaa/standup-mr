@@ -18,8 +18,7 @@ import {
     ApiError,
     assertUsable,
     buildUrl,
-    JSON_BYTES_CAP,
-    readJsonCapped,
+    readJsonResponse,
     readTail,
     REQUEST_CONCURRENCY,
     sendWithRetry,
@@ -98,19 +97,7 @@ export class GitHubProvider implements Provider {
         const response = await this.send(buildUrl(this.api, path, params))
         assertUsable(response, this.host)
         if (!response.ok) return null
-        let body: unknown
-        try {
-            body = await readJsonCapped(
-                response,
-                JSON_BYTES_CAP,
-                this.host,
-                path
-            )
-        } catch (cause) {
-            if (cause instanceof ApiError) throw cause
-            throw unreachable(this.host, cause)
-        }
-        return body as T
+        return (await readJsonResponse(response, this.host, path)) as T
     }
 
     async getPaged<T>(
