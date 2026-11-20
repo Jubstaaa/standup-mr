@@ -1,6 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto'
 import type { Server } from 'node:http'
+import { Readable } from 'node:stream'
 
+import axios from 'axios'
+import type { AxiosResponse } from 'axios'
 import {
     afterAll,
     afterEach,
@@ -12,6 +15,7 @@ import {
 } from 'bun:test'
 
 import type { RemoteConfig } from '../config/config.types'
+import { MAX_RESPONSE_BYTES } from '../ssrf/ssrf.constants'
 import { MIGRATIONS } from '../store/migrations'
 import { Store } from '../store/store'
 import { openStoreOnDisk, removeStoresOnDisk } from '../store/store.fixtures'
@@ -706,6 +710,68 @@ describe('a client borrowing a trusted name', () => {
         expect(page).toContain("standup-mr doesn't recognize this app")
         expect(page).toContain('attacker-alpha.example.com')
         expect(page).not.toContain('class="mark mark-claude"')
+    })
+})
+
+const MIB = 1024 * 1024
+
+describe('the OAuth token exchange', () => {
+    // oauth4webapi reads a token answer whole, so only the byte cap passed to
+    // its fetch keeps a hostile self-hosted GitLab from filling the memory.
+    test('refuses a token answer past the byte cap', async () => {
+        const padding = Buffer.alloc(64 * 1024, 'x')
+        const chunks = Math.ceil(MAX_RESPONSE_BYTES / padding.length) + 32
+        let pulled = 0
+        function* tokenAnswer() {
+            yield Buffer.from(
+                '{"access_token":"t","token_type":"Bearer","pad":"'
+            )
+            for (let index = 0; index < chunks; index += 1) {
+                pulled += padding.length
+                yield padding
+            }
+            yield Buffer.from('"}')
+        }
+        const answer = {
+            config: {},
+            data: Readable.from(tokenAnswer()),
+            headers: { 'content-type': 'application/json' },
+            status: 200,
+            statusText: 'OK',
+        } as AxiosResponse<Readable>
+        const request = spyOn(axios, 'request').mockResolvedValue(answer)
+        const config: RemoteConfig = {
+            baseUrl: new URL('https://standup.example.com'),
+            blockedAddresses: [],
+            databasePath: ':memory:',
+            encryptionKey: randomBytes(32),
+            port: 0,
+        }
+        const tokens = new Store(':memory:', config.encryptionKey)
+        try {
+            const { upstream } = createServices(config, tokens, {
+                lookup: (_host, _options, callback) =>
+                    callback(null, [{ address: '140.82.112.3', family: 4 }]),
+            })
+            const app = {
+                clientId: 'id',
+                clientSecret: 'secret',
+                host: 'git.example.com',
+                isInstance: true,
+                isVerified: true,
+                kind: 'gitlab' as const,
+                scopes: [],
+            }
+
+            await expect(
+                upstream.refresh(app, 'refresh', Date.now())
+            ).rejects.toThrow()
+            expect(pulled).toBeLessThanOrEqual(MAX_RESPONSE_BYTES + MIB)
+            expect(request).toHaveBeenCalledTimes(1)
+        } finally {
+            request.mockRestore()
+            tokens.close()
+        }
     })
 })
 
