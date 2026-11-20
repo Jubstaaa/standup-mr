@@ -16,6 +16,7 @@
         "helmet": "^8.3.0",
         "ipaddr.js": "^2.5.0",
         "oauth4webapi": "^3.8.8",
+        "p-limit": "^7.3.3",
         "simple-icons": "^16.35.0",
         "zod": "^4.6.6"
     },
