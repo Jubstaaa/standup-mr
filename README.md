@@ -130,7 +130,7 @@ below on your own machine — the token never leaves it.
 
 ## The four surfaces
 
-**CLI** — the core. Emits JSON; zero runtime dependencies.
+**CLI** — the core. Emits JSON; one runtime dependency (`p-map`).
 
 **MCP server** (`mcp/`) — three tools for Claude Desktop, Claude Code, Cursor,
 or any MCP client that runs a local process. See [`mcp/README.md`](mcp/README.md).
@@ -198,7 +198,8 @@ The server exposes three tools:
 `post_standup_note` reads the webhook URL from `STANDUP_WEBHOOK_URL` and never
 takes it as an argument — anyone holding that URL can post to the channel, so
 it belongs with the tokens, not in a transcript. The payload shape is inferred
-from the URL host; `kind` is only needed when a proxy hides it.
+from the URL: an https webhook path on hooks.slack.com, chat.googleapis.com or
+discord.com, with no credentials or custom port. Any other URL needs `kind`.
 
 Three shapes are implemented: `slack` and `google-chat` both post `{"text"}`,
 `discord` posts `{"content"}`.
@@ -206,7 +207,9 @@ Three shapes are implemented: `slack` and `google-chat` both post `{"text"}`,
 Slack and Google Chat do not render standard Markdown, so the note is rewritten
 on the way out: `**bold**` becomes `*bold*` and a `##` heading becomes a bold
 line. Inline code, fenced blocks and their contents are left alone. Discord
-speaks Markdown natively and is sent untouched. Anything else that accepts a Slack-shaped body —
+speaks Markdown natively and is sent untouched. Mentions are neutralised on
+every kind, so a merge request title holding `<!channel>`, `<@U1>` or
+`<users/all>` cannot ping anyone. Anything else that accepts a Slack-shaped body —
 Mattermost, Rocket.Chat, an n8n or Zapier endpoint — works today by passing
 `kind: "slack"`, or `--slack URL` on the CLI.
 
@@ -293,7 +296,8 @@ updated continuously and is not tied to the npm version.
   — still how some vendors integrate — shows up as `pipelineMissing`. Check
   state is read from check-runs only.
 - **A blocker whose diagnosis could not be fetched is still reported**, as
-  `job: "unknown"` with a `diagnosis unavailable: …` error line. The merge
+  `job: "unknown"` with a `diagnosis unavailable: …`,
+  `job log unavailable: HTTP N` or `no failed job found …` error line. The merge
   request is blocked either way; only the explanation is missing. Server
   errors are retried twice first, and a rejected token still fails the run.
 
@@ -316,9 +320,10 @@ the `standup` skill changed along with the report shape.
 
 ## Requirements
 
-Node 22 or newer. The CLI core (`fetch`, `post`, `instructions`) loads no
-runtime dependencies. The MCP server (`mcp` command) loads two:
-`@modelcontextprotocol/sdk` and `zod`. Both are installed with the package.
+Node 22 or newer. The CLI core (`fetch`, `post`, `instructions`) loads one
+runtime dependency, `p-map`. The MCP server (`mcp` command) also loads
+`@modelcontextprotocol/sdk` and `zod`. All three are installed with the
+package.
 
 ## License
 

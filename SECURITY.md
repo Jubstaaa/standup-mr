@@ -69,9 +69,9 @@ webhook. Keep the following in mind:
 
 ### 4. **Dependencies**
 
-- The CLI and library ship with zero runtime dependencies
-- The MCP server has exactly one optional peer dependency,
-  `@modelcontextprotocol/sdk`, needed only when you run it as an MCP server
+- The CLI and library load one runtime dependency, `p-map`
+- The MCP server also loads `@modelcontextprotocol/sdk` and `zod`; all three
+  are regular dependencies installed with the package
 - Keep standup-mr and any installed peer dependency updated
 
 ## Known Limitations
