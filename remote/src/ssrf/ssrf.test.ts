@@ -31,6 +31,13 @@ describe('normalizeHost', () => {
         expect(normalizeHost(' git.example.com ')).toBe('git.example.com')
     })
 
+    test('drops the trailing dot of a fully qualified name', () => {
+        expect(normalizeHost('github.com.')).toBe('github.com')
+        expect(normalizeHost('https://git.example.com./x')).toBe(
+            'git.example.com'
+        )
+    })
+
     test('rejects plain http, credentials and custom ports', () => {
         expect(() => normalizeHost('http://git.example.com')).toThrow(HostError)
         expect(() => normalizeHost('https://u:p@git.example.com')).toThrow(

@@ -14,6 +14,8 @@ import type { PendingAuthorization } from './store.types'
 
 afterEach(removeStoresOnDisk)
 
+const APP = { kind: 'gitlab', host: 'git.example.com' } as const
+
 const REDIRECT = 'https://claude.ai/api/mcp/auth_callback?code=c'
 
 let store: Store
@@ -71,7 +73,7 @@ describe('pending authorizations', () => {
 
 describe('upstream login', () => {
     test('can be taken once', () => {
-        store.authorizations.setUpstreamLogin(pending, 'state', 'verifier')
+        store.authorizations.setUpstreamLogin(pending, 'state', 'verifier', APP)
 
         expect(
             store.authorizations.takeUpstreamLogin(
@@ -79,7 +81,7 @@ describe('upstream login', () => {
                 BROWSER_SECRET,
                 1_000
             )
-        ).toEqual({ pending, codeVerifier: 'verifier' })
+        ).toEqual({ pending, codeVerifier: 'verifier', ...APP })
         expect(
             store.authorizations.takeUpstreamLogin(
                 'state',
@@ -90,7 +92,7 @@ describe('upstream login', () => {
     })
 
     test('is not handed to another browser', () => {
-        store.authorizations.setUpstreamLogin(pending, 'state', 'verifier')
+        store.authorizations.setUpstreamLogin(pending, 'state', 'verifier', APP)
         expect(
             store.authorizations.takeUpstreamLogin('state', 'other', 1_000)
         ).toBeUndefined()

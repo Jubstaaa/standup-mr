@@ -97,6 +97,35 @@ CREATE INDEX IF NOT EXISTS tokens_connection ON tokens (connection_id);
 CREATE INDEX IF NOT EXISTS pending_upstream_state ON pending (upstream_state);
 CREATE INDEX IF NOT EXISTS schedules_next_run ON schedules (next_run_at);
 `,
+    // A self-hosted OAuth application belongs to the connection that
+    // registered it; one shared per host let anyone lock it or harvest the
+    // tokens of everyone signing in through it. Who registered a shared
+    // row was never stored, so each one goes to every connection whose
+    // OAuth account was issued by it (they need it to refresh); one nobody
+    // signed in with is dropped and set up again by whoever needs it.
+    `
+CREATE TABLE instances_by_connection (
+    connection_id TEXT NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    host TEXT NOT NULL,
+    client_id TEXT NOT NULL,
+    client_secret TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    verified_at INTEGER,
+    PRIMARY KEY (connection_id, kind, host)
+);
+
+INSERT INTO instances_by_connection
+SELECT DISTINCT accounts.connection_id, instances.kind, instances.host,
+    instances.client_id, instances.client_secret, instances.created_at,
+    instances.verified_at
+FROM instances
+JOIN accounts ON accounts.provider = instances.kind
+    AND accounts.host = instances.host AND accounts.source = 'oauth';
+
+DROP TABLE instances;
+ALTER TABLE instances_by_connection RENAME TO instances;
+`,
 ]
 
 export function schemaVersion(db: Database): number {

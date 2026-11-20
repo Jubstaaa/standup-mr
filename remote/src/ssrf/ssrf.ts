@@ -48,7 +48,9 @@ export function normalizeHost(input: string): string {
     if (url.port) {
         throw new HostError('Only the default https port (443) is supported.')
     }
-    return url.hostname
+    // github.com. names the same host as github.com; keeping the dot would
+    // let one host pass for another wherever hosts are compared.
+    return url.hostname.replace(/\.$/, '')
 }
 
 // Only plain public unicast passes: ipaddr.js names every special range

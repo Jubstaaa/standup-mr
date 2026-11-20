@@ -56,25 +56,36 @@ export class AccountRepository {
         )!
     }
 
+    get(accountId: string): Account | undefined {
+        const row = this.db
+            .query<AccountRow, [string]>('SELECT * FROM accounts WHERE id = ?')
+            .get(accountId)
+        return row ? this.toAccount(row) : undefined
+    }
+
     list(connectionId: string): Account[] {
         return this.db
             .query<AccountRow, [string]>(
                 'SELECT * FROM accounts WHERE connection_id = ? ORDER BY provider, host'
             )
             .all(connectionId)
-            .map(row => ({
-                id: row.id,
-                accessToken: open(this.key, row.access_token),
-                connectionId: row.connection_id,
-                expiresAt: row.expires_at,
-                host: row.host,
-                provider: row.provider,
-                refreshToken: row.refresh_token
-                    ? open(this.key, row.refresh_token)
-                    : null,
-                source: row.source,
-                username: row.username,
-            }))
+            .map(row => this.toAccount(row))
+    }
+
+    private toAccount(row: AccountRow): Account {
+        return {
+            id: row.id,
+            accessToken: open(this.key, row.access_token),
+            connectionId: row.connection_id,
+            expiresAt: row.expires_at,
+            host: row.host,
+            provider: row.provider,
+            refreshToken: row.refresh_token
+                ? open(this.key, row.refresh_token)
+                : null,
+            source: row.source,
+            username: row.username,
+        }
     }
 
     remove(connectionId: string, accountId: string): void {

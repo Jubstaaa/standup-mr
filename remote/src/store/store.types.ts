@@ -67,11 +67,13 @@ export interface StoredToken {
 
 export interface UpstreamLogin {
     codeVerifier: string
+    host: string
+    kind: ProviderKind
     pending: PendingAuthorization
 }
 
-// An OAuth application someone registered on a self-hosted GitLab or
-// GitHub Enterprise, shared by everyone who signs in to that host.
+// An OAuth application a connection registered on a self-hosted GitLab or
+// GitHub Enterprise; only that connection signs in through it.
 export interface Instance {
     clientId: string
     clientSecret: string

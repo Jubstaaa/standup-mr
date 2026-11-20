@@ -19,12 +19,16 @@ export class InstanceRepository {
         private readonly key: Buffer
     ) {}
 
-    get(kind: ProviderKind, host: string): Instance | undefined {
+    get(
+        connectionId: string,
+        kind: ProviderKind,
+        host: string
+    ): Instance | undefined {
         const row = this.db
-            .query<InstanceRow, [string, string]>(
-                'SELECT * FROM instances WHERE kind = ? AND host = ?'
+            .query<InstanceRow, [string, string, string]>(
+                'SELECT * FROM instances WHERE connection_id = ? AND kind = ? AND host = ?'
             )
-            .get(kind, host)
+            .get(connectionId, kind, host)
         if (!row) return undefined
         return {
             kind: row.kind,
@@ -35,20 +39,25 @@ export class InstanceRepository {
         }
     }
 
-    // Anyone may register an instance's OAuth application, and replace it
-    // while it is unproven. The first successful sign-in locks it, so a
-    // working setup cannot be swapped out from the page.
-    save(instance: Omit<Instance, 'verifiedAt'>, now: number): boolean {
+    // A connection may replace its own application while it is unproven.
+    // The first successful sign-in locks it, so the tokens it issued can
+    // still be refreshed.
+    save(
+        connectionId: string,
+        instance: Omit<Instance, 'verifiedAt'>,
+        now: number
+    ): boolean {
         const result = this.db
             .query(
-                `INSERT INTO instances (kind, host, client_id, client_secret, created_at)
-                 VALUES (?, ?, ?, ?, ?)
-                 ON CONFLICT (kind, host) DO UPDATE SET
+                `INSERT INTO instances (connection_id, kind, host, client_id, client_secret, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?)
+                 ON CONFLICT (connection_id, kind, host) DO UPDATE SET
                  client_id = excluded.client_id, client_secret = excluded.client_secret,
                  created_at = excluded.created_at
                  WHERE instances.verified_at IS NULL`
             )
             .run(
+                connectionId,
                 instance.kind,
                 instance.host,
                 instance.clientId,
@@ -58,11 +67,17 @@ export class InstanceRepository {
         return result.changes > 0
     }
 
-    markVerified(kind: ProviderKind, host: string, now: number): void {
+    markVerified(
+        connectionId: string,
+        kind: ProviderKind,
+        host: string,
+        now: number
+    ): void {
         this.db
             .query(
-                'UPDATE instances SET verified_at = ? WHERE kind = ? AND host = ? AND verified_at IS NULL'
+                `UPDATE instances SET verified_at = ?
+                 WHERE connection_id = ? AND kind = ? AND host = ? AND verified_at IS NULL`
             )
-            .run(now, kind, host)
+            .run(now, connectionId, kind, host)
     }
 }

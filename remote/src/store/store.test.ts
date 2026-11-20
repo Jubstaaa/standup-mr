@@ -101,13 +101,20 @@ describe('Store.purge', () => {
     })
 
     test('drops instances nobody signed in with, keeps verified ones', () => {
+        const connectionId = activeConnection(0, 'active')
         const instance = { clientId: 'id', clientSecret: 'secret' }
-        store.instances.save({ ...instance, kind: 'gitlab', host: 'a' }, 0)
-        store.instances.save({ ...instance, kind: 'gitlab', host: 'b' }, 0)
-        store.instances.markVerified('gitlab', 'b', 0)
+        const save = (host: string) =>
+            store.instances.save(
+                connectionId,
+                { ...instance, kind: 'gitlab', host },
+                0
+            )
+        save('a')
+        save('b')
+        store.instances.markVerified(connectionId, 'gitlab', 'b', 0)
         store.purge(UNVERIFIED_INSTANCE_TTL_MS + 1)
-        expect(store.instances.get('gitlab', 'a')).toBeUndefined()
-        expect(store.instances.get('gitlab', 'b')).toBeDefined()
+        expect(store.instances.get(connectionId, 'gitlab', 'a')).toBeUndefined()
+        expect(store.instances.get(connectionId, 'gitlab', 'b')).toBeDefined()
     })
 
     test('drops registered clients nobody uses', () => {

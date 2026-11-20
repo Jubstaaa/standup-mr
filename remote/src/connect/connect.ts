@@ -163,13 +163,15 @@ export function createConnectRouter(deps: ConnectDeps): Router {
         }
     }
 
-    function appForRoute(req: Request) {
+    function routeApp(
+        req: Request
+    ): { host: string; kind: ProviderKind } | undefined {
         const { kind, host } = req.params
         if (!isProviderKind(kind)) return undefined
-        return upstream.resolve(
+        return {
             kind,
-            typeof host === 'string' ? host : defaultHost(kind)
-        )
+            host: typeof host === 'string' ? host : defaultHost(kind),
+        }
     }
 
     async function linkAccount(
@@ -199,7 +201,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
         const client = store.clients.get(pending.clientId)
         const chosen = chosenHost(req)
         const app = chosen
-            ? upstream.resolve(chosen.kind, chosen.host)
+            ? upstream.resolve(chosen.kind, chosen.host, pending.connectionId)
             : undefined
         res.setHeader('Cache-Control', 'no-store')
         res.send(
@@ -242,16 +244,21 @@ export function createConnectRouter(deps: ConnectDeps): Router {
     // The upstream round trip gets its own single-use state instead of the
     // page id, so the page id never leaves this site.
     const startUpstreamLogin: PendingHandler = async (pending, req, res) => {
-        const app = appForRoute(req)
+        const route = routeApp(req)
+        const app =
+            route &&
+            upstream.resolve(route.kind, route.host, pending.connectionId)
         if (!app) return res.redirect(pageUrl(pending.id))
         const state = randomToken()
         const codeVerifier = randomToken()
-        store.authorizations.setUpstreamLogin(pending, state, codeVerifier)
+        store.authorizations.setUpstreamLogin(pending, state, codeVerifier, app)
         res.redirect(await upstream.authorizationUrl(app, state, codeVerifier))
     }
 
+    // The callback must come back for the app the login was started with,
+    // or a code from one host could be redeemed against another (mix-up).
     const finishUpstreamLogin: RequestHandler = async (req, res) => {
-        const app = appForRoute(req)
+        const route = routeApp(req)
         const state = query(req, 'state')
         const login = state
             ? store.authorizations.takeUpstreamLogin(
@@ -260,6 +267,11 @@ export function createConnectRouter(deps: ConnectDeps): Router {
                   deps.now()
               )
             : undefined
+        const isSameApp =
+            route && login?.kind === route.kind && login.host === route.host
+        const app =
+            isSameApp &&
+            upstream.resolve(login.kind, login.host, login.pending.connectionId)
         if (!app || !login || login.pending.finishedRedirect) {
             return sendExpired(res)
         }
@@ -287,7 +299,12 @@ export function createConnectRouter(deps: ConnectDeps): Router {
             )
             await linkAccount(pending, app.kind, app.host, tokens, 'oauth')
             if (app.isInstance) {
-                store.instances.markVerified(app.kind, app.host, deps.now())
+                store.instances.markVerified(
+                    pending.connectionId,
+                    app.kind,
+                    app.host,
+                    deps.now()
+                )
             }
             res.redirect(pageUrl(pending.id))
         } catch (error) {
@@ -335,6 +352,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
             }
             await deps.hostCheck(host)
             const saved = store.instances.save(
+                pending.connectionId,
                 { kind: provider, host, clientId, clientSecret },
                 deps.now()
             )

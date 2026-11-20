@@ -137,4 +137,46 @@ describe('migrate', () => {
         migrate(db, MIGRATIONS)
         expect(schemaVersion(db)).toBe(MIGRATIONS.length + 1)
     })
+
+    test('hands a shared instance to each connection signed in with it', () => {
+        const db = new Database(':memory:')
+        migrate(db, MIGRATIONS.slice(0, 1))
+        db.exec(`
+            INSERT INTO connections (id, created_at, last_used_at) VALUES
+                ('alice', 1, 1), ('bob', 1, 1), ('carol', 1, 1);
+            INSERT INTO accounts (id, connection_id, provider, host, username, source, access_token)
+            VALUES ('a', 'alice', 'gitlab', 'git.example.com', 'alice', 'oauth', 't'),
+                   ('b', 'bob', 'gitlab', 'git.example.com', 'bob', 'oauth', 't'),
+                   ('c', 'carol', 'gitlab', 'git.example.com', 'carol', 'pat', 't');
+            INSERT INTO instances (kind, host, client_id, client_secret, created_at, verified_at)
+            VALUES ('gitlab', 'git.example.com', 'shared', 'sealed', 1, 2),
+                   ('gitlab', 'unused.example.com', 'idle', 'sealed', 1, NULL);
+        `)
+
+        migrate(db, MIGRATIONS)
+
+        expect(
+            db
+                .query(
+                    'SELECT connection_id, host, client_id, verified_at FROM instances ORDER BY connection_id'
+                )
+                .all()
+        ).toEqual([
+            {
+                connection_id: 'alice',
+                host: 'git.example.com',
+                client_id: 'shared',
+                verified_at: 2,
+            },
+            {
+                connection_id: 'bob',
+                host: 'git.example.com',
+                client_id: 'shared',
+                verified_at: 2,
+            },
+        ])
+        expect(db.query('SELECT COUNT(*) AS n FROM accounts').get()).toEqual({
+            n: 3,
+        })
+    })
 })

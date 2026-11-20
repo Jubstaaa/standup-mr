@@ -275,12 +275,18 @@ describe('store', () => {
 
     test('the upstream login is single-use and browser-bound', () => {
         const pending = startConnection(store, now)
-        store.authorizations.setUpstreamLogin(pending, 'upstream', 'verifier')
+        store.authorizations.setUpstreamLogin(pending, 'upstream', 'verifier', {
+            kind: 'gitlab',
+            host: 'git.example.com',
+        })
         expect(
             store.authorizations.takeUpstreamLogin('upstream', 'other', now)
         ).toBeUndefined()
 
-        store.authorizations.setUpstreamLogin(pending, 'upstream', 'verifier')
+        store.authorizations.setUpstreamLogin(pending, 'upstream', 'verifier', {
+            kind: 'gitlab',
+            host: 'git.example.com',
+        })
         const login = store.authorizations.takeUpstreamLogin(
             'upstream',
             BROWSER_SECRET,
@@ -295,45 +301,6 @@ describe('store', () => {
                 now
             )
         ).toBeUndefined()
-    })
-
-    test('an instance can be replaced until its first sign-in', () => {
-        const instance = {
-            kind: 'gitlab' as const,
-            host: 'git.example.com',
-            clientId: 'first',
-            clientSecret: 'secret-1',
-        }
-        expect(store.instances.save(instance, now)).toBe(true)
-        expect(
-            store.instances.save({ ...instance, clientId: 'second' }, now)
-        ).toBe(true)
-        expect(store.instances.get('gitlab', 'git.example.com')?.clientId).toBe(
-            'second'
-        )
-
-        store.instances.markVerified('gitlab', 'git.example.com', now)
-        expect(
-            store.instances.save({ ...instance, clientId: 'takeover' }, now)
-        ).toBe(false)
-        const kept = store.instances.get('gitlab', 'git.example.com')!
-        expect(kept.clientId).toBe('second')
-        expect(kept.clientSecret).toBe('secret-1')
-        expect(kept.verifiedAt).toBe(now)
-    })
-
-    test('purge drops instances nobody ever signed in with', () => {
-        store.instances.save(
-            {
-                kind: 'gitlab',
-                host: 'git.example.com',
-                clientId: 'id',
-                clientSecret: 'secret',
-            },
-            now
-        )
-        store.purge(now + 2 * 24 * 60 * 60_000)
-        expect(store.instances.get('gitlab', 'git.example.com')).toBeUndefined()
     })
 
     test('purge drops abandoned pages and unredeemed connections', () => {

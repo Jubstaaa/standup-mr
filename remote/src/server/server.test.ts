@@ -117,6 +117,37 @@ function rpc(token: string | null, body: object) {
     })
 }
 
+function connectionOf(pagePath: string, secret = cookie.split('=')[1]) {
+    return store.authorizations.getPending(
+        pagePath.split('/').pop()!,
+        secret,
+        Date.now()
+    )!.connectionId
+}
+
+// A second browser starting its own sign-in with the same client.
+async function startFlow(clientId: string) {
+    const url = new URL(`${base}/authorize`)
+    url.search = new URLSearchParams({
+        response_type: 'code',
+        client_id: clientId,
+        redirect_uri: REDIRECT_URI,
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
+    }).toString()
+    const response = await fetch(url, { redirect: 'manual' })
+    const ownCookie = response.headers.get('set-cookie')!.split(';')[0]!
+    return {
+        pagePath: response.headers.get('location')!,
+        browser: (path: string, init: RequestInit = {}) =>
+            fetch(`${base}${path}`, {
+                redirect: 'manual',
+                ...init,
+                headers: { ...init.headers, Cookie: ownCookie },
+            }),
+    }
+}
+
 describe('claude.ai connect flow', () => {
     let clientId: string
     let pagePath: string
@@ -292,7 +323,7 @@ describe('claude.ai connect flow', () => {
             await browser(`${pagePath}?provider=gitlab&host=git.example.com`)
         ).text()
         expect(panel).toContain('Sign in with git.example.com')
-        expect(panel).not.toContain('Set up sign-in for everyone')
+        expect(panel).not.toContain('Set up sign-in to')
 
         const takeover = await browser(
             `${pagePath}/instances`,
@@ -304,9 +335,67 @@ describe('claude.ai connect flow', () => {
             })
         )
         expect(takeover.headers.get('location')).toContain('already+set+up')
-        expect(store.instances.get('gitlab', 'git.example.com')?.clientId).toBe(
-            'company-app'
+        expect(
+            store.instances.get(
+                connectionOf(pagePath),
+                'gitlab',
+                'git.example.com'
+            )?.clientId
+        ).toBe('company-app')
+    })
+
+    test("another user neither sees nor can lock someone's instance", async () => {
+        const other = await startFlow(clientId)
+        const panel = await (
+            await other.browser(
+                `${other.pagePath}?provider=gitlab&host=git.example.com`
+            )
+        ).text()
+        expect(panel).toContain("git.example.com isn't set up for sign-in yet")
+
+        const saved = await other.browser(
+            `${other.pagePath}/instances`,
+            form({
+                provider: 'gitlab',
+                host: 'git.example.com',
+                client_id: 'their-app',
+                client_secret: 'their-secret',
+            })
         )
+        expect(saved.headers.get('location')).toEndWith(
+            '/link/gitlab/git.example.com'
+        )
+        expect(
+            store.instances.get(
+                connectionOf(pagePath),
+                'gitlab',
+                'git.example.com'
+            )?.clientId
+        ).toBe('company-app')
+    })
+
+    test('a callback on another host than the login started is refused', async () => {
+        await browser(
+            `${pagePath}/instances`,
+            form({
+                provider: 'gitlab',
+                host: 'other.example.com',
+                client_id: 'other-app',
+                client_secret: 'other-secret',
+            })
+        )
+        const link = await browser(`${pagePath}/link/gitlab/other.example.com`)
+        const state = new URL(link.headers.get('location')!).searchParams.get(
+            'state'
+        )
+        const before = tokenRequests.length
+
+        const callback = await browser(
+            `/connect/callback/gitlab/git.example.com?code=granted&state=${state}`
+        )
+
+        expect(callback.status).toBe(410)
+        expect(tokenRequests).toHaveLength(before)
     })
 
     test('an unknown webhook host is refused', async () => {

@@ -54,6 +54,14 @@ export function pickAccount(
     )
 }
 
+function isCurrent(account: Account, now: number): boolean {
+    return (
+        account.source !== 'oauth' ||
+        account.expiresAt === null ||
+        account.expiresAt - REFRESH_MARGIN_MS > now
+    )
+}
+
 // OAuth tokens expire (GitHub after 8h, GitLab after 2h) and their refresh
 // tokens are single-use. Refreshes are shared per account, so two
 // concurrent tool calls never spend the same refresh token twice.
@@ -63,8 +71,16 @@ export function createTokenRefresher(
 ) {
     const inFlight = new Map<string, Promise<string>>()
 
-    async function refresh(account: Account, now: number): Promise<string> {
-        const app = upstream.resolve(account.provider, account.host)
+    // The caller's copy may predate a refresh that already finished; its
+    // refresh token is then spent, so the stored row is the one that counts.
+    async function refresh(stale: Account, now: number): Promise<string> {
+        const account = accounts.get(stale.id) ?? stale
+        if (isCurrent(account, now)) return account.accessToken
+        const app = upstream.resolve(
+            account.provider,
+            account.host,
+            account.connectionId
+        )
         if (!app || !account.refreshToken) {
             throw new AccountError(
                 `The ${describeAccount(account)} login has expired. Reconnect the connector.`
@@ -92,11 +108,7 @@ export function createTokenRefresher(
         account: Account,
         now: number
     ): Promise<string> {
-        const isCurrent =
-            account.source !== 'oauth' ||
-            account.expiresAt === null ||
-            account.expiresAt - REFRESH_MARGIN_MS > now
-        if (isCurrent) return account.accessToken
+        if (isCurrent(account, now)) return account.accessToken
 
         const pending = inFlight.get(account.id)
         if (pending) return pending

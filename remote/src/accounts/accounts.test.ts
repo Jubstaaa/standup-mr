@@ -131,6 +131,51 @@ describe('createTokenRefresher', () => {
         expect(refreshCalls).toBe(1)
     })
 
+    test('uses the stored token when a stale copy comes in after a refresh', async () => {
+        const fresh = createTokenRefresher(upstream(), store.accounts)
+        await fresh(linked, 9_999_000)
+
+        expect(await fresh(linked, 9_999_000)).toBe('new')
+        expect(refreshCalls).toBe(1)
+    })
+
+    test('refreshes with the latest stored refresh token', async () => {
+        const spent: string[] = []
+        const fresh = createTokenRefresher(
+            {
+                resolve: () => githubApp,
+                refresh: async (_app, refreshToken) => {
+                    spent.push(refreshToken)
+                    return { accessToken: 'n', refreshToken: 'r', expiresAt: 0 }
+                },
+            },
+            store.accounts
+        )
+        store.accounts.updateTokens(linked.id, {
+            accessToken: 'rotated',
+            refreshToken: 'refresh-2',
+            expiresAt: 10_000_000,
+        })
+        await fresh(linked, 9_999_000)
+        expect(spent).toEqual(['refresh-2'])
+    })
+
+    test('resolves the sign-in app of the account connection', async () => {
+        const asked: string[] = []
+        const fresh = createTokenRefresher(
+            {
+                resolve: (_kind, _host, connectionId) => {
+                    asked.push(connectionId)
+                    return githubApp
+                },
+                refresh: () => refreshResult(),
+            },
+            store.accounts
+        )
+        await fresh(linked, 9_999_000)
+        expect(asked).toEqual([linked.connectionId])
+    })
+
     test('asks for a reconnect when the refresh is refused', async () => {
         refreshResult = async () => {
             throw new Error('bad_refresh_token')
