@@ -234,6 +234,9 @@ describe('main', () => {
         expect(String(stdout.mock.calls[0]![0])).toContain(
             '"provider": "github"'
         )
+        expect(stderr.mock.calls.flat().join('')).toMatch(
+            /Warning: .*events feed/
+        )
         stdout.mockRestore()
         stderr.mockRestore()
     })

@@ -54,6 +54,10 @@ import type {
 
 type Params = Record<string, string | number>
 
+export interface GitHubOptions {
+    onWarning?: (message: string) => void
+}
+
 export class GitHubProvider implements Provider {
     readonly kind = 'github' as const
     readonly host: string
@@ -61,12 +65,15 @@ export class GitHubProvider implements Provider {
     private readonly token: string
     private readonly fetchImpl: FetchLike
     private identity: Identity | null = null
+    private readonly onWarning: (message: string) => void
 
     constructor(
         host: string,
         token: string,
-        fetchImpl: FetchLike = timedFetch()
+        fetchImpl: FetchLike = timedFetch(),
+        options: GitHubOptions = {}
     ) {
+        this.onWarning = options.onWarning ?? (() => undefined)
         this.host = host
         this.api =
             host === DOT_COM
@@ -191,9 +198,9 @@ export class GitHubProvider implements Provider {
         )
 
         if (raw.length === 0) {
-            process.stderr.write(
-                `Warning: the ${this.host} events feed returned nothing. Private activity ` +
-                    'is only visible to a token that belongs to the same account.\n'
+            this.onWarning(
+                `the ${this.host} events feed returned nothing. Private activity ` +
+                    'is only visible to a token that belongs to the same account.'
             )
         }
 
