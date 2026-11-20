@@ -122,6 +122,7 @@ const REPORT = {
             errors: ['error: GET .../@acme/ui-1.2.0.tgz - 404'],
         },
     ],
+    warnings: [],
 } satisfies StandupReport
 
 describe('toMarkdown', () => {

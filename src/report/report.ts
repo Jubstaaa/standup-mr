@@ -46,6 +46,7 @@ export async function buildReport(
         reviews,
         reviewPendingCount: reviews.filter(r => !r.approvedByMe).length,
         blockers,
+        warnings: provider.warnings?.() ?? [],
     }
 }
 

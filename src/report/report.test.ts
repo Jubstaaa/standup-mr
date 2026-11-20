@@ -33,6 +33,25 @@ function fakeProvider(overrides: Overrides = {}): Provider {
 
 const event = (at: string) => ({ at, action: 'pushed to' }) as ActivityEvent
 
+describe('buildReport warnings', () => {
+    it('carries the provider warnings in the report', async () => {
+        const provider: Provider = {
+            ...fakeProvider(),
+            warnings: () => ['the events feed returned nothing'],
+        }
+
+        const report = await buildReport(provider, TODAY)
+
+        expect(report.warnings).toEqual(['the events feed returned nothing'])
+    })
+
+    it('reports no warnings for a provider that has none', async () => {
+        const report = await buildReport(fakeProvider(), TODAY)
+
+        expect(report.warnings).toEqual([])
+    })
+})
+
 describe('buildReport', () => {
     it('reports every active day in the gap, oldest first', async () => {
         const report = await buildReport(

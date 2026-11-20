@@ -237,6 +237,9 @@ describe('main', () => {
         expect(stderr.mock.calls.flat().join('')).toMatch(
             /Warning: .*events feed/
         )
+        expect(
+            JSON.parse(String(stdout.mock.calls[0]![0])).warnings[0]
+        ).toMatch(/events feed/)
         stdout.mockRestore()
         stderr.mockRestore()
     })

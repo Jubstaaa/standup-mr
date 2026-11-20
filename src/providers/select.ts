@@ -22,7 +22,6 @@ export interface SelectOptions {
     probe?: { gitlab: () => string[]; github: () => string[] }
     provider?: string
     token?: string
-    onWarning?: (message: string) => void
 }
 
 const DEFAULT_PROBE = { gitlab: glabHosts, github: ghHosts }
@@ -127,9 +126,7 @@ export function connect(options: SelectOptions = {}): Provider {
             GITHUB_LABELS,
             env.GITHUB_HOST ?? DOT_COM
         )
-        return new GitHubProvider(host, token, undefined, {
-            onWarning: options.onWarning,
-        })
+        return new GitHubProvider(host, token)
     }
 
     const host = hostFrom(

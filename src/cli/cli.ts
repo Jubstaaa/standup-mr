@@ -18,10 +18,6 @@ async function readStdin(): Promise<string> {
     return Buffer.concat(chunks).toString('utf8')
 }
 
-function warn(message: string): void {
-    process.stderr.write(`Warning: ${message}\n`)
-}
-
 export async function main(argv: string[]): Promise<number> {
     const [command, ...rest] = argv
 
@@ -44,10 +40,13 @@ export async function main(argv: string[]): Promise<number> {
             })
 
             const report = await buildReport(
-                connect({ ...values, onWarning: warn }),
+                connect(values),
                 new Date(),
                 values.lang
             )
+            for (const warning of report.warnings) {
+                process.stderr.write(`Warning: ${warning}\n`)
+            }
             const output = values.markdown
                 ? toMarkdown(report, values.lang)
                 : JSON.stringify(report, null, 1)

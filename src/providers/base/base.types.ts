@@ -16,4 +16,7 @@ export interface Provider {
     getMyMrs(today: Date): Promise<MergeRequest[]>
     getReviews(identity: Identity, today: Date): Promise<Review[]>
     readonly kind: ProviderKind
+    // Things the report should say it could not see, such as a private
+    // activity feed; optional so existing Provider implementations still fit.
+    warnings?(): string[]
 }

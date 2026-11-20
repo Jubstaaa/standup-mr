@@ -64,6 +64,7 @@ const pushes = Array.from({ length: 40 }, (_, i) =>
 )
 
 const REPORT: StandupReport = {
+    warnings: [],
     provider: 'gitlab',
     user: 'ilker.balcilar',
     today: { date: '2026-10-12', label: 'Monday, 12 October' },
