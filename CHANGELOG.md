@@ -51,6 +51,12 @@ The report gains a field, so the next release is a minor version.
   `allowed_mentions: { parse: [] }`, Slack gets `&`, `<` and `>` escaped, and
   Google Chat gets a word joiner after each `<`, so `<!channel>` or
   `<users/all>` in a merge request title stays text.
+- **Hosted server: a self-hosted OAuth application belongs to the connection
+  that registered it.** It used to be shared by everyone signing in to that
+  host, so anyone could register and lock it, and whoever held its secret could
+  collect colleagues' tokens. Existing applications stay with the connections
+  that already signed in through them; register your own on your next
+  connect.
 
 ### Dependencies
 
