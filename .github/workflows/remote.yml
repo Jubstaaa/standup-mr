@@ -48,6 +48,10 @@ jobs:
     deploy:
         needs: ci
         if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (inputs.image_tag || needs.ci.result == 'success') }}
+        # The production environment only admits main, so its branch policy
+        # holds even if this condition is ever loosened. The DO_* deploy
+        # secrets are repository secrets, not environment ones.
+        environment: production
         runs-on: ubuntu-latest
         timeout-minutes: 15
         # Never cancel a deploy halfway through `compose up`.
@@ -109,3 +113,34 @@ jobs:
                   health-url: http://127.0.0.1:3007/health
                   sqlite-snapshot: /opt/standup-mr/data/standup.db
                   restore-snapshot: ${{ env.RESTORE_SNAPSHOT }}
+
+    # A run dispatched by the Dependabot auto-merge belongs to github-actions[bot],
+    # so GitHub's own failure e-mail reaches nobody; an issue does.
+    alert:
+        needs: [ci, deploy]
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            issues: write
+        steps:
+            - name: Open or update the deploy-failure issue
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                  TITLE: Production deploy failed
+                  LABEL: deploy-failure
+              # Anyone can open an issue with this title on a public repo, so
+              # only an issue this workflow opened, with its label, is reused.
+              run: |
+                  body="Run: $RUN_URL (commit $GITHUB_SHA). Production may be on the previous release or down; check the deploy log."
+                  gh label create "$LABEL" --force --color B60205 --description "Opened by the remote deploy workflow"
+                  # gh filters on github-actions[bot] but reports the bot's login as app/github-actions.
+                  existing=$(gh issue list --state open --author 'github-actions[bot]' --label "$LABEL" --json number,title,author \
+                      --jq 'map(select(.author.is_bot and .author.login == "app/github-actions" and .title == env.TITLE)) | .[0].number // empty')
+                  if [ -n "$existing" ]; then
+                      gh issue comment "$existing" --body "$body"
+                  else
+                      gh issue create --title "$TITLE" --label "$LABEL" --body "$body"
+                  fi

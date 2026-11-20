@@ -134,7 +134,10 @@ export function parseLoggedInHosts(statusOutput: string): string[] {
     return [...new Set(hosts)].sort()
 }
 
-export const parseGlabHosts = parseLoggedInHosts
+/** @deprecated glab and gh print the same status: use parseLoggedInHosts. */
+export function parseGlabHosts(statusOutput: string): string[] {
+    return parseLoggedInHosts(statusOutput)
+}
 
 export function glabHosts(): string[] {
     return parseLoggedInHosts(cliStatus('glab'))

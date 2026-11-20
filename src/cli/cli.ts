@@ -123,7 +123,13 @@ try {
     entryUrl = undefined
 }
 if (entryUrl && import.meta.url === entryUrl) {
-    main(process.argv.slice(2)).then(code => {
-        process.exitCode = code
-    })
+    main(process.argv.slice(2)).then(
+        code => {
+            process.exitCode = code
+        },
+        (error: unknown) => {
+            process.stderr.write(`${String(error)}\n`)
+            process.exitCode = 1
+        }
+    )
 }

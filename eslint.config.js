@@ -24,6 +24,13 @@ export default defineConfig([
         languageOptions: {
             ecmaVersion: 2022,
             globals: globals.node,
+            // Type information for the promise rules below. The full
+            // recommendedTypeChecked preset is not adopted yet: most of what
+            // it adds flags async test stubs, not unhandled work.
+            parserOptions: {
+                projectService: true,
+                tsconfigRootDir: import.meta.dirname,
+            },
         },
         rules: {
             'prettier/prettier': 'error',
@@ -36,6 +43,10 @@ export default defineConfig([
             '@typescript-eslint/consistent-type-imports': 'error',
             '@typescript-eslint/no-empty-object-type': 'off',
             '@typescript-eslint/no-unused-expressions': 'off',
+            // A promise nobody awaits loses its rejection; `void` marks the
+            // ones that are deliberately left running.
+            '@typescript-eslint/no-floating-promises': 'error',
+            '@typescript-eslint/no-misused-promises': 'error',
             'import-x/order': [
                 'error',
                 {
@@ -72,6 +83,31 @@ export default defineConfig([
             'perfectionist/sort-named-imports': [
                 'warn',
                 { order: 'asc', type: 'alphabetical' },
+            ],
+        },
+    },
+    // The package runs on Node (engines.node); Bun's global only exists in
+    // tests and in remote/, which runs under Bun.
+    {
+        files: ['src/**/*.ts', 'mcp/**/*.ts'],
+        ignores: ['**/*.test.ts', '**/*.cases.ts', '**/*.fixtures.ts'],
+        rules: {
+            'no-restricted-globals': [
+                'error',
+                {
+                    name: 'Bun',
+                    message:
+                        'src/ and mcp/ ship to Node; use a Node API instead.',
+                },
+            ],
+            'no-restricted-properties': [
+                'error',
+                {
+                    object: 'globalThis',
+                    property: 'Bun',
+                    message:
+                        'src/ and mcp/ ship to Node; use a Node API instead.',
+                },
             ],
         },
     },

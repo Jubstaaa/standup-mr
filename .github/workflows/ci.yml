@@ -45,7 +45,36 @@ jobs:
             - run: bun test
             - run: bun run test:tz
             - run: bun run audit
+            # Dead code and unused dependencies (knip.json), duplication
+            # (.jscpd.json threshold) and the module graph (.dependency-cruiser.cjs):
+            # package/server/core boundaries, no Bun-only or dev-only imports in
+            # shipped code, no cycles or orphans.
+            - run: bun run knip
+            - run: bun run duplication
+            - run: bun run deps:check
             - run: bun run build
+            # Last, so a new advisory never hides lint or test feedback. Lockfiles
+            # and the Dockerfile, plus secrets anywhere in the tree; not installed
+            # or built output.
+            - name: Trivy (vulnerabilities, secrets, misconfiguration)
+              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+              with:
+                  scan-type: fs
+                  scan-ref: .
+                  scanners: vuln,secret,misconfig
+                  skip-dirs: node_modules,dist
+                  severity: HIGH,CRITICAL
+                  # Explicit, so a scanner upgrade shows up in review.
+                  version: v0.76.2
+                  # A finding with no fixed version would block every PR with
+                  # nothing to act on; bun audit reports those advisories too.
+                  ignore-unfixed: true
+                  exit-code: '1'
+                  # Outside the checkout, so the downloaded checks bundle never
+                  # reaches prettier or eslint; and no per-PR DB cache, which no
+                  # other PR could restore.
+                  cache-dir: ${{ runner.temp }}/trivy
+                  cache: 'false'
             - name: actionlint
               run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color
 
@@ -76,6 +105,9 @@ jobs:
                       type=raw,value=candidate
                       type=sha,format=long,prefix=
             - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+            - name: Date for the daily OS package refresh
+              id: day
+              run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
             - name: Build candidate
               uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
               with:
@@ -85,8 +117,22 @@ jobs:
                   push: false
                   tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
+                  build-args: APT_REFRESH=${{ steps.day.outputs.date }}
                   cache-from: type=gha
                   cache-to: type=gha,mode=max
+            # OS packages and the bun runtime inside the image, which the
+            # repository scan in check cannot see.
+            - name: Trivy (candidate image)
+              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+              with:
+                  scan-type: image
+                  image-ref: ${{ env.IMAGE }}:candidate
+                  version: v0.76.2
+                  severity: HIGH,CRITICAL
+                  ignore-unfixed: true
+                  exit-code: '1'
+                  cache-dir: ${{ runner.temp }}/trivy
+                  cache: 'false'
             # The production compose file itself, so CI exercises exactly the
             # hardening, healthcheck and limits the droplet runs. The key is
             # throwaway: the candidate only ever sees an empty database.

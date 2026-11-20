@@ -94,7 +94,7 @@ export const REQUEST_CONCURRENCY = 4
 
 // A host that accepts the socket and never answers would otherwise hang the
 // CLI and the MCP tool call for good; fetch has no default timeout.
-export const REQUEST_TIMEOUT_MS = 30_000
+const REQUEST_TIMEOUT_MS = 30_000
 
 export function timedFetch(
     ms: number = REQUEST_TIMEOUT_MS,

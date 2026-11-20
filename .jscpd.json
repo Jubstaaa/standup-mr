@@ -1,0 +1,8 @@
+{
+    "path": ["src", "mcp", "remote/src"],
+    "format": ["typescript"],
+    "minTokens": 60,
+    "threshold": 1,
+    "failOnEmpty": true,
+    "ignore": ["**/*.test.ts", "**/*.fixtures.ts", "**/*.cases.ts"]
+}

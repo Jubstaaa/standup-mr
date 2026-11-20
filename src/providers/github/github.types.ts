@@ -1,4 +1,4 @@
-export interface RawCommit {
+interface RawCommit {
     message?: string
 }
 
