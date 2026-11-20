@@ -17,6 +17,7 @@ import type { TokenRefresher } from '../accounts/accounts'
 import type { RemoteConfig } from '../config/config.types'
 import { createConnectRouter } from '../connect/connect'
 import { renderLandingPage } from '../connect/connect-page'
+import { errorMessage } from '../errors/errors'
 import { StandupOAuthProvider } from '../oauth/oauth'
 import { renderPrivacyPage, renderSupportPage } from '../pages/pages'
 import { clientKey } from '../rate-limit/rate-limit'
@@ -68,11 +69,11 @@ export function createServices(
         baseUrl: config.baseUrl,
         config,
         fetchImpl,
-        store,
+        instances: store.instances,
     })
     return {
         fetchImpl,
-        freshAccessToken: createTokenRefresher(upstream, store),
+        freshAccessToken: createTokenRefresher(upstream, store.accounts),
         hostCheck: createHostCheck(lookup),
         now: options.now ?? Date.now,
         upstream,
@@ -111,8 +112,16 @@ export function createApp(
         })
     )
 
+    // The deploy gate polls this, so it reads the database: a release that
+    // cannot read its data must fail here and be rolled back.
     app.get('/health', (_req, res) => {
-        res.json({ ok: true })
+        try {
+            store.ping()
+            res.json({ ok: true })
+        } catch (cause) {
+            console.error(`health check failed: ${errorMessage(cause)}`)
+            res.status(503).json({ ok: false })
+        }
     })
 
     app.get('/', (_req, res) => {

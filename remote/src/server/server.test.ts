@@ -1,10 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto'
 import type { Server } from 'node:http'
 
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test'
 
 import type { RemoteConfig } from '../config/config.types'
+import { MIGRATIONS } from '../store/migrations'
 import { Store } from '../store/store'
+import { openStoreOnDisk } from '../store/store.fixtures'
 
 import { createApp, createServices } from './server'
 
@@ -262,9 +264,9 @@ describe('claude.ai connect flow', () => {
         expect(callback.headers.get('location')).toBe(pagePath)
         expect(tokenRequests[0]!.get('client_secret')).toBe('company-secret')
         expect(tokenRequests[0]!.get('code_verifier')).toBeTruthy()
-        const [account] = store
-            .listAccounts(
-                store.getPending(
+        const [account] = store.accounts
+            .list(
+                store.authorizations.getPending(
                     pagePath.split('/').pop()!,
                     cookie.split('=')[1],
                     Date.now()
@@ -292,7 +294,7 @@ describe('claude.ai connect flow', () => {
             })
         )
         expect(takeover.headers.get('location')).toContain('already+set+up')
-        expect(store.getInstance('gitlab', 'git.example.com')?.clientId).toBe(
+        expect(store.instances.get('gitlab', 'git.example.com')?.clientId).toBe(
             'company-app'
         )
     })
@@ -484,5 +486,69 @@ describe('a client borrowing a trusted name', () => {
         expect(page).toContain("standup-mr doesn't recognize this app")
         expect(page).toContain('attacker-alpha.example.com')
         expect(page).not.toContain('class="mark mark-claude"')
+    })
+})
+
+describe('/health', () => {
+    const config: RemoteConfig = {
+        baseUrl: new URL('http://localhost'),
+        blockedAddresses: [],
+        databasePath: ':memory:',
+        encryptionKey: randomBytes(32),
+        port: 0,
+    }
+
+    async function health(target: Store) {
+        const app = createApp(config, target)
+        const listening = await new Promise<Server>(resolve => {
+            const started = app.listen(0, () => resolve(started))
+        })
+        const address = listening.address()
+        const port = typeof address === 'object' ? address?.port : 0
+        try {
+            const response = await fetch(`http://127.0.0.1:${port}/health`)
+            return { status: response.status, body: await response.json() }
+        } finally {
+            listening.close()
+        }
+    }
+
+    test('answers ok when the database can be read', async () => {
+        expect(
+            await health(new Store(':memory:', config.encryptionKey))
+        ).toEqual({ status: 200, body: { ok: true } })
+    })
+
+    test('answers 503 and logs the cause when the database cannot be read', async () => {
+        const closed = new Store(':memory:', config.encryptionKey)
+        closed.close()
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        try {
+            expect(await health(closed)).toEqual({
+                status: 503,
+                body: { ok: false },
+            })
+            expect(logged).toHaveBeenCalledTimes(1)
+            expect(String(logged.mock.calls[0])).toContain(
+                'health check failed'
+            )
+        } finally {
+            logged.mockRestore()
+        }
+    })
+
+    test('answers 503 when the schema is behind the code', async () => {
+        const { db, store: behind } = openStoreOnDisk()
+        db.exec(`PRAGMA user_version = ${MIGRATIONS.length - 1}`)
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        try {
+            expect(await health(behind)).toEqual({
+                status: 503,
+                body: { ok: false },
+            })
+            expect(String(logged.mock.calls[0])).toContain('schema version')
+        } finally {
+            logged.mockRestore()
+        }
     })
 })

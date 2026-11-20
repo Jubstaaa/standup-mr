@@ -3,7 +3,7 @@ import { GitHubProvider } from '../../../src/providers/github/github'
 import { GitLabProvider } from '../../../src/providers/gitlab/gitlab'
 import type { FetchLike, ProviderKind } from '../../../src/standup.types'
 import { errorMessage } from '../errors/errors'
-import type { Store } from '../store/store'
+import type { AccountRepository } from '../store/account-repository'
 import type { Upstream } from '../upstream/upstream'
 
 import { REFRESH_MARGIN_MS } from './accounts.constants'
@@ -59,7 +59,7 @@ export function pickAccount(
 // concurrent tool calls never spend the same refresh token twice.
 export function createTokenRefresher(
     upstream: Pick<Upstream, 'refresh' | 'resolve'>,
-    store: Store
+    accounts: AccountRepository
 ) {
     const inFlight = new Map<string, Promise<string>>()
 
@@ -76,7 +76,7 @@ export function createTokenRefresher(
                 account.refreshToken,
                 now
             )
-            store.updateAccountTokens(account.id, tokens)
+            accounts.updateTokens(account.id, tokens)
             return tokens.accessToken
         } catch (cause) {
             console.error(

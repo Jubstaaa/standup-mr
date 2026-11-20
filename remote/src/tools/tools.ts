@@ -62,9 +62,9 @@ export async function runRemoteStandup(
 ): Promise<ToolResult> {
     try {
         const now = context.now()
-        context.store.touchConnection(context.connectionId, now)
+        context.store.connections.touch(context.connectionId, now)
         const account = pickAccount(
-            context.store.listAccounts(context.connectionId),
+            context.store.accounts.list(context.connectionId),
             args
         )
         const token = await context.freshAccessToken(account, now)
@@ -87,7 +87,7 @@ export async function runRemotePost(
     args: { text: string },
     context: ToolContext
 ): Promise<ToolResult> {
-    const webhook = context.store.getWebhook(context.connectionId)
+    const webhook = context.store.connections.getWebhook(context.connectionId)
     if (!webhook) return failure(NO_WEBHOOK_MESSAGE)
     try {
         await postWebhook(

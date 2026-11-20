@@ -148,7 +148,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
 
     function withPending(handler: PendingHandler): RequestHandler {
         return async (req, res) => {
-            const pending = store.getPending(
+            const pending = store.authorizations.getPending(
                 String(req.params.pendingId),
                 browserSecret(req),
                 deps.now()
@@ -185,7 +185,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
             tokens.accessToken,
             deps.fetchImpl
         ).getIdentity()
-        store.addAccount({
+        store.accounts.add({
             connectionId: pending.connectionId,
             provider: kind,
             host,
@@ -196,7 +196,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
     }
 
     const showPage: PendingHandler = (pending, req, res) => {
-        const client = store.getClient(pending.clientId)
+        const client = store.clients.get(pending.clientId)
         const chosen = chosenHost(req)
         const app = chosen
             ? upstream.resolve(chosen.kind, chosen.host)
@@ -209,9 +209,9 @@ export function createConnectRouter(deps: ConnectDeps): Router {
                     client?.client_name,
                     pending.redirectUri
                 ),
-                accounts: store.listAccounts(pending.connectionId),
-                webhook: store.getWebhook(pending.connectionId),
-                schedule: store.getSchedule(pending.connectionId),
+                accounts: store.accounts.list(pending.connectionId),
+                webhook: store.connections.getWebhook(pending.connectionId),
+                schedule: store.schedules.get(pending.connectionId),
                 error: query(req, 'error').slice(0, ERROR_MESSAGE_MAX_LENGTH),
                 notice: query(req, 'notice').slice(0, ERROR_MESSAGE_MAX_LENGTH),
                 providers: upstream.builtIn.map(builtIn => ({
@@ -246,7 +246,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
         if (!app) return res.redirect(pageUrl(pending.id))
         const state = randomToken()
         const codeVerifier = randomToken()
-        store.setUpstreamLogin(pending, state, codeVerifier)
+        store.authorizations.setUpstreamLogin(pending, state, codeVerifier)
         res.redirect(await upstream.authorizationUrl(app, state, codeVerifier))
     }
 
@@ -254,7 +254,11 @@ export function createConnectRouter(deps: ConnectDeps): Router {
         const app = appForRoute(req)
         const state = query(req, 'state')
         const login = state
-            ? store.takeUpstreamLogin(state, browserSecret(req), deps.now())
+            ? store.authorizations.takeUpstreamLogin(
+                  state,
+                  browserSecret(req),
+                  deps.now()
+              )
             : undefined
         if (!app || !login || login.pending.finishedRedirect) {
             return sendExpired(res)
@@ -283,7 +287,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
             )
             await linkAccount(pending, app.kind, app.host, tokens, 'oauth')
             if (app.isInstance) {
-                store.markInstanceVerified(app.kind, app.host, deps.now())
+                store.instances.markVerified(app.kind, app.host, deps.now())
             }
             res.redirect(pageUrl(pending.id))
         } catch (error) {
@@ -330,7 +334,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
                 )
             }
             await deps.hostCheck(host)
-            const saved = store.saveInstance(
+            const saved = store.instances.save(
                 { kind: provider, host, clientId, clientSecret },
                 deps.now()
             )
@@ -390,14 +394,17 @@ export function createConnectRouter(deps: ConnectDeps): Router {
     }
 
     const removeAccount: PendingHandler = (pending, req, res) => {
-        store.removeAccount(pending.connectionId, String(req.params.accountId))
+        store.accounts.remove(
+            pending.connectionId,
+            String(req.params.accountId)
+        )
         res.redirect(pageUrl(pending.id))
     }
 
     const saveWebhook: PendingHandler = (pending, req, res) => {
         const url = field(req, 'url')
         if (!url) {
-            store.setWebhook(pending.connectionId, undefined)
+            store.connections.setWebhook(pending.connectionId, undefined)
             return res.redirect(pageUrl(pending.id))
         }
         // Only the known chat hosts: the server posts to this URL, so an
@@ -410,13 +417,13 @@ export function createConnectRouter(deps: ConnectDeps): Router {
                 })
             )
         }
-        store.setWebhook(pending.connectionId, { kind, url })
+        store.connections.setWebhook(pending.connectionId, { kind, url })
         res.redirect(pageUrl(pending.id))
     }
 
     const saveSchedule: PendingHandler = (pending, req, res) => {
         if (field(req, 'enabled') !== 'on') {
-            store.deleteSchedule(pending.connectionId)
+            store.schedules.delete(pending.connectionId)
             return res.redirect(
                 pageUrl(pending.id, { notice: 'Automatic posting is off.' })
             )
@@ -427,7 +434,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
                 timezone: field(req, 'timezone'),
                 days: fieldList(req, 'day'),
             })
-            store.setSchedule(
+            store.schedules.set(
                 pending.connectionId,
                 settings,
                 nextRunAt(settings, deps.now())
@@ -453,7 +460,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
     }
 
     const finish: PendingHandler = (pending, _req, res) => {
-        if (store.listAccounts(pending.connectionId).length === 0) {
+        if (store.accounts.list(pending.connectionId).length === 0) {
             return res.redirect(
                 pageUrl(pending.id, {
                     error: 'Link at least one account first.',
@@ -462,12 +469,17 @@ export function createConnectRouter(deps: ConnectDeps): Router {
         }
         const code = randomToken()
         const redirect = redirectToClient(pending, { code })
-        store.completePending(pending, code, redirect, deps.now())
+        store.authorizations.completePending(
+            pending,
+            code,
+            redirect,
+            deps.now()
+        )
         res.redirect(redirect)
     }
 
     const cancel: PendingHandler = (pending, _req, res) => {
-        store.deleteConnection(pending.connectionId)
+        store.connections.delete(pending.connectionId)
         res.redirect(redirectToClient(pending, { error: 'access_denied' }))
     }
 

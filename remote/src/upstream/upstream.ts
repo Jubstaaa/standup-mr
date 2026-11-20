@@ -2,7 +2,7 @@ import * as oauth from 'oauth4webapi'
 
 import type { FetchLike, ProviderKind } from '../../../src/standup.types'
 import type { RemoteConfig } from '../config/config.types'
-import type { Store } from '../store/store'
+import type { InstanceRepository } from '../store/instance-repository'
 import type { Instance } from '../store/store.types'
 
 import {
@@ -29,7 +29,7 @@ export interface UpstreamDeps {
     baseUrl: URL
     config: RemoteConfig
     fetchImpl: FetchLike
-    store: Store
+    instances: InstanceRepository
 }
 
 // GitHub and gitlab.com keep the short callback paths their applications
@@ -150,7 +150,7 @@ export function createUpstream(deps: UpstreamDeps) {
                 app => app.kind === kind && app.host === host
             )
             if (configured) return configured
-            const instance = deps.store.getInstance(kind, host)
+            const instance = deps.instances.get(kind, host)
             return instance ? fromInstance(instance) : undefined
         },
 

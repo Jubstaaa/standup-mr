@@ -45,12 +45,12 @@ export class StandupOAuthProvider implements OAuthServerProvider {
         this.mcpUrl = options.mcpUrl
         this.now = options.now ?? Date.now
         this.clientsStore = {
-            getClient: id => store.getClient(id),
+            getClient: id => store.clients.get(id),
             registerClient: client => {
                 // The SDK fills in client_id before calling us; the type just
                 // does not say so.
                 const full = client as OAuthClientInformationFull
-                store.saveClient(full, this.now())
+                store.clients.save(full, this.now())
                 return full
             },
         }
@@ -68,7 +68,7 @@ export class StandupOAuthProvider implements OAuthServerProvider {
         }
         const pendingId = randomToken()
         const browserSecret = randomToken()
-        this.store.createPending(
+        this.store.authorizations.createPending(
             {
                 pendingId,
                 browserSecret,
@@ -94,7 +94,10 @@ export class StandupOAuthProvider implements OAuthServerProvider {
         client: OAuthClientInformationFull,
         authorizationCode: string
     ): Promise<string> {
-        const code = this.store.peekCode(authorizationCode, this.now())
+        const code = this.store.authorizations.peekCode(
+            authorizationCode,
+            this.now()
+        )
         if (!code || code.clientId !== client.client_id) {
             throw new InvalidGrantError('Invalid or expired authorization code')
         }
@@ -107,7 +110,10 @@ export class StandupOAuthProvider implements OAuthServerProvider {
         _codeVerifier?: string,
         redirectUri?: string
     ): Promise<OAuthTokens> {
-        const code = this.store.takeCode(authorizationCode, this.now())
+        const code = this.store.authorizations.takeCode(
+            authorizationCode,
+            this.now()
+        )
         if (!code || code.clientId !== client.client_id) {
             throw new InvalidGrantError('Invalid or expired authorization code')
         }
@@ -127,7 +133,7 @@ export class StandupOAuthProvider implements OAuthServerProvider {
         client: OAuthClientInformationFull,
         refreshToken: string
     ): Promise<OAuthTokens> {
-        const stored = this.store.getToken(refreshToken)
+        const stored = this.store.tokens.get(refreshToken)
         if (
             !stored ||
             stored.kind !== 'refresh' ||
@@ -142,11 +148,11 @@ export class StandupOAuthProvider implements OAuthServerProvider {
         const now = this.now()
         if (stored.usedAt !== null) {
             if (now - stored.usedAt > REFRESH_REUSE_GRACE_MS) {
-                this.store.revokeFamily(stored.family)
+                this.store.tokens.revokeFamily(stored.family)
                 throw new InvalidGrantError('Refresh token reuse detected')
             }
         } else {
-            this.store.markTokenUsed(refreshToken, now)
+            this.store.tokens.markUsed(refreshToken, now)
         }
         return this.issue(
             client.client_id,
@@ -158,7 +164,7 @@ export class StandupOAuthProvider implements OAuthServerProvider {
     }
 
     async verifyAccessToken(token: string): Promise<AuthInfo> {
-        const stored = this.store.getToken(token)
+        const stored = this.store.tokens.get(token)
         if (
             !stored ||
             stored.kind !== 'access' ||
@@ -183,9 +189,9 @@ export class StandupOAuthProvider implements OAuthServerProvider {
         client: OAuthClientInformationFull,
         request: OAuthTokenRevocationRequest
     ): Promise<void> {
-        const stored = this.store.getToken(request.token)
+        const stored = this.store.tokens.get(request.token)
         if (!stored || stored.clientId !== client.client_id) return
-        this.store.deleteConnection(stored.connectionId)
+        this.store.connections.delete(stored.connectionId)
     }
 
     // Clients differ on a trailing slash; anything else is another resource.
@@ -205,17 +211,17 @@ export class StandupOAuthProvider implements OAuthServerProvider {
         const accessToken = randomToken()
         const refreshToken = randomToken()
         const base = { clientId, connectionId, family, scopes, resource }
-        this.store.saveToken(accessToken, {
+        this.store.tokens.save(accessToken, {
             ...base,
             kind: 'access',
             expiresAt: now + ACCESS_TOKEN_TTL_MS,
         })
-        this.store.saveToken(refreshToken, {
+        this.store.tokens.save(refreshToken, {
             ...base,
             kind: 'refresh',
             expiresAt: now + REFRESH_TOKEN_TTL_MS,
         })
-        this.store.touchConnection(connectionId, now)
+        this.store.connections.touch(connectionId, now)
         return {
             access_token: accessToken,
             token_type: 'Bearer',

@@ -95,7 +95,7 @@ describe('createTokenRefresher', () => {
             refreshToken: 'refresh-2',
             expiresAt: 38_800_000,
         })
-        linked = store.addAccount({
+        linked = store.accounts.add({
             connectionId: startConnection(store).connectionId,
             provider: 'github',
             host: 'github.com',
@@ -108,21 +108,21 @@ describe('createTokenRefresher', () => {
     })
 
     test('keeps a token that is still valid', async () => {
-        const fresh = createTokenRefresher(upstream(), store)
+        const fresh = createTokenRefresher(upstream(), store.accounts)
         expect(await fresh(linked, 0)).toBe('old')
         expect(refreshCalls).toBe(0)
     })
 
     test('refreshes a token about to expire and stores the new one', async () => {
-        const fresh = createTokenRefresher(upstream(), store)
+        const fresh = createTokenRefresher(upstream(), store.accounts)
         expect(await fresh(linked, 9_999_000)).toBe('new')
-        const [stored] = store.listAccounts(linked.connectionId)
+        const [stored] = store.accounts.list(linked.connectionId)
         expect(stored!.accessToken).toBe('new')
         expect(stored!.refreshToken).toBe('refresh-2')
     })
 
     test('spends a single-use refresh token once for concurrent calls', async () => {
-        const fresh = createTokenRefresher(upstream(), store)
+        const fresh = createTokenRefresher(upstream(), store.accounts)
         const tokens = await Promise.all([
             fresh(linked, 9_999_000),
             fresh(linked, 9_999_000),
@@ -135,7 +135,7 @@ describe('createTokenRefresher', () => {
         refreshResult = async () => {
             throw new Error('bad_refresh_token')
         }
-        const fresh = createTokenRefresher(upstream(), store)
+        const fresh = createTokenRefresher(upstream(), store.accounts)
         await expect(fresh(linked, 9_999_000)).rejects.toThrow(/Reconnect/)
     })
 
@@ -145,7 +145,7 @@ describe('createTokenRefresher', () => {
         }
         const logged = spyOn(console, 'error').mockImplementation(() => {})
         try {
-            const fresh = createTokenRefresher(upstream(), store)
+            const fresh = createTokenRefresher(upstream(), store.accounts)
             await expect(fresh(linked, 9_999_000)).rejects.toThrow()
             const line = logged.mock.calls.flat().join(' ')
             expect(line).toMatch(/bad_refresh_token/)
@@ -157,7 +157,7 @@ describe('createTokenRefresher', () => {
     })
 
     test('never refreshes a pasted token', async () => {
-        const fresh = createTokenRefresher(noUpstream, store)
+        const fresh = createTokenRefresher(noUpstream, store.accounts)
         const pat = account({ source: 'pat', expiresAt: 1 })
         expect(await fresh(pat, 10)).toBe('token')
     })
