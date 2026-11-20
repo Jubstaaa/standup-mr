@@ -127,17 +127,33 @@ jobs:
 
   npm:
     needs: verify
+    # The release environment admits only v* tags, and npm trusts exactly
+    # this workflow in this environment, so no npm token is stored anywhere.
+    environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
-      # npm provenance: the registry records which workflow run built the tarball.
+      # npm trusted publishing and provenance both sign in with this run's
+      # GitHub OIDC token.
       id-token: write
     steps:
+      # No registry-url: setup-node would write an .npmrc token placeholder,
+      # and npm publishes to registry.npmjs.org through OIDC by default.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
+
+      - name: Require an npm CLI with trusted publishing
+        run: |
+          # Trusted publishing (OIDC) needs npm 11.5.1 or newer.
+          if ! node -e '
+            const [major, minor, patch] = process.argv[1].split(".").map(Number)
+            process.exit(major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1))) ? 0 : 1)
+          ' "$(npm --version)"; then
+            echo "::error::npm $(npm --version) is too old for trusted publishing; 11.5.1 or newer is required"
+            exit 1
+          fi
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -145,8 +161,6 @@ jobs:
           path: package
 
       - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           # From trusted inputs only, not from verify's outputs: verify runs
           # dependency code and could rewrite its outputs along with the tarball.
