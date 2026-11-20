@@ -70,11 +70,11 @@ export function describeSchedule(settings: ScheduleSettings): string {
 }
 
 // One message for the whole connection: a section per linked account.
-export async function composeDigest(
+async function composeDigest(
     deps: SchedulerDeps,
     connectionId: string
 ): Promise<string> {
-    const accounts = deps.store.listAccounts(connectionId)
+    const accounts = deps.store.accounts.list(connectionId)
     if (accounts.length === 0) {
         throw new ScheduleError('No account is linked.')
     }
@@ -103,7 +103,7 @@ export async function sendDigest(
     deps: SchedulerDeps,
     connectionId: string
 ): Promise<void> {
-    const webhook = deps.store.getWebhook(connectionId)
+    const webhook = deps.store.connections.getWebhook(connectionId)
     if (!webhook) throw new ScheduleError('No webhook is saved.')
     const text = await composeDigest(deps, connectionId)
     await postWebhook(webhook.url, text, webhook.kind, deps.fetchImpl)
@@ -116,15 +116,15 @@ async function runSchedule(
     const now = deps.now()
     const next = nextRunAt(schedule, now)
     if (now - schedule.nextRunAt > CATCH_UP_LIMIT_MS) {
-        deps.store.setNextRun(schedule.connectionId, next)
+        deps.store.schedules.setNextRun(schedule.connectionId, next)
         return
     }
-    deps.store.touchConnection(schedule.connectionId, now)
+    deps.store.connections.touch(schedule.connectionId, now)
     try {
         await sendDigest(deps, schedule.connectionId)
-        deps.store.markScheduleSent(schedule.connectionId, deps.now(), next)
+        deps.store.schedules.markSent(schedule.connectionId, deps.now(), next)
     } catch (error) {
-        deps.store.markScheduleFailed(
+        deps.store.schedules.markFailed(
             schedule.connectionId,
             errorMessage(error),
             next
@@ -133,7 +133,7 @@ async function runSchedule(
 }
 
 export async function runDueSchedules(deps: SchedulerDeps): Promise<void> {
-    for (const schedule of deps.store.listDueSchedules(deps.now())) {
+    for (const schedule of deps.store.schedules.listDue(deps.now())) {
         try {
             await runSchedule(deps, schedule)
         } catch (error) {

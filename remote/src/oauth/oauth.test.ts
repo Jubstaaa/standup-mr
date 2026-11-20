@@ -38,7 +38,7 @@ function fakeResponse() {
 
 function finishedCode(): string {
     const pending = startConnection(store, now)
-    store.completePending(pending, 'the-code', REDIRECT_URI, now)
+    store.authorizations.completePending(pending, 'the-code', REDIRECT_URI, now)
     return 'the-code'
 }
 
@@ -58,7 +58,7 @@ beforeEach(() => {
         mcpUrl: MCP_URL,
         now: () => now,
     })
-    store.saveClient(client, now)
+    store.clients.save(client, now)
 })
 
 describe('authorize', () => {
@@ -72,9 +72,15 @@ describe('authorize', () => {
         const pendingId = sent.location.replace('/connect/', '')
         const secret = sent.cookies[CONNECT_COOKIE]!
 
-        expect(store.getPending(pendingId, secret, now)).toBeDefined()
-        expect(store.getPending(pendingId, undefined, now)).toBeUndefined()
-        expect(store.getPending(pendingId, 'other', now)).toBeUndefined()
+        expect(
+            store.authorizations.getPending(pendingId, secret, now)
+        ).toBeDefined()
+        expect(
+            store.authorizations.getPending(pendingId, undefined, now)
+        ).toBeUndefined()
+        expect(
+            store.authorizations.getPending(pendingId, 'other', now)
+        ).toBeUndefined()
     })
 
     test('refuses a token for another resource', async () => {
@@ -212,7 +218,7 @@ describe('revocation', () => {
         const tokens = await tokensFor()
         const { extra } = await provider.verifyAccessToken(tokens.access_token)
         const connectionId = extra!.connectionId as string
-        store.addAccount({
+        store.accounts.add({
             connectionId,
             provider: 'github',
             host: 'github.com',
@@ -225,7 +231,7 @@ describe('revocation', () => {
 
         await provider.revokeToken(client, { token: tokens.refresh_token! })
 
-        expect(store.listAccounts(connectionId)).toEqual([])
+        expect(store.accounts.list(connectionId)).toEqual([])
         await expect(
             provider.verifyAccessToken(tokens.access_token)
         ).rejects.toThrow()
@@ -235,7 +241,7 @@ describe('revocation', () => {
 describe('store', () => {
     test('encrypts tokens at rest and reads them back', () => {
         const { connectionId } = startConnection(store, now)
-        store.addAccount({
+        store.accounts.add({
             connectionId,
             provider: 'gitlab',
             host: 'git.example.com',
@@ -245,7 +251,7 @@ describe('store', () => {
             refreshToken: null,
             expiresAt: null,
         })
-        expect(store.listAccounts(connectionId)[0]!.accessToken).toBe(
+        expect(store.accounts.list(connectionId)[0]!.accessToken).toBe(
             'glpat-secret'
         )
     })
@@ -260,26 +266,34 @@ describe('store', () => {
             refreshToken: null,
             expiresAt: null,
         }
-        store.addAccount({ ...base, username: 'a', accessToken: 'one' })
-        store.addAccount({ ...base, username: 'b', accessToken: 'two' })
-        const accounts = store.listAccounts(connectionId)
+        store.accounts.add({ ...base, username: 'a', accessToken: 'one' })
+        store.accounts.add({ ...base, username: 'b', accessToken: 'two' })
+        const accounts = store.accounts.list(connectionId)
         expect(accounts).toHaveLength(1)
         expect(accounts[0]!.accessToken).toBe('two')
     })
 
     test('the upstream login is single-use and browser-bound', () => {
         const pending = startConnection(store, now)
-        store.setUpstreamLogin(pending, 'upstream', 'verifier')
+        store.authorizations.setUpstreamLogin(pending, 'upstream', 'verifier')
         expect(
-            store.takeUpstreamLogin('upstream', 'other', now)
+            store.authorizations.takeUpstreamLogin('upstream', 'other', now)
         ).toBeUndefined()
 
-        store.setUpstreamLogin(pending, 'upstream', 'verifier')
-        const login = store.takeUpstreamLogin('upstream', BROWSER_SECRET, now)
+        store.authorizations.setUpstreamLogin(pending, 'upstream', 'verifier')
+        const login = store.authorizations.takeUpstreamLogin(
+            'upstream',
+            BROWSER_SECRET,
+            now
+        )
         expect(login?.pending.id).toBe('pending')
         expect(login?.codeVerifier).toBe('verifier')
         expect(
-            store.takeUpstreamLogin('upstream', BROWSER_SECRET, now)
+            store.authorizations.takeUpstreamLogin(
+                'upstream',
+                BROWSER_SECRET,
+                now
+            )
         ).toBeUndefined()
     })
 
@@ -290,26 +304,26 @@ describe('store', () => {
             clientId: 'first',
             clientSecret: 'secret-1',
         }
-        expect(store.saveInstance(instance, now)).toBe(true)
+        expect(store.instances.save(instance, now)).toBe(true)
         expect(
-            store.saveInstance({ ...instance, clientId: 'second' }, now)
+            store.instances.save({ ...instance, clientId: 'second' }, now)
         ).toBe(true)
-        expect(store.getInstance('gitlab', 'git.example.com')?.clientId).toBe(
+        expect(store.instances.get('gitlab', 'git.example.com')?.clientId).toBe(
             'second'
         )
 
-        store.markInstanceVerified('gitlab', 'git.example.com', now)
+        store.instances.markVerified('gitlab', 'git.example.com', now)
         expect(
-            store.saveInstance({ ...instance, clientId: 'takeover' }, now)
+            store.instances.save({ ...instance, clientId: 'takeover' }, now)
         ).toBe(false)
-        const kept = store.getInstance('gitlab', 'git.example.com')!
+        const kept = store.instances.get('gitlab', 'git.example.com')!
         expect(kept.clientId).toBe('second')
         expect(kept.clientSecret).toBe('secret-1')
         expect(kept.verifiedAt).toBe(now)
     })
 
     test('purge drops instances nobody ever signed in with', () => {
-        store.saveInstance(
+        store.instances.save(
             {
                 kind: 'gitlab',
                 host: 'git.example.com',
@@ -319,15 +333,20 @@ describe('store', () => {
             now
         )
         store.purge(now + 2 * 24 * 60 * 60_000)
-        expect(store.getInstance('gitlab', 'git.example.com')).toBeUndefined()
+        expect(store.instances.get('gitlab', 'git.example.com')).toBeUndefined()
     })
 
     test('purge drops abandoned pages and unredeemed connections', () => {
         const abandoned = startConnection(store, now, 'abandoned')
         const unredeemed = startConnection(store, now, 'unredeemed')
-        store.completePending(unredeemed, 'never-used', REDIRECT_URI, now)
+        store.authorizations.completePending(
+            unredeemed,
+            'never-used',
+            REDIRECT_URI,
+            now
+        )
         for (const { connectionId } of [abandoned, unredeemed]) {
-            store.addAccount({
+            store.accounts.add({
                 connectionId,
                 provider: 'github',
                 host: 'github.com',
@@ -341,12 +360,12 @@ describe('store', () => {
 
         store.purge(now + 16 * 60_000)
 
-        expect(store.listAccounts(abandoned.connectionId)).toEqual([])
-        expect(store.listAccounts(unredeemed.connectionId)).toEqual([])
+        expect(store.accounts.list(abandoned.connectionId)).toEqual([])
+        expect(store.accounts.list(unredeemed.connectionId)).toEqual([])
     })
 
     test('purge drops registered clients nobody uses', () => {
         store.purge(now + 2 * 24 * 60 * 60_000)
-        expect(store.getClient('claude')).toBeUndefined()
+        expect(store.clients.get('claude')).toBeUndefined()
     })
 })

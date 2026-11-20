@@ -1,4 +1,4 @@
-export interface AppCredentials {
+interface AppCredentials {
     clientId: string
     clientSecret: string
 }

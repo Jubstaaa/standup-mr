@@ -44,7 +44,7 @@ const fakeFetch: FetchLike = async (url, init) => {
 }
 
 function linkGitLab(host: string): void {
-    store.addAccount({
+    store.accounts.add({
         connectionId,
         provider: 'gitlab',
         host,
@@ -65,7 +65,7 @@ beforeEach(() => {
         fetchImpl: fakeFetch,
         freshAccessToken: createTokenRefresher(
             { resolve: () => undefined, refresh: () => Promise.reject() },
-            store
+            store.accounts
         ),
         now: () => clock,
         store,
@@ -125,8 +125,11 @@ describe('parseSchedule', () => {
 
 describe('runDueSchedules', () => {
     beforeEach(() => {
-        store.setWebhook(connectionId, { kind: 'slack', url: WEBHOOK })
-        store.setSchedule(connectionId, WEEKDAYS_0930, MONDAY_0930)
+        store.connections.setWebhook(connectionId, {
+            kind: 'slack',
+            url: WEBHOOK,
+        })
+        store.schedules.set(connectionId, WEEKDAYS_0930, MONDAY_0930)
     })
 
     test('posts one message with a section per account', async () => {
@@ -137,7 +140,7 @@ describe('runDueSchedules', () => {
         expect(posted).toHaveLength(1)
         expect(posted[0]).toContain('gitlab · git.one.com · ilker')
         expect(posted[0]).toContain('gitlab · git.two.com · ilker')
-        const schedule = store.getSchedule(connectionId)!
+        const schedule = store.schedules.get(connectionId)!
         expect(schedule.lastSentAt).toBe(MONDAY_0930)
         expect(schedule.lastError).toBeNull()
         expect(schedule.nextRunAt).toBe(Date.parse('2026-10-13T06:30:00Z'))
@@ -148,7 +151,7 @@ describe('runDueSchedules', () => {
         clock = MONDAY_0930 - 1
         await runDueSchedules(deps)
         expect(posted).toHaveLength(0)
-        expect(store.getSchedule(connectionId)!.nextRunAt).toBe(MONDAY_0930)
+        expect(store.schedules.get(connectionId)!.nextRunAt).toBe(MONDAY_0930)
     })
 
     test('skips a run missed by more than the catch-up limit', async () => {
@@ -157,7 +160,7 @@ describe('runDueSchedules', () => {
         await runDueSchedules(deps)
 
         expect(posted).toHaveLength(0)
-        const schedule = store.getSchedule(connectionId)!
+        const schedule = store.schedules.get(connectionId)!
         expect(schedule.lastSentAt).toBeNull()
         expect(schedule.nextRunAt).toBe(Date.parse('2026-10-13T06:30:00Z'))
     })
@@ -173,7 +176,7 @@ describe('runDueSchedules', () => {
         await runDueSchedules(deps)
 
         expect(posted).toHaveLength(0)
-        const schedule = store.getSchedule(connectionId)!
+        const schedule = store.schedules.get(connectionId)!
         expect(schedule.lastError).toMatch(/No account is linked/)
         expect(schedule.nextRunAt).toBe(Date.parse('2026-10-13T06:30:00Z'))
     })
@@ -185,13 +188,15 @@ describe('runDueSchedules', () => {
                 ? new Response('gone', { status: 404 })
                 : fakeFetch(url, init)
         await runDueSchedules(deps)
-        expect(store.getSchedule(connectionId)!.lastError).toMatch(/HTTP 404/)
+        expect(store.schedules.get(connectionId)!.lastError).toMatch(/HTTP 404/)
     })
 
     test('records a missing webhook', async () => {
         linkGitLab('git.one.com')
-        store.setWebhook(connectionId, undefined)
+        store.connections.setWebhook(connectionId, undefined)
         await runDueSchedules(deps)
-        expect(store.getSchedule(connectionId)!.lastError).toMatch(/No webhook/)
+        expect(store.schedules.get(connectionId)!.lastError).toMatch(
+            /No webhook/
+        )
     })
 })

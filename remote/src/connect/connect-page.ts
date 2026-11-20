@@ -24,14 +24,14 @@ import {
     PROVIDER_ICONS,
 } from './connect-page.icons'
 
-export interface ProviderLink {
+interface ProviderLink {
     host: string
     href: string
     kind: ProviderKind
 }
 
 // The self-hosted panel, open once someone has typed a host.
-export interface SelfHostedPanel {
+interface SelfHostedPanel {
     callbackUrl: string
     canSetUp: boolean
     host: string

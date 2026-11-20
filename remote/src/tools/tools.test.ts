@@ -21,7 +21,7 @@ beforeEach(() => {
         connectionId,
         freshAccessToken: createTokenRefresher(
             { resolve: () => undefined, refresh: () => Promise.reject() },
-            store
+            store.accounts
         ),
         now: () => 0,
         store,
@@ -40,7 +40,7 @@ describe('get_standup_data', () => {
     })
 
     test('reports a host the guarded fetch refuses', async () => {
-        context.store.addAccount({
+        context.store.accounts.add({
             connectionId: context.connectionId,
             provider: 'gitlab',
             host: 'git.example.com',
@@ -67,7 +67,7 @@ describe('post_standup_note', () => {
     })
 
     test('posts to the saved webhook', async () => {
-        context.store.setWebhook(context.connectionId, {
+        context.store.connections.setWebhook(context.connectionId, {
             kind: 'slack',
             url: 'https://hooks.slack.com/services/T/B/X',
         })
