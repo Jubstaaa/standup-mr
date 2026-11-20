@@ -24,6 +24,13 @@ export default defineConfig([
         languageOptions: {
             ecmaVersion: 2022,
             globals: globals.node,
+            // Type information for the promise rules below. The full
+            // recommendedTypeChecked preset is not adopted yet: most of what
+            // it adds flags async test stubs, not unhandled work.
+            parserOptions: {
+                projectService: true,
+                tsconfigRootDir: import.meta.dirname,
+            },
         },
         rules: {
             'prettier/prettier': 'error',
@@ -36,6 +43,10 @@ export default defineConfig([
             '@typescript-eslint/consistent-type-imports': 'error',
             '@typescript-eslint/no-empty-object-type': 'off',
             '@typescript-eslint/no-unused-expressions': 'off',
+            // A promise nobody awaits loses its rejection; `void` marks the
+            // ones that are deliberately left running.
+            '@typescript-eslint/no-floating-promises': 'error',
+            '@typescript-eslint/no-misused-promises': 'error',
             'import-x/order': [
                 'error',
                 {
