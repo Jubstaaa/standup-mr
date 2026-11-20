@@ -1,14 +1,28 @@
 import { createHash, randomBytes } from 'node:crypto'
 import type { Server } from 'node:http'
+import { Readable } from 'node:stream'
 
-import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test'
+import axios from 'axios'
+import type { AxiosResponse } from 'axios'
+import {
+    afterAll,
+    afterEach,
+    beforeAll,
+    describe,
+    expect,
+    spyOn,
+    test,
+} from 'bun:test'
 
 import type { RemoteConfig } from '../config/config.types'
+import { MAX_RESPONSE_BYTES } from '../ssrf/ssrf.constants'
 import { MIGRATIONS } from '../store/migrations'
 import { Store } from '../store/store'
-import { openStoreOnDisk } from '../store/store.fixtures'
+import { openStoreOnDisk, removeStoresOnDisk } from '../store/store.fixtures'
 
 import { createApp, createServices } from './server'
+
+afterEach(removeStoresOnDisk)
 
 const REDIRECT_URI = 'https://claude.ai/api/mcp/auth_callback'
 const verifier = randomBytes(32).toString('base64url')
@@ -107,6 +121,37 @@ function rpc(token: string | null, body: object) {
     })
 }
 
+function connectionOf(pagePath: string, secret = cookie.split('=')[1]) {
+    return store.authorizations.getPending(
+        pagePath.split('/').pop()!,
+        secret,
+        Date.now()
+    )!.connectionId
+}
+
+// A second browser starting its own sign-in with the same client.
+async function startFlow(clientId: string) {
+    const url = new URL(`${base}/authorize`)
+    url.search = new URLSearchParams({
+        response_type: 'code',
+        client_id: clientId,
+        redirect_uri: REDIRECT_URI,
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
+    }).toString()
+    const response = await fetch(url, { redirect: 'manual' })
+    const ownCookie = response.headers.get('set-cookie')!.split(';')[0]!
+    return {
+        pagePath: response.headers.get('location')!,
+        browser: (path: string, init: RequestInit = {}) =>
+            fetch(`${base}${path}`, {
+                redirect: 'manual',
+                ...init,
+                headers: { ...init.headers, Cookie: ownCookie },
+            }),
+    }
+}
+
 describe('claude.ai connect flow', () => {
     let clientId: string
     let pagePath: string
@@ -202,6 +247,96 @@ describe('claude.ai connect flow', () => {
         expect(response.headers.get('x-content-type-options')).toBe('nosniff')
     })
 
+    test('the page shows only its own messages, never text from the URL', async () => {
+        const page = await (
+            await browser(
+                `${pagePath}?error=${encodeURIComponent('Your session expired, log in at evil.example')}&notice=hello`
+            )
+        ).text()
+        expect(page).not.toContain('evil.example')
+        expect(page).not.toContain('hello')
+        expect(page).not.toContain('role="alert">')
+
+        const known = await (
+            await browser(
+                `${pagePath}?error=host-unreachable&provider=gitlab&host=git.example.com`
+            )
+        ).text()
+        expect(known).toContain(
+            'Could not reach git.example.com as a public host.'
+        )
+    })
+
+    test('an upstream error description is not echoed to the page', async () => {
+        await browser(
+            `${pagePath}/instances`,
+            form({
+                provider: 'gitlab',
+                host: 'echo.example.com',
+                client_id: 'echo-app',
+                client_secret: 'echo-secret',
+            })
+        )
+        const link = await browser(`${pagePath}/link/gitlab/echo.example.com`)
+        const state = new URL(link.headers.get('location')!).searchParams.get(
+            'state'
+        )
+        const callback = await browser(
+            `/connect/callback/gitlab/echo.example.com?error=access_denied&error_description=Call+evil.example&state=${state}`
+        )
+        const location = callback.headers.get('location')!
+        expect(location).toContain('error=signin-cancelled')
+        expect(location).not.toContain('evil')
+    })
+
+    test('an upstream error other than a refusal is logged and shown as failed', async () => {
+        await browser(
+            `${pagePath}/instances`,
+            form({
+                provider: 'gitlab',
+                host: 'broken.example.com',
+                client_id: 'broken-app',
+                client_secret: 'broken-secret',
+            })
+        )
+        const link = await browser(`${pagePath}/link/gitlab/broken.example.com`)
+        const state = new URL(link.headers.get('location')!).searchParams.get(
+            'state'
+        )
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        try {
+            const callback = await browser(
+                `/connect/callback/gitlab/broken.example.com?error=server_error&error_description=db+down&state=${state}`
+            )
+            expect(callback.headers.get('location')).toContain(
+                'error=signin-failed-instance'
+            )
+            const line = logged.mock.calls.flat().join(' ')
+            expect(line).toContain('server_error')
+            expect(line).toContain('db down')
+        } finally {
+            logged.mockRestore()
+        }
+    })
+
+    test('an unexpected error renders a message page and is logged', async () => {
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        const broken = spyOn(store.accounts, 'list').mockImplementation(() => {
+            throw new Error('disk I/O error')
+        })
+        try {
+            const response = await browser(pagePath)
+            expect(response.status).toBe(500)
+            expect(await response.text()).toContain('Something went wrong')
+            expect(logged.mock.calls.flat().join(' ')).toContain(
+                'disk I/O error'
+            )
+        } finally {
+            broken.mockRestore()
+            logged.mockRestore()
+        }
+    })
+
     test('finish is refused until an account is linked', async () => {
         const response = await browser(`${pagePath}/finish`, form({}))
         expect(response.headers.get('location')).toContain('error=')
@@ -282,7 +417,7 @@ describe('claude.ai connect flow', () => {
             await browser(`${pagePath}?provider=gitlab&host=git.example.com`)
         ).text()
         expect(panel).toContain('Sign in with git.example.com')
-        expect(panel).not.toContain('Set up sign-in for everyone')
+        expect(panel).not.toContain('Set up sign-in to')
 
         const takeover = await browser(
             `${pagePath}/instances`,
@@ -293,10 +428,79 @@ describe('claude.ai connect flow', () => {
                 client_secret: 'attacker-secret',
             })
         )
-        expect(takeover.headers.get('location')).toContain('already+set+up')
-        expect(store.instances.get('gitlab', 'git.example.com')?.clientId).toBe(
-            'company-app'
+        expect(takeover.headers.get('location')).toContain(
+            'error=instance-locked'
         )
+        expect(
+            store.instances.get(
+                connectionOf(pagePath),
+                'gitlab',
+                'git.example.com'
+            )?.clientId
+        ).toBe('company-app')
+    })
+
+    test("another user neither sees nor can lock someone's instance", async () => {
+        const other = await startFlow(clientId)
+        const panel = await (
+            await other.browser(
+                `${other.pagePath}?provider=gitlab&host=git.example.com`
+            )
+        ).text()
+        expect(panel).toContain("git.example.com isn't set up for sign-in yet")
+
+        const saved = await other.browser(
+            `${other.pagePath}/instances`,
+            form({
+                provider: 'gitlab',
+                host: 'git.example.com',
+                client_id: 'their-app',
+                client_secret: 'their-secret',
+            })
+        )
+        expect(saved.headers.get('location')).toEndWith(
+            '/link/gitlab/git.example.com'
+        )
+        expect(
+            store.instances.get(
+                connectionOf(pagePath),
+                'gitlab',
+                'git.example.com'
+            )?.clientId
+        ).toBe('company-app')
+    })
+
+    test('a callback on another host than the login started is refused', async () => {
+        await browser(
+            `${pagePath}/instances`,
+            form({
+                provider: 'gitlab',
+                host: 'other.example.com',
+                client_id: 'other-app',
+                client_secret: 'other-secret',
+            })
+        )
+        const link = await browser(`${pagePath}/link/gitlab/other.example.com`)
+        const state = new URL(link.headers.get('location')!).searchParams.get(
+            'state'
+        )
+        const before = tokenRequests.length
+
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        let callback: Response
+        try {
+            callback = await browser(
+                `/connect/callback/gitlab/git.example.com?code=granted&state=${state}`
+            )
+            expect(logged.mock.calls.flat().join(' ')).toContain(
+                'gitlab other.example.com'
+            )
+        } finally {
+            logged.mockRestore()
+        }
+
+        expect(callback.status).toBe(410)
+        expect(tokenRequests).toHaveLength(before)
     })
 
     test('an unknown webhook host is refused', async () => {
@@ -337,13 +541,21 @@ describe('claude.ai connect flow', () => {
     }
 
     test.each([
-        [{ ...validSchedule, time: '8am' }, 'HH:MM'],
-        [{ ...validSchedule, timezone: 'Mars/Olympus' }, 'time zone'],
-        [{ ...validSchedule, day: [] }, 'one day'],
-    ])('an invalid schedule is refused: %o', async (fields, message) => {
+        [{ ...validSchedule, time: '8am' }, 'schedule-time', 'HH:MM'],
+        [
+            { ...validSchedule, timezone: 'Mars/Olympus' },
+            'schedule-timezone',
+            'time zone',
+        ],
+        [{ ...validSchedule, day: [] }, 'schedule-days', 'one day'],
+    ])('an invalid schedule is refused: %o', async (fields, code, message) => {
         const response = await schedule(fields)
         const location = new URL(response.headers.get('location')!, base)
-        expect(location.searchParams.get('error')).toContain(message)
+        expect(location.searchParams.get('error')).toBe(code)
+        const page = await (
+            await browser(`${location.pathname}${location.search}`)
+        ).text()
+        expect(page).toContain(message)
     })
 
     test('a valid schedule is saved and shown', async () => {
@@ -352,6 +564,18 @@ describe('claude.ai connect flow', () => {
         const page = await (await browser(pagePath)).text()
         expect(page).toContain('Posts on Mon, Wed at 08:15 America/New_York')
         expect(page).toContain('<option selected>America/New_York</option>')
+    })
+
+    test('a run that left accounts out says so on the page', async () => {
+        const connectionId = connectionOf(pagePath)
+        store.schedules.markSent(
+            connectionId,
+            Date.now(),
+            Date.now() + 60_000,
+            '1 of 2 accounts could not be read.'
+        )
+        const page = await (await browser(pagePath)).text()
+        expect(page).toContain('1 of 2 accounts could not be read.')
     })
 
     test('a test digest is posted to the webhook', async () => {
@@ -486,6 +710,68 @@ describe('a client borrowing a trusted name', () => {
         expect(page).toContain("standup-mr doesn't recognize this app")
         expect(page).toContain('attacker-alpha.example.com')
         expect(page).not.toContain('class="mark mark-claude"')
+    })
+})
+
+const MIB = 1024 * 1024
+
+describe('the OAuth token exchange', () => {
+    // oauth4webapi reads a token answer whole, so only the byte cap passed to
+    // its fetch keeps a hostile self-hosted GitLab from filling the memory.
+    test('refuses a token answer past the byte cap', async () => {
+        const padding = Buffer.alloc(64 * 1024, 'x')
+        const chunks = Math.ceil(MAX_RESPONSE_BYTES / padding.length) + 32
+        let pulled = 0
+        function* tokenAnswer() {
+            yield Buffer.from(
+                '{"access_token":"t","token_type":"Bearer","pad":"'
+            )
+            for (let index = 0; index < chunks; index += 1) {
+                pulled += padding.length
+                yield padding
+            }
+            yield Buffer.from('"}')
+        }
+        const answer = {
+            config: {},
+            data: Readable.from(tokenAnswer()),
+            headers: { 'content-type': 'application/json' },
+            status: 200,
+            statusText: 'OK',
+        } as AxiosResponse<Readable>
+        const request = spyOn(axios, 'request').mockResolvedValue(answer)
+        const config: RemoteConfig = {
+            baseUrl: new URL('https://standup.example.com'),
+            blockedAddresses: [],
+            databasePath: ':memory:',
+            encryptionKey: randomBytes(32),
+            port: 0,
+        }
+        const tokens = new Store(':memory:', config.encryptionKey)
+        try {
+            const { upstream } = createServices(config, tokens, {
+                lookup: (_host, _options, callback) =>
+                    callback(null, [{ address: '140.82.112.3', family: 4 }]),
+            })
+            const app = {
+                clientId: 'id',
+                clientSecret: 'secret',
+                host: 'git.example.com',
+                isInstance: true,
+                isVerified: true,
+                kind: 'gitlab' as const,
+                scopes: [],
+            }
+
+            await expect(
+                upstream.refresh(app, 'refresh', Date.now())
+            ).rejects.toThrow()
+            expect(pulled).toBeLessThanOrEqual(MAX_RESPONSE_BYTES + MIB)
+            expect(request).toHaveBeenCalledTimes(1)
+        } finally {
+            request.mockRestore()
+            tokens.close()
+        }
     })
 })
 

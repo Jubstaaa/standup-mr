@@ -1,17 +1,24 @@
 import { lookup as dnsLookup } from 'node:dns'
 import type { LookupAddress, LookupOptions } from 'node:dns'
+import type { Readable } from 'node:stream'
 
 import axios from 'axios'
-import type { AxiosRequestConfig } from 'axios'
+import type { AxiosRequestConfig, AxiosResponse } from 'axios'
 import ipaddr from 'ipaddr.js'
+import pLimit from 'p-limit'
 
 import type { FetchLike } from '../../../src/standup.types'
 
 import {
+    MAX_CONCURRENT_DOWNLOADS,
     MAX_REDIRECTS,
+    MAX_REQUEST_BYTES,
     NULL_BODY_STATUSES,
+    REQUEST_DEADLINE_MS,
     REQUEST_TIMEOUT_MS,
 } from './ssrf.constants'
+import { streamedBody } from './streamed-body'
+import type { BodyLimits } from './streamed-body'
 
 type LookupCallback = (
     error: NodeJS.ErrnoException | null,
@@ -25,7 +32,23 @@ export type Lookup = (
     callback: LookupCallback
 ) => void
 
-export class HostError extends Error {}
+export type HostErrorCode =
+    | 'host-credentials'
+    | 'host-invalid'
+    | 'host-not-https'
+    | 'host-port'
+    | 'host-unreachable'
+
+// code says what is wrong without the text: pages show a fixed message
+// for it instead of the message, which can carry user input.
+export class HostError extends Error {
+    constructor(
+        message: string,
+        readonly code: HostErrorCode = 'host-unreachable'
+    ) {
+        super(message)
+    }
+}
 
 export function normalizeHost(input: string): string {
     const trimmed = input.trim().toLowerCase()
@@ -36,19 +59,27 @@ export function normalizeHost(input: string): string {
     try {
         url = new URL(withScheme)
     } catch {
-        throw new HostError(`"${input}" is not a valid host.`)
+        throw new HostError(`"${input}" is not a valid host.`, 'host-invalid')
     }
     if (url.protocol !== 'https:') {
-        throw new HostError('Only https hosts are supported.')
+        throw new HostError('Only https hosts are supported.', 'host-not-https')
     }
     if (url.username || url.password) {
-        throw new HostError('The host must not contain credentials.')
+        throw new HostError(
+            'The host must not contain credentials.',
+            'host-credentials'
+        )
     }
     // A custom port would turn the token check into a port scanner.
     if (url.port) {
-        throw new HostError('Only the default https port (443) is supported.')
+        throw new HostError(
+            'Only the default https port (443) is supported.',
+            'host-port'
+        )
     }
-    return url.hostname
+    // github.com. names the same host as github.com; keeping the dot would
+    // let one host pass for another wherever hosts are compared.
+    return url.hostname.replace(/\.$/, '')
 }
 
 // Only plain public unicast passes: ipaddr.js names every special range
@@ -125,15 +156,17 @@ export function createGuardedLookup(
     }
 }
 
+// A private address and a name that does not resolve get the same answer:
+// telling them apart would let anyone map internal DNS through the page.
 export function createHostCheck(lookup: Lookup) {
     return (host: string) =>
         new Promise<void>((resolve, reject) => {
             lookup(host, {}, error => {
                 if (!error) return resolve()
                 reject(
-                    error instanceof HostError
-                        ? error
-                        : new HostError(`Could not resolve ${host}.`)
+                    new HostError(
+                        `${host} could not be reached as a public host.`
+                    )
                 )
             })
         })
@@ -158,38 +191,77 @@ export function redirectGuard(blocked: ReadonlySet<string>) {
     }
 }
 
+// The idle timeout alone lets a host that trickles bytes hold a request
+// open forever, so a total deadline ends it; the caller's own signal still
+// cancels. The body is streamed, not buffered: see streamedBody.
+export function guardedRequestConfig(
+    url: string,
+    init: RequestInit | undefined,
+    lookup: Lookup,
+    blocked: ReadonlySet<string>,
+    deadlineMs: number = REQUEST_DEADLINE_MS
+): AxiosRequestConfig {
+    const deadline = AbortSignal.timeout(deadlineMs)
+    return {
+        url,
+        method: init?.method ?? 'GET',
+        headers: plainHeaders(init),
+        data: init?.body,
+        adapter: 'http',
+        lookup: lookup as AxiosRequestConfig['lookup'],
+        responseType: 'stream',
+        timeout: REQUEST_TIMEOUT_MS,
+        signal: init?.signal
+            ? AbortSignal.any([deadline, init.signal])
+            : deadline,
+        maxBodyLength: MAX_REQUEST_BYTES,
+        maxRedirects: init?.redirect === 'manual' ? 0 : MAX_REDIRECTS,
+        beforeRedirect: redirectGuard(blocked),
+        validateStatus: () => true,
+    }
+}
+
+export function toFetchResponse(
+    response: AxiosResponse<Readable>,
+    limits: BodyLimits
+): Response {
+    const headers = new Headers()
+    for (const [name, value] of Object.entries(response.headers)) {
+        if (value === undefined || value === null) continue
+        for (const item of [value].flat()) headers.append(name, String(item))
+    }
+    if (NULL_BODY_STATUSES.has(response.status)) {
+        response.data.destroy()
+        return new Response(null, { status: response.status, headers })
+    }
+    return new Response(streamedBody(response.data, limits), {
+        status: response.status,
+        headers,
+    })
+}
+
+const processDownloads = pLimit(MAX_CONCURRENT_DOWNLOADS)
+
 // The providers speak fetch; this answers in fetch's shape while every
 // connection — redirects included — goes through the guarded lookup.
 // Authorization is dropped by follow-redirects when a redirect changes host.
+// maxResponseBytes defaults to none because the provider readers cap their
+// own reads while streaming (a log keeps its tail, JSON past its cap is
+// refused); a caller that buffers whole bodies must pass one.
 export function createGuardedFetch(
     lookup: Lookup,
-    blocked: ReadonlySet<string> = new Set()
+    blocked: ReadonlySet<string> = new Set(),
+    limits: Partial<BodyLimits> = {}
 ): FetchLike {
+    const body: BodyLimits = {
+        downloads: limits.downloads ?? processDownloads,
+        maxResponseBytes: limits.maxResponseBytes ?? Infinity,
+    }
     return async (url, init) => {
         assertPublicTarget(new URL(url), blocked)
-        const response = await axios.request<ArrayBuffer>({
-            url,
-            method: init?.method ?? 'GET',
-            headers: plainHeaders(init),
-            data: init?.body,
-            adapter: 'http',
-            lookup: lookup as AxiosRequestConfig['lookup'],
-            responseType: 'arraybuffer',
-            timeout: REQUEST_TIMEOUT_MS,
-            maxRedirects: init?.redirect === 'manual' ? 0 : MAX_REDIRECTS,
-            beforeRedirect: redirectGuard(blocked),
-            validateStatus: () => true,
-        })
-        const headers = new Headers()
-        for (const [name, value] of Object.entries(response.headers)) {
-            if (value === undefined || value === null) continue
-            for (const item of [value].flat())
-                headers.append(name, String(item))
-        }
-        const hasBody = !NULL_BODY_STATUSES.has(response.status)
-        return new Response(hasBody ? response.data : null, {
-            status: response.status,
-            headers,
-        })
+        const response = await axios.request<Readable>(
+            guardedRequestConfig(url, init, lookup, blocked)
+        )
+        return toFetchResponse(response, body)
     }
 }

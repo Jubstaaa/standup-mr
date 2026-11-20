@@ -1,15 +1,20 @@
 import { randomBytes } from 'node:crypto'
 
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 
 import { Store } from './store'
 import { CODE_TTL_MS, PENDING_TTL_MS } from './store.constants'
 import {
     BROWSER_SECRET,
     openStoreOnDisk,
+    removeStoresOnDisk,
     startConnection,
 } from './store.fixtures'
 import type { PendingAuthorization } from './store.types'
+
+afterEach(removeStoresOnDisk)
+
+const APP = { kind: 'gitlab', host: 'git.example.com' } as const
 
 const REDIRECT = 'https://claude.ai/api/mcp/auth_callback?code=c'
 
@@ -68,7 +73,7 @@ describe('pending authorizations', () => {
 
 describe('upstream login', () => {
     test('can be taken once', () => {
-        store.authorizations.setUpstreamLogin(pending, 'state', 'verifier')
+        store.authorizations.setUpstreamLogin(pending, 'state', 'verifier', APP)
 
         expect(
             store.authorizations.takeUpstreamLogin(
@@ -76,7 +81,7 @@ describe('upstream login', () => {
                 BROWSER_SECRET,
                 1_000
             )
-        ).toEqual({ pending, codeVerifier: 'verifier' })
+        ).toEqual({ pending, codeVerifier: 'verifier', ...APP })
         expect(
             store.authorizations.takeUpstreamLogin(
                 'state',
@@ -87,7 +92,7 @@ describe('upstream login', () => {
     })
 
     test('is not handed to another browser', () => {
-        store.authorizations.setUpstreamLogin(pending, 'state', 'verifier')
+        store.authorizations.setUpstreamLogin(pending, 'state', 'verifier', APP)
         expect(
             store.authorizations.takeUpstreamLogin('state', 'other', 1_000)
         ).toBeUndefined()

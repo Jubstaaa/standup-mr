@@ -1,9 +1,9 @@
 import { randomBytes } from 'node:crypto'
 
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, spyOn, test } from 'bun:test'
 
 import type { FetchLike } from '../../../src/standup.types'
-import { createTokenRefresher } from '../accounts/accounts'
+import { AccountError, createTokenRefresher } from '../accounts/accounts'
 import { Store } from '../store/store'
 import { startConnection } from '../store/store.fixtures'
 
@@ -12,6 +12,7 @@ import {
     nextRunAt,
     parseSchedule,
     runDueSchedules,
+    startScheduler,
 } from './schedule'
 import { CATCH_UP_LIMIT_MS } from './schedule.constants'
 import type { SchedulerDeps } from './schedule.types'
@@ -162,7 +163,16 @@ describe('runDueSchedules', () => {
         expect(posted).toHaveLength(0)
         const schedule = store.schedules.get(connectionId)!
         expect(schedule.lastSentAt).toBeNull()
+        expect(schedule.lastError).toMatch(/skipped/i)
         expect(schedule.nextRunAt).toBe(Date.parse('2026-10-13T06:30:00Z'))
+    })
+
+    test('posts once when two servers run the same due schedule', async () => {
+        linkGitLab('git.one.com')
+        // A second process sharing the database during a deploy overlap.
+        const other: SchedulerDeps = { ...deps }
+        await Promise.all([runDueSchedules(deps), runDueSchedules(other)])
+        expect(posted).toHaveLength(1)
     })
 
     test('still sends a run that is a little late', async () => {
@@ -198,5 +208,215 @@ describe('runDueSchedules', () => {
         expect(store.schedules.get(connectionId)!.lastError).toMatch(
             /No webhook/
         )
+    })
+
+    test('posts the accounts that worked and names the one that failed', async () => {
+        linkGitLab('git.one.com')
+        linkGitLab('git.bad.com')
+        deps.fetchImpl = async (url, init) =>
+            url.startsWith('https://git.bad.com/')
+                ? new Response('down', { status: 500 })
+                : fakeFetch(url, init)
+
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        try {
+            await runDueSchedules(deps)
+            const line = logged.mock.calls.flat().join(' ')
+            expect(line).toContain(connectionId)
+            expect(line).toContain('gitlab · git.bad.com · ilker')
+            expect(line).toContain('git.bad.com returned 500')
+        } finally {
+            logged.mockRestore()
+        }
+
+        expect(posted).toHaveLength(1)
+        expect(posted[0]).toContain('gitlab · git.one.com · ilker')
+        // The channel gets a fixed sentence, never the error text.
+        expect(posted[0]).toContain('Could not read this account right now.')
+        expect(posted[0]).not.toContain('500')
+        const schedule = store.schedules.get(connectionId)!
+        expect(schedule.lastError).toBeNull()
+        expect(schedule.lastSentAt).toBe(MONDAY_0930)
+        expect(schedule.lastWarning).toBe('1 of 2 accounts could not be read.')
+    })
+
+    test('a clean run clears an earlier warning', async () => {
+        linkGitLab('git.one.com')
+        store.schedules.markSent(connectionId, 1, MONDAY_0930, 'old warning')
+        await runDueSchedules(deps)
+        expect(store.schedules.get(connectionId)!.lastWarning).toBeNull()
+    })
+
+    test('records a failure when no account could be read', async () => {
+        linkGitLab('git.bad.com')
+        deps.fetchImpl = async (url, init) =>
+            url.startsWith('https://git.bad.com/')
+                ? new Response('down', { status: 500 })
+                : fakeFetch(url, init)
+        await runDueSchedules(deps)
+
+        expect(posted).toHaveLength(0)
+        expect(store.schedules.get(connectionId)!.lastError).toBe(
+            'No linked account could be read.'
+        )
+    })
+
+    test('records an expired login as the reason when every account has one', async () => {
+        linkGitLab('git.one.com')
+        deps.freshAccessToken = async () => {
+            throw new AccountError('The login has expired. Reconnect.')
+        }
+        await runDueSchedules(deps)
+        expect(store.schedules.get(connectionId)!.lastError).toMatch(/expired/)
+    })
+
+    test('advances and records a schedule whose next run cannot be found', async () => {
+        linkGitLab('git.one.com')
+        store.schedules.set(
+            connectionId,
+            { ...WEEKDAYS_0930, timezone: 'Mars/Olympus' },
+            MONDAY_0930
+        )
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        try {
+            await runDueSchedules(deps)
+            expect(logged.mock.calls.flat().join(' ')).toContain(
+                'retrying in 24 h'
+            )
+        } finally {
+            logged.mockRestore()
+        }
+
+        const schedule = store.schedules.get(connectionId)!
+        expect(schedule.lastError).toBeTruthy()
+        expect(schedule.nextRunAt).toBeGreaterThan(MONDAY_0930)
+    })
+
+    test('gives up on a schedule that runs past its deadline', async () => {
+        linkGitLab('git.one.com')
+        deps.scheduleDeadlineMs = 50
+        deps.fetchImpl = (url, init) =>
+            url.startsWith('https://git.one.com/api/v4/user')
+                ? fakeFetch(url, init)
+                : new Promise((_resolve, reject) => {
+                      const abort = () =>
+                          reject(new Error('aborted by the deadline'))
+                      if (init?.signal?.aborted) abort()
+                      init?.signal?.addEventListener('abort', abort)
+                  })
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        try {
+            await runDueSchedules(deps)
+            expect(logged.mock.calls.flat().join(' ')).toContain(
+                `schedule ${connectionId} failed`
+            )
+        } finally {
+            logged.mockRestore()
+        }
+
+        expect(posted).toHaveLength(0)
+        expect(store.schedules.get(connectionId)!.lastError).toBe(
+            'The run took longer than 0.05 s and was stopped.'
+        )
+    })
+})
+
+describe('startScheduler', () => {
+    test('stopping waits for the run in flight', async () => {
+        store.connections.setWebhook(connectionId, {
+            kind: 'slack',
+            url: WEBHOOK,
+        })
+        store.schedules.set(connectionId, WEEKDAYS_0930, MONDAY_0930)
+        linkGitLab('git.one.com')
+        let release = () => {}
+        let started = () => {}
+        const running = new Promise<void>(resolve => (started = resolve))
+        deps.fetchImpl = async (url, init) => {
+            if (url === WEBHOOK) {
+                started()
+                await new Promise<void>(resolve => (release = resolve))
+            }
+            return fakeFetch(url, init)
+        }
+        const stop = startScheduler(deps, 5)
+        await running
+
+        let stopped = false
+        const stopping = stop().then(() => (stopped = true))
+        await Bun.sleep(20)
+        expect(stopped).toBe(false)
+
+        release()
+        await stopping
+        expect(posted).toHaveLength(1)
+    })
+
+    test('a failing tick is logged, not left as an unhandled rejection', async () => {
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        const listDue = spyOn(store.schedules, 'listDue').mockImplementation(
+            () => {
+                throw new Error('SQLITE_BUSY')
+            }
+        )
+        try {
+            const stop = startScheduler(deps, 5)
+            await Bun.sleep(30)
+            await stop()
+            expect(logged.mock.calls.flat().join(' ')).toContain(
+                'scheduler tick failed: SQLITE_BUSY'
+            )
+        } finally {
+            listDue.mockRestore()
+            logged.mockRestore()
+        }
+    })
+
+    test('stopping does not start the next due schedule', async () => {
+        const other = startConnection(store, 0, 'other').connectionId
+        for (const [id, host] of [
+            [connectionId, 'git.one.com'],
+            [other, 'git.two.com'],
+        ] as const) {
+            store.connections.setWebhook(id, { kind: 'slack', url: WEBHOOK })
+            store.schedules.set(id, WEEKDAYS_0930, MONDAY_0930)
+            store.accounts.add({
+                connectionId: id,
+                provider: 'gitlab',
+                host,
+                username: 'ilker',
+                source: 'pat',
+                accessToken: 'glpat',
+                refreshToken: null,
+                expiresAt: null,
+            })
+        }
+        let started = () => {}
+        const running = new Promise<void>(resolve => (started = resolve))
+        const hosts = new Set<string>()
+        deps.fetchImpl = (url, init) => {
+            if (url.includes('/merge_requests')) {
+                hosts.add(new URL(url).host)
+                started()
+                return new Promise((_resolve, reject) => {
+                    const abort = () => reject(new Error('stopped'))
+                    if (init?.signal?.aborted) abort()
+                    init?.signal?.addEventListener('abort', abort)
+                })
+            }
+            return fakeFetch(url, init)
+        }
+        const logged = spyOn(console, 'error').mockImplementation(() => {})
+        try {
+            const stop = startScheduler(deps, 5)
+            await running
+            await stop()
+            expect(hosts.size).toBe(1)
+        } finally {
+            logged.mockRestore()
+        }
+        expect(posted).toHaveLength(0)
+        const due = store.schedules.listDue(clock).map(s => s.connectionId)
+        expect(due).toHaveLength(1)
     })
 })

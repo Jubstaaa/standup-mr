@@ -28,6 +28,7 @@ import {
     createHostCheck,
 } from '../ssrf/ssrf'
 import type { HostCheck, Lookup } from '../ssrf/ssrf'
+import { MAX_RESPONSE_BYTES } from '../ssrf/ssrf.constants'
 import type { Store } from '../store/store'
 import { createRemoteServer } from '../tools/tools'
 import { createUpstream } from '../upstream/upstream'
@@ -65,10 +66,15 @@ export function createServices(
     const blocked = blockedSet(config.blockedAddresses)
     const lookup = createGuardedLookup(blocked, options.lookup)
     const fetchImpl = options.fetchImpl ?? createGuardedFetch(lookup, blocked)
+    // oauth4webapi reads token answers whole, so they keep a byte cap.
     const upstream = createUpstream({
         baseUrl: config.baseUrl,
         config,
-        fetchImpl,
+        fetchImpl:
+            options.fetchImpl ??
+            createGuardedFetch(lookup, blocked, {
+                maxResponseBytes: MAX_RESPONSE_BYTES,
+            }),
         instances: store.instances,
     })
     return {
@@ -88,7 +94,11 @@ export function createApp(
     const app = express()
     const { fetchImpl, freshAccessToken, now, upstream } = services
     const mcpUrl = new URL('/mcp', config.baseUrl)
-    const provider = new StandupOAuthProvider(store, { mcpUrl, now })
+    const provider = new StandupOAuthProvider(store, {
+        mcpUrl,
+        now,
+        siteUrl: config.baseUrl,
+    })
     const authLimit = { keyGenerator: clientKey }
 
     // Finish redirects a form POST to the client's callback, which a

@@ -1,12 +1,18 @@
 import { randomBytes } from 'node:crypto'
 
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 
 import { seal } from '../crypto/crypto'
 
 import { Store } from './store'
-import { openStoreOnDisk, startConnection } from './store.fixtures'
+import {
+    openStoreOnDisk,
+    removeStoresOnDisk,
+    startConnection,
+} from './store.fixtures'
 import type { Webhook } from './store.types'
+
+afterEach(removeStoresOnDisk)
 
 const WEBHOOK: Webhook = {
     kind: 'slack',

@@ -103,11 +103,11 @@ On the sign-in page you link the accounts the note should read:
   repositories it is installed on, so install it on your org too; if the org
   won't approve it, add github.com with a fine-grained token instead.
 - **gitlab.com** — sign in with GitLab.
-- **Your company's GitLab or GitHub Enterprise** — type the host. If someone
-  at your company already set up sign-in, you get a "Sign in with …" button.
-  Otherwise set it up once: the page shows the exact redirect URI and scopes
-  for an OAuth application on your host, you paste its ID and secret, and
-  everyone at that host can sign in from then on. A read-only token works too.
+- **Your company's GitLab or GitHub Enterprise** — type the host. The page
+  shows the exact redirect URI and scopes for an OAuth application on your
+  host; you paste its ID and secret and sign in with it. The application is
+  kept for your connection only, so register your own rather than sharing a
+  colleague's. A read-only token works too.
 - **Chat webhook** _(optional)_ — Slack, Discord or Google Chat, so your assistant
   can post the finished note when you ask it to.
 
@@ -118,10 +118,14 @@ several accounts linked, the assistant asks which one you mean.
 Added in an assistant with a mobile app — Claude or ChatGPT — it works from
 your phone too: ask for your standup on the way to the meeting.
 
-**What is stored.** Your provider tokens and webhook URL, encrypted with
-AES-256-GCM, and only to read your merge requests and post your note. The
-access tokens your assistant holds are stored as hashes. Disconnecting it
-deletes everything; connections unused for 30 days are deleted. The server is
+**What is stored.** Your provider tokens, webhook URL and, for a self-hosted
+host, your OAuth application's ID and secret, encrypted with AES-256-GCM, and
+only to read your merge requests and post your note. The access tokens your
+assistant holds are stored as hashes. Disconnecting deletes all of it;
+connections unused for 30 days are deleted. One exception for now: self-hosted
+OAuth applications registered before per-connection apps were introduced are
+also kept in the old shared table, so a rollback still works, until the next
+release removes it. The server is
 the code in [`remote/`](remote/).
 
 **When to use the local server instead.** A GitLab behind a VPN or on a

@@ -164,12 +164,12 @@ function setupSteps(base: string, panel: SelfHostedPanel): string {
             ? '<code>repo</code> and <code>read:user</code>. GitHub has no read-only scope for private pull requests, so <code>repo</code> is the narrowest that works.'
             : '<code>read_api</code> and <code>read_user</code>, and tick Confidential.'
     return `<div class="setup">
-        <h3>Set up sign-in for everyone at ${host}</h3>
+        <h3>Set up sign-in to ${host}</h3>
         <ol class="steps">
             <li><a href="${escapeHtml(panel.setupUrl)}" target="_blank" rel="noopener">Create an OAuth application on ${host}</a>. Anyone with an account can; an admin can make it trusted.</li>
             <li>Use this redirect URI: <code class="copy">${escapeHtml(panel.callbackUrl)}</code></li>
             <li>Scopes: ${scopes}</li>
-            <li>Paste the application ID and secret here. Once someone signs in with it, it is locked and shared by everyone at ${host}.</li>
+            <li>Paste the application ID and secret here. Only this connection signs in with them, and they are locked once you do.</li>
         </ol>
         <form method="post" action="${base}/instances" class="fields">
             ${hiddenHost(panel)}
@@ -213,7 +213,7 @@ function selfHostedSection(base: string, panel?: SelfHostedPanel): string {
     const body = panel
         ? selfHostedPanel(base, panel)
         : `<form method="post" action="${base}/self-hosted" class="fields">
-            <p class="hint">Your company's GitLab or GitHub Enterprise. If someone there already set up sign-in, you can use it; otherwise set it up once, or paste a token.</p>
+            <p class="hint">Your company's GitLab or GitHub Enterprise. Sign in through an OAuth application you register there, or paste a token.</p>
             ${hostFields()}
             <button class="secondary" type="submit">Continue</button>
         </form>`
@@ -225,6 +225,9 @@ function selfHostedSection(base: string, panel?: SelfHostedPanel): string {
 
 function scheduleStatus(schedule?: Schedule): string {
     if (!schedule) return ''
+    const warning = schedule.lastWarning
+        ? ` ${escapeHtml(schedule.lastWarning)}`
+        : ''
     const last = schedule.lastError
         ? `<p class="hint">Last run failed: ${escapeHtml(schedule.lastError)}</p>`
         : schedule.lastSentAt
@@ -234,7 +237,7 @@ function scheduleStatus(schedule?: Schedule): string {
                     dateStyle: 'medium',
                     timeStyle: 'short',
                 })
-            )}.</p>`
+            )}.${warning}</p>`
           : ''
     return `<p class="saved">${escapeHtml(describeSchedule(schedule))}.</p>${last}`
 }

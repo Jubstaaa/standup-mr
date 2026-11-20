@@ -15,6 +15,18 @@ import {
 } from './store.constants'
 import { TokenRepository } from './token-repository'
 
+const TABLES = [
+    'accounts',
+    'clients',
+    'codes',
+    'connection_instances',
+    'connections',
+    'instances',
+    'pending',
+    'schedules',
+    'tokens',
+] as const
+
 // Matches the refresh token: past it the client cannot get back in anyway.
 const CONNECTION_IDLE_MS = REFRESH_TOKEN_TTL_MS
 
@@ -32,9 +44,12 @@ export class Store {
 
     constructor(path: string, key: Buffer) {
         this.db = new Database(path, { create: true, strict: true })
+        // The old and the new container overlap during a deploy: wait for
+        // the other one's write instead of failing with SQLITE_BUSY.
+        this.db.exec('PRAGMA busy_timeout = 5000')
         this.db.exec('PRAGMA journal_mode = WAL')
-        this.db.exec('PRAGMA foreign_keys = ON')
         migrate(this.db, MIGRATIONS)
+        this.db.exec('PRAGMA foreign_keys = ON')
         this.accounts = new AccountRepository(this.db, key)
         this.authorizations = new AuthorizationRepository(this.db, key)
         this.clients = new ClientRepository(this.db)
@@ -46,13 +61,17 @@ export class Store {
 
     // A real read for the health check. Only a schema older than this code
     // fails: after a rollback the previous release must still pass while
-    // reading a database a newer one already migrated.
+    // reading a database a newer one already migrated. Every table is read,
+    // so a database missing one fails too.
     ping(): void {
         const version = schemaVersion(this.db)
         if (version < MIGRATIONS.length) {
             throw new Error(
                 `Database schema version ${version} is behind ${MIGRATIONS.length}.`
             )
+        }
+        for (const table of TABLES) {
+            this.db.query(`SELECT 1 FROM ${table} LIMIT 1`).get()
         }
     }
 
@@ -82,7 +101,7 @@ export class Store {
             this.db.query('DELETE FROM tokens WHERE expires_at < ?').run(now)
             this.db
                 .query(
-                    'DELETE FROM instances WHERE verified_at IS NULL AND created_at < ?'
+                    'DELETE FROM connection_instances WHERE verified_at IS NULL AND created_at < ?'
                 )
                 .run(now - UNVERIFIED_INSTANCE_TTL_MS)
             // Dynamic registration is open, so clients nobody uses go too.

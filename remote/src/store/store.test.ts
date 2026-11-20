@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 
-import { beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 
 import { MIGRATIONS } from './migrations'
 import { Store } from './store'
@@ -10,7 +10,11 @@ import {
     REFRESH_TOKEN_TTL_MS,
     UNVERIFIED_INSTANCE_TTL_MS,
 } from './store.constants'
-import { openStoreOnDisk, startConnection } from './store.fixtures'
+import {
+    openStoreOnDisk,
+    removeStoresOnDisk,
+    startConnection,
+} from './store.fixtures'
 
 const REDIRECT = 'https://claude.ai/api/mcp/auth_callback'
 
@@ -19,6 +23,8 @@ let store: Store
 beforeEach(() => {
     store = new Store(':memory:', randomBytes(32))
 })
+
+afterEach(removeStoresOnDisk)
 
 function linkAccount(connectionId: string) {
     store.accounts.add({
@@ -95,13 +101,20 @@ describe('Store.purge', () => {
     })
 
     test('drops instances nobody signed in with, keeps verified ones', () => {
+        const connectionId = activeConnection(0, 'active')
         const instance = { clientId: 'id', clientSecret: 'secret' }
-        store.instances.save({ ...instance, kind: 'gitlab', host: 'a' }, 0)
-        store.instances.save({ ...instance, kind: 'gitlab', host: 'b' }, 0)
-        store.instances.markVerified('gitlab', 'b', 0)
+        const save = (host: string) =>
+            store.instances.save(
+                connectionId,
+                { ...instance, kind: 'gitlab', host },
+                0
+            )
+        save('a')
+        save('b')
+        store.instances.markVerified(connectionId, 'gitlab', 'b', 0)
         store.purge(UNVERIFIED_INSTANCE_TTL_MS + 1)
-        expect(store.instances.get('gitlab', 'a')).toBeUndefined()
-        expect(store.instances.get('gitlab', 'b')).toBeDefined()
+        expect(store.instances.get(connectionId, 'gitlab', 'a')).toBeUndefined()
+        expect(store.instances.get(connectionId, 'gitlab', 'b')).toBeDefined()
     })
 
     test('drops registered clients nobody uses', () => {
@@ -120,6 +133,23 @@ describe('Store.ping', () => {
         const { db, store: onDisk } = openStoreOnDisk()
         db.exec(`PRAGMA user_version = ${MIGRATIONS.length - 1}`)
         expect(() => onDisk.ping()).toThrow(/schema version/)
+    })
+
+    test('fails when a table the code reads is missing', () => {
+        const { db, store: onDisk } = openStoreOnDisk()
+        db.exec('DROP TABLE schedules')
+        expect(() => onDisk.ping()).toThrow(/schedules/)
+    })
+
+    test('passes on a database a newer release already migrated', () => {
+        const { db, path, key } = openStoreOnDisk()
+        db.exec(`PRAGMA user_version = ${MIGRATIONS.length + 1}`)
+        const rolledBack = new Store(path, key)
+        try {
+            expect(() => rolledBack.ping()).not.toThrow()
+        } finally {
+            rolledBack.close()
+        }
     })
 
     test('fails once the database is closed', () => {

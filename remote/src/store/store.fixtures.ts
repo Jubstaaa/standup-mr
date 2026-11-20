@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -30,11 +30,35 @@ export function startConnection(
     )
 }
 
+interface StoreOnDisk {
+    cleanup: () => void
+    db: Database
+    key: Buffer
+    path: string
+    store: Store
+}
+
+const opened: StoreOnDisk[] = []
+
 // A second connection to the same file lets a test write rows the store
 // itself never would, such as corrupt JSON.
-export function openStoreOnDisk(): { db: Database; key: Buffer; store: Store } {
-    const path = join(mkdtempSync(join(tmpdir(), 'standup-store-')), 'db')
+export function openStoreOnDisk(): StoreOnDisk {
+    const dir = mkdtempSync(join(tmpdir(), 'standup-store-'))
+    const path = join(dir, 'db')
     const key = randomBytes(32)
     const store = new Store(path, key)
-    return { db: new Database(path, { strict: true }), key, store }
+    const db = new Database(path, { strict: true })
+    const cleanup = () => {
+        db.close()
+        store.close()
+        rmSync(dir, { recursive: true, force: true })
+    }
+    const onDisk = { cleanup, db, key, path, store }
+    opened.push(onDisk)
+    return onDisk
+}
+
+// For afterEach: closes and deletes every store a test opened on disk.
+export function removeStoresOnDisk(): void {
+    for (const onDisk of opened.splice(0)) onDisk.cleanup()
 }

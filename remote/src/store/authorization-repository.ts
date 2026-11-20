@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { Database } from 'bun:sqlite'
 import { z } from 'zod'
 
+import type { ProviderKind } from '../../../src/standup.types'
 import { hashToken, open, seal } from '../crypto/crypto'
 
 import { CODE_TTL_MS, PENDING_TTL_MS } from './store.constants'
@@ -38,8 +39,12 @@ interface CodeRow {
     scopes: string
 }
 
+// kind and host are optional only for logins started before they were
+// stored; those never match a route and are refused as expired.
 const upstreamReturnSchema = z.object({
     codeVerifier: z.string(),
+    host: z.string().optional(),
+    kind: z.enum(['github', 'gitlab']).optional(),
     pendingId: z.string(),
 })
 
@@ -96,14 +101,20 @@ export class AuthorizationRepository {
         return this.toPending(pendingId, row, browserSecret, now)
     }
 
-    // The callback only gets `state` back, so the page id it returns to and
-    // the PKCE verifier for the upstream login are kept beside it, sealed.
+    // The callback only gets `state` back, so the page id it returns to, the
+    // PKCE verifier and the app the login went to are kept beside it, sealed.
     setUpstreamLogin(
         pending: PendingAuthorization,
         state: string,
-        codeVerifier: string
+        codeVerifier: string,
+        app: { host: string; kind: ProviderKind }
     ): void {
-        const login = JSON.stringify({ pendingId: pending.id, codeVerifier })
+        const login = JSON.stringify({
+            pendingId: pending.id,
+            codeVerifier,
+            kind: app.kind,
+            host: app.host,
+        })
         this.db
             .query(
                 'UPDATE pending SET upstream_state = ?, upstream_return = ? WHERE id = ?'
@@ -134,9 +145,13 @@ export class AuthorizationRepository {
             'upstream login'
         )
         const pending = this.toPending(login.pendingId, row, browserSecret, now)
-        return pending
-            ? { pending, codeVerifier: login.codeVerifier }
-            : undefined
+        if (!pending || !login.kind || !login.host) return undefined
+        return {
+            pending,
+            codeVerifier: login.codeVerifier,
+            kind: login.kind,
+            host: login.host,
+        }
     }
 
     // The page stays readable after Finish so a second click is answered

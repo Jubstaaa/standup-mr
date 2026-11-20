@@ -1,10 +1,12 @@
 import { randomBytes } from 'node:crypto'
 
 import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/shared/auth.js'
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 
 import { Store } from './store'
-import { openStoreOnDisk } from './store.fixtures'
+import { openStoreOnDisk, removeStoresOnDisk } from './store.fixtures'
+
+afterEach(removeStoresOnDisk)
 
 const CLIENT: OAuthClientInformationFull = {
     client_id: 'claude',
@@ -20,6 +22,15 @@ describe('ClientRepository', () => {
         store.clients.save(CLIENT, 1)
         expect(store.clients.get('claude')).toEqual(CLIENT)
         expect(store.clients.get('unknown')).toBeUndefined()
+    })
+
+    test('reads a client whose extra metadata a newer SDK would reject', () => {
+        const { db, store } = openStoreOnDisk()
+        const stored = { ...CLIENT, client_uri: 'not a url', extra: true }
+        db.query(
+            'INSERT INTO clients (id, info, created_at) VALUES (?, ?, 1)'
+        ).run('claude', JSON.stringify(stored))
+        expect(store.clients.get('claude')).toEqual(stored)
     })
 
     test('raises a clear error for a stored client that is not valid', () => {

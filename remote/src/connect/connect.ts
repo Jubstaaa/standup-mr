@@ -1,6 +1,11 @@
 import cookieParser from 'cookie-parser'
 import { Router, urlencoded } from 'express'
-import type { Request, RequestHandler, Response } from 'express'
+import type {
+    ErrorRequestHandler,
+    Request,
+    RequestHandler,
+    Response,
+} from 'express'
 import { rateLimit } from 'express-rate-limit'
 
 import { inferWebhookKind } from '../../../src/notify/notify'
@@ -8,7 +13,7 @@ import type { FetchLike, ProviderKind } from '../../../src/standup.types'
 import { providerFor } from '../accounts/accounts'
 import type { TokenRefresher } from '../accounts/accounts'
 import { randomToken } from '../crypto/crypto'
-import { errorMessage } from '../errors/errors'
+import { errorDetail } from '../errors/errors'
 import { clientKey } from '../rate-limit/rate-limit'
 import {
     nextRunAt,
@@ -16,7 +21,7 @@ import {
     ScheduleError,
     sendDigest,
 } from '../schedule/schedule'
-import { HostError, normalizeHost } from '../ssrf/ssrf'
+import { normalizeHost } from '../ssrf/ssrf'
 import type { HostCheck } from '../ssrf/ssrf'
 import type { Store } from '../store/store'
 import type { PendingAuthorization } from '../store/store.types'
@@ -26,12 +31,15 @@ import { GITHUB_HOST, GITLAB_HOST } from '../upstream/upstream.constants'
 import type { UpstreamTokens } from '../upstream/upstream.types'
 
 import { identifyClient } from './client-identity'
+import { connectCookie } from './connect-cookie'
+import { digestErrorCode, hostErrorCode } from './connect-errors'
 import { renderConnectPage, renderMessagePage } from './connect-page'
 import {
-    CONNECT_COOKIE,
-    ERROR_MESSAGE_MAX_LENGTH,
+    CONNECT_ERRORS,
+    CONNECT_NOTICES,
     TOKEN_FORM_LIMIT_PER_MINUTE,
 } from './connect.constants'
+import type { ConnectErrorCode, ConnectNoticeCode } from './connect.constants'
 
 export interface ConnectDeps {
     baseUrl: URL
@@ -45,9 +53,9 @@ export interface ConnectDeps {
 }
 
 interface PageParams {
-    error?: string
+    error?: ConnectErrorCode
     host?: string
-    notice?: string
+    notice?: ConnectNoticeCode
     provider?: ProviderKind
 }
 
@@ -70,11 +78,6 @@ function fieldList(req: Request, name: string): string[] {
     const value: unknown = req.body?.[name]
     const values = Array.isArray(value) ? value : [value]
     return values.filter((item): item is string => typeof item === 'string')
-}
-
-function browserSecret(req: Request): string | undefined {
-    const value: unknown = req.cookies?.[CONNECT_COOKIE]
-    return typeof value === 'string' ? value : undefined
 }
 
 function pageUrl(pendingId: string, params: PageParams = {}): string {
@@ -114,6 +117,32 @@ function chosenHost(
     }
 }
 
+function isKey<T extends object>(
+    table: T,
+    key: string
+): key is Extract<keyof T, string> {
+    return Object.hasOwn(table, key)
+}
+
+// Resolves ?error= and ?notice= through the fixed tables; an unknown code
+// shows nothing. The host comes from the same URL, validated.
+function pageMessages(req: Request): { error?: string; notice?: string } {
+    const error = query(req, 'error')
+    const notice = query(req, 'notice')
+    const provider = query(req, 'provider')
+    const host =
+        chosenHost(req)?.host ??
+        (isProviderKind(provider) ? defaultHost(provider) : 'that host')
+    return {
+        ...(isKey(CONNECT_ERRORS, error)
+            ? { error: CONNECT_ERRORS[error].replace('{host}', host) }
+            : {}),
+        ...(isKey(CONNECT_NOTICES, notice)
+            ? { notice: CONNECT_NOTICES[notice] }
+            : {}),
+    }
+}
+
 function setupUrl(kind: ProviderKind, host: string): string {
     return kind === 'github'
         ? `https://${host}/settings/applications/new`
@@ -143,7 +172,13 @@ function redirectToClient(
 
 export function createConnectRouter(deps: ConnectDeps): Router {
     const { store, upstream } = deps
+    const cookieName = connectCookie(deps.baseUrl).name
     const router = Router()
+
+    function browserSecret(req: Request): string | undefined {
+        const value: unknown = req.cookies?.[cookieName]
+        return typeof value === 'string' ? value : undefined
+    }
     router.use(cookieParser(), urlencoded({ extended: false, limit: '8kb' }))
 
     function withPending(handler: PendingHandler): RequestHandler {
@@ -163,13 +198,15 @@ export function createConnectRouter(deps: ConnectDeps): Router {
         }
     }
 
-    function appForRoute(req: Request) {
+    function routeApp(
+        req: Request
+    ): { host: string; kind: ProviderKind } | undefined {
         const { kind, host } = req.params
         if (!isProviderKind(kind)) return undefined
-        return upstream.resolve(
+        return {
             kind,
-            typeof host === 'string' ? host : defaultHost(kind)
-        )
+            host: typeof host === 'string' ? host : defaultHost(kind),
+        }
     }
 
     async function linkAccount(
@@ -199,7 +236,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
         const client = store.clients.get(pending.clientId)
         const chosen = chosenHost(req)
         const app = chosen
-            ? upstream.resolve(chosen.kind, chosen.host)
+            ? upstream.resolve(chosen.kind, chosen.host, pending.connectionId)
             : undefined
         res.setHeader('Cache-Control', 'no-store')
         res.send(
@@ -212,8 +249,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
                 accounts: store.accounts.list(pending.connectionId),
                 webhook: store.connections.getWebhook(pending.connectionId),
                 schedule: store.schedules.get(pending.connectionId),
-                error: query(req, 'error').slice(0, ERROR_MESSAGE_MAX_LENGTH),
-                notice: query(req, 'notice').slice(0, ERROR_MESSAGE_MAX_LENGTH),
+                ...pageMessages(req),
                 providers: upstream.builtIn.map(builtIn => ({
                     kind: builtIn.kind,
                     host: builtIn.host,
@@ -242,16 +278,21 @@ export function createConnectRouter(deps: ConnectDeps): Router {
     // The upstream round trip gets its own single-use state instead of the
     // page id, so the page id never leaves this site.
     const startUpstreamLogin: PendingHandler = async (pending, req, res) => {
-        const app = appForRoute(req)
+        const route = routeApp(req)
+        const app =
+            route &&
+            upstream.resolve(route.kind, route.host, pending.connectionId)
         if (!app) return res.redirect(pageUrl(pending.id))
         const state = randomToken()
         const codeVerifier = randomToken()
-        store.authorizations.setUpstreamLogin(pending, state, codeVerifier)
+        store.authorizations.setUpstreamLogin(pending, state, codeVerifier, app)
         res.redirect(await upstream.authorizationUrl(app, state, codeVerifier))
     }
 
+    // The callback must come back for the app the login was started with,
+    // or a code from one host could be redeemed against another (mix-up).
     const finishUpstreamLogin: RequestHandler = async (req, res) => {
-        const app = appForRoute(req)
+        const route = routeApp(req)
         const state = query(req, 'state')
         const login = state
             ? store.authorizations.takeUpstreamLogin(
@@ -260,21 +301,38 @@ export function createConnectRouter(deps: ConnectDeps): Router {
                   deps.now()
               )
             : undefined
+        const isSameApp =
+            route && login?.kind === route.kind && login.host === route.host
+        const app =
+            isSameApp &&
+            upstream.resolve(login.kind, login.host, login.pending.connectionId)
+        if (login && route && !isSameApp) {
+            console.error(
+                `upstream callback for ${route.kind} ${route.host} came back for a login started with ${login.kind} ${login.host}; refused`
+            )
+        }
         if (!app || !login || login.pending.finishedRedirect) {
             return sendExpired(res)
         }
         const { pending } = login
         const panel = app.isInstance
             ? { provider: app.kind, host: app.host }
-            : {}
+            : { provider: app.kind }
+        const failed = app.isInstance
+            ? 'signin-failed-instance'
+            : 'signin-failed'
         if (!query(req, 'code')) {
+            const upstreamError = query(req, 'error')
+            if (upstreamError === 'access_denied') {
+                return res.redirect(
+                    pageUrl(pending.id, { ...panel, error: 'signin-cancelled' })
+                )
+            }
+            console.error(
+                `sign-in to ${app.kind} ${app.host} returned no code: error=${upstreamError || '(none)'} ${query(req, 'error_description')}`
+            )
             return res.redirect(
-                pageUrl(pending.id, {
-                    ...panel,
-                    error:
-                        query(req, 'error_description') ||
-                        'The sign-in was cancelled.',
-                })
+                pageUrl(pending.id, { ...panel, error: failed })
             )
         }
         try {
@@ -287,19 +345,19 @@ export function createConnectRouter(deps: ConnectDeps): Router {
             )
             await linkAccount(pending, app.kind, app.host, tokens, 'oauth')
             if (app.isInstance) {
-                store.instances.markVerified(app.kind, app.host, deps.now())
+                store.instances.markVerified(
+                    pending.connectionId,
+                    app.kind,
+                    app.host,
+                    deps.now()
+                )
             }
             res.redirect(pageUrl(pending.id))
         } catch (error) {
-            const hint = app.isInstance
-                ? ' Check the application ID, secret and redirect URI registered on that host.'
-                : ''
-            res.redirect(
-                pageUrl(pending.id, {
-                    ...panel,
-                    error: `Could not sign in to ${app.host}: ${errorMessage(error).replace(/\.$/, '')}.${hint}`,
-                })
+            console.error(
+                `sign-in to ${app.kind} ${app.host} failed: ${errorDetail(error)}`
             )
+            res.redirect(pageUrl(pending.id, { ...panel, error: failed }))
         }
     }
 
@@ -311,7 +369,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
             await deps.hostCheck(host)
             res.redirect(pageUrl(pending.id, { provider, host }))
         } catch (error) {
-            res.redirect(pageUrl(pending.id, { error: errorMessage(error) }))
+            res.redirect(pageUrl(pending.id, { error: hostErrorCode(error) }))
         }
     }
 
@@ -321,51 +379,32 @@ export function createConnectRouter(deps: ConnectDeps): Router {
         const clientSecret = field(req, 'client_secret')
         if (!isProviderKind(provider)) return res.redirect(pageUrl(pending.id))
         let host = ''
+        const refuse = (error: ConnectErrorCode) =>
+            res.redirect(pageUrl(pending.id, { error, provider, host }))
         try {
             host = normalizeHost(field(req, 'host'))
-            if (!clientId || !clientSecret) {
-                throw new HostError(
-                    'Both the application ID and the secret are required.'
-                )
-            }
+            if (!clientId || !clientSecret) return refuse('instance-fields')
             if (host === defaultHost(provider)) {
-                throw new HostError(
-                    `${host} already has a sign-in button above.`
-                )
+                return refuse('instance-built-in')
             }
             await deps.hostCheck(host)
-            const saved = store.instances.save(
-                { kind: provider, host, clientId, clientSecret },
-                deps.now()
-            )
-            if (!saved) {
-                throw new HostError(
-                    `Sign-in for ${host} is already set up. Use the sign-in button.`
-                )
-            }
-            res.redirect(
-                `${pageUrl(pending.id)}/link/${appPath(provider, host)}`
-            )
         } catch (error) {
-            res.redirect(
-                pageUrl(pending.id, {
-                    error: errorMessage(error),
-                    provider,
-                    host,
-                })
-            )
+            return refuse(hostErrorCode(error))
         }
+        const saved = store.instances.save(
+            pending.connectionId,
+            { kind: provider, host, clientId, clientSecret },
+            deps.now()
+        )
+        if (!saved) return refuse('instance-locked')
+        res.redirect(`${pageUrl(pending.id)}/link/${appPath(provider, host)}`)
     }
 
     const addPastedToken: PendingHandler = async (pending, req, res) => {
         const provider = field(req, 'provider')
         const token = field(req, 'token')
         if (!isProviderKind(provider) || !token) {
-            return res.redirect(
-                pageUrl(pending.id, {
-                    error: 'Provider, host and token are required.',
-                })
-            )
+            return res.redirect(pageUrl(pending.id, { error: 'token-fields' }))
         }
         try {
             const host = normalizeHost(field(req, 'host'))
@@ -379,13 +418,9 @@ export function createConnectRouter(deps: ConnectDeps): Router {
             )
             res.redirect(pageUrl(pending.id))
         } catch (error) {
-            const text =
-                error instanceof HostError
-                    ? error.message
-                    : `The token was not accepted: ${errorMessage(error)}`
             res.redirect(
                 pageUrl(pending.id, {
-                    error: text,
+                    error: hostErrorCode(error, 'token-rejected'),
                     provider,
                     host: field(req, 'host'),
                 })
@@ -412,9 +447,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
         const kind = url.startsWith('https://') ? inferWebhookKind(url) : null
         if (!kind) {
             return res.redirect(
-                pageUrl(pending.id, {
-                    error: 'Use a Slack, Discord or Google Chat webhook URL (https).',
-                })
+                pageUrl(pending.id, { error: 'webhook-invalid' })
             )
         }
         store.connections.setWebhook(pending.connectionId, { kind, url })
@@ -424,9 +457,7 @@ export function createConnectRouter(deps: ConnectDeps): Router {
     const saveSchedule: PendingHandler = (pending, req, res) => {
         if (field(req, 'enabled') !== 'on') {
             store.schedules.delete(pending.connectionId)
-            return res.redirect(
-                pageUrl(pending.id, { notice: 'Automatic posting is off.' })
-            )
+            return res.redirect(pageUrl(pending.id, { notice: 'schedule-off' }))
         }
         try {
             const settings = parseSchedule({
@@ -439,32 +470,26 @@ export function createConnectRouter(deps: ConnectDeps): Router {
                 settings,
                 nextRunAt(settings, deps.now())
             )
-            res.redirect(pageUrl(pending.id, { notice: 'Schedule saved.' }))
+            res.redirect(pageUrl(pending.id, { notice: 'schedule-saved' }))
         } catch (error) {
             if (!(error instanceof ScheduleError)) throw error
-            res.redirect(pageUrl(pending.id, { error: error.message }))
+            res.redirect(pageUrl(pending.id, { error: error.code }))
         }
     }
 
     const sendTest: PendingHandler = async (pending, _req, res) => {
         try {
             await sendDigest(deps, pending.connectionId)
-            res.redirect(pageUrl(pending.id, { notice: 'Test digest posted.' }))
+            res.redirect(pageUrl(pending.id, { notice: 'test-posted' }))
         } catch (error) {
-            res.redirect(
-                pageUrl(pending.id, {
-                    error: `The test digest was not posted: ${errorMessage(error)}`,
-                })
-            )
+            res.redirect(pageUrl(pending.id, { error: digestErrorCode(error) }))
         }
     }
 
     const finish: PendingHandler = (pending, _req, res) => {
         if (store.accounts.list(pending.connectionId).length === 0) {
             return res.redirect(
-                pageUrl(pending.id, {
-                    error: 'Link at least one account first.',
-                })
+                pageUrl(pending.id, { error: 'finish-no-account' })
             )
         }
         const code = randomToken()
@@ -516,6 +541,22 @@ export function createConnectRouter(deps: ConnectDeps): Router {
     router.post('/:pendingId/schedule/test', tokenLimit, withPending(sendTest))
     router.post('/:pendingId/finish', withPending(finish))
     router.post('/:pendingId/cancel', withPending(cancel))
+
+    // Express hands anything a handler throws here; without it the user
+    // gets Express's bare error page and nothing says which step failed.
+    const handleError: ErrorRequestHandler = (error, req, res, next) => {
+        console.error(
+            `connect ${req.method} ${req.route?.path ?? req.path}: ${errorDetail(error)}`
+        )
+        if (res.headersSent) return next(error)
+        res.status(500).send(
+            renderMessagePage(
+                'Something went wrong',
+                'The connect page hit an error. Go back to your app and connect again; if it keeps happening, report it on the support page.'
+            )
+        )
+    }
+    router.use(handleError)
 
     return router
 }

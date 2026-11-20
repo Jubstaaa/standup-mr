@@ -4,7 +4,6 @@ import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/share
 import { beforeEach, describe, expect, test } from 'bun:test'
 import type { Response } from 'express'
 
-import { CONNECT_COOKIE } from '../connect/connect.constants'
 import { Store } from '../store/store'
 import { REFRESH_REUSE_GRACE_MS } from '../store/store.constants'
 import { BROWSER_SECRET, startConnection } from '../store/store.fixtures'
@@ -24,13 +23,18 @@ let store: Store
 let provider: StandupOAuthProvider
 
 function fakeResponse() {
-    const sent = { location: '', cookies: {} as Record<string, string> }
+    const sent = {
+        location: '',
+        cookies: {} as Record<string, string>,
+        options: {} as Record<string, unknown>,
+    }
     const response = {
         redirect: (to: string) => {
             sent.location = to
         },
-        cookie: (name: string, value: string) => {
+        cookie: (name: string, value: string, options: object) => {
             sent.cookies[name] = value
+            sent.options[name] = options
         },
     } as unknown as Response
     return { sent, response }
@@ -57,6 +61,7 @@ beforeEach(() => {
     provider = new StandupOAuthProvider(store, {
         mcpUrl: MCP_URL,
         now: () => now,
+        siteUrl: new URL('/', MCP_URL),
     })
     store.clients.save(client, now)
 })
@@ -70,7 +75,7 @@ describe('authorize', () => {
             response
         )
         const pendingId = sent.location.replace('/connect/', '')
-        const secret = sent.cookies[CONNECT_COOKIE]!
+        const secret = sent.cookies['__Host-standup_connect']!
 
         expect(
             store.authorizations.getPending(pendingId, secret, now)
@@ -81,6 +86,34 @@ describe('authorize', () => {
         expect(
             store.authorizations.getPending(pendingId, 'other', now)
         ).toBeUndefined()
+    })
+
+    // __Host- keeps a sibling subdomain from planting its own cookie and
+    // walking the user into the attacker's sign-in.
+    test('uses a __Host- cookie over https and a plain one over http', async () => {
+        const secure = fakeResponse()
+        await provider.authorize(
+            client,
+            { codeChallenge: 'c', redirectUri: REDIRECT_URI },
+            secure.response
+        )
+        expect(secure.sent.options['__Host-standup_connect']).toMatchObject({
+            secure: true,
+            path: '/',
+            httpOnly: true,
+        })
+
+        const local = fakeResponse()
+        await new StandupOAuthProvider(store, {
+            mcpUrl: new URL('http://localhost/mcp'),
+            now: () => now,
+            siteUrl: new URL('http://localhost/'),
+        }).authorize(
+            client,
+            { codeChallenge: 'c', redirectUri: REDIRECT_URI },
+            local.response
+        )
+        expect(Object.keys(local.sent.cookies)).toEqual(['standup_connect'])
     })
 
     test('refuses a token for another resource', async () => {
@@ -111,6 +144,32 @@ describe('authorize', () => {
         )
         expect(sent.location).toStartWith('/connect/')
     })
+})
+
+describe('client registration', () => {
+    const register = async (redirect: string) =>
+        provider.clientsStore.registerClient!({
+            client_id: 'new',
+            redirect_uris: [redirect],
+        } as OAuthClientInformationFull)
+
+    test.each([
+        'https://claude.ai/api/mcp/auth_callback',
+        'http://localhost:33418/callback',
+        'http://127.0.0.1:9000/cb',
+        'http://[::1]:9000/cb',
+        'cursor://anysphere.cursor-retrieval/oauth/callback',
+    ])('accepts %s', async redirect => {
+        await expect(register(redirect)).resolves.toBeDefined()
+    })
+
+    test.each(['http://attacker.example.com/cb', 'javascript:alert(1)'])(
+        'refuses %s',
+        async redirect => {
+            await expect(register(redirect)).rejects.toThrow(/redirect/i)
+            expect(store.clients.get('new')).toBeUndefined()
+        }
+    )
 })
 
 describe('authorization code', () => {
@@ -275,12 +334,18 @@ describe('store', () => {
 
     test('the upstream login is single-use and browser-bound', () => {
         const pending = startConnection(store, now)
-        store.authorizations.setUpstreamLogin(pending, 'upstream', 'verifier')
+        store.authorizations.setUpstreamLogin(pending, 'upstream', 'verifier', {
+            kind: 'gitlab',
+            host: 'git.example.com',
+        })
         expect(
             store.authorizations.takeUpstreamLogin('upstream', 'other', now)
         ).toBeUndefined()
 
-        store.authorizations.setUpstreamLogin(pending, 'upstream', 'verifier')
+        store.authorizations.setUpstreamLogin(pending, 'upstream', 'verifier', {
+            kind: 'gitlab',
+            host: 'git.example.com',
+        })
         const login = store.authorizations.takeUpstreamLogin(
             'upstream',
             BROWSER_SECRET,
@@ -295,45 +360,6 @@ describe('store', () => {
                 now
             )
         ).toBeUndefined()
-    })
-
-    test('an instance can be replaced until its first sign-in', () => {
-        const instance = {
-            kind: 'gitlab' as const,
-            host: 'git.example.com',
-            clientId: 'first',
-            clientSecret: 'secret-1',
-        }
-        expect(store.instances.save(instance, now)).toBe(true)
-        expect(
-            store.instances.save({ ...instance, clientId: 'second' }, now)
-        ).toBe(true)
-        expect(store.instances.get('gitlab', 'git.example.com')?.clientId).toBe(
-            'second'
-        )
-
-        store.instances.markVerified('gitlab', 'git.example.com', now)
-        expect(
-            store.instances.save({ ...instance, clientId: 'takeover' }, now)
-        ).toBe(false)
-        const kept = store.instances.get('gitlab', 'git.example.com')!
-        expect(kept.clientId).toBe('second')
-        expect(kept.clientSecret).toBe('secret-1')
-        expect(kept.verifiedAt).toBe(now)
-    })
-
-    test('purge drops instances nobody ever signed in with', () => {
-        store.instances.save(
-            {
-                kind: 'gitlab',
-                host: 'git.example.com',
-                clientId: 'id',
-                clientSecret: 'secret',
-            },
-            now
-        )
-        store.purge(now + 2 * 24 * 60 * 60_000)
-        expect(store.instances.get('gitlab', 'git.example.com')).toBeUndefined()
     })
 
     test('purge drops abandoned pages and unredeemed connections', () => {

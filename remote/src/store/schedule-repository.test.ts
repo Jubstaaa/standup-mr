@@ -22,12 +22,20 @@ beforeEach(() => {
 })
 
 describe('ScheduleRepository', () => {
+    test('claims a due run once, then only for the run it now holds', () => {
+        expect(store.schedules.claim(connectionId, 100, 200)).toBe(true)
+        expect(store.schedules.claim(connectionId, 100, 200)).toBe(false)
+        expect(store.schedules.get(connectionId)!.nextRunAt).toBe(200)
+        expect(store.schedules.claim(connectionId, 200, 300)).toBe(true)
+    })
+
     test('stores the settings and the next run', () => {
         expect(store.schedules.get(connectionId)).toEqual({
             ...SETTINGS,
             connectionId,
             lastError: null,
             lastSentAt: null,
+            lastWarning: null,
             nextRunAt: 100,
         })
     })
@@ -50,7 +58,7 @@ describe('ScheduleRepository', () => {
             lastError: 'boom',
             nextRunAt: 200,
         })
-        store.schedules.markSent(connectionId, 250, 300)
+        store.schedules.markSent(connectionId, 250, 300, null)
         expect(store.schedules.get(connectionId)).toMatchObject({
             lastError: null,
             lastSentAt: 250,
@@ -68,9 +76,7 @@ describe('ScheduleRepository', () => {
         })
     })
 
-    test('moves the next run and deletes the schedule', () => {
-        store.schedules.setNextRun(connectionId, 500)
-        expect(store.schedules.get(connectionId)?.nextRunAt).toBe(500)
+    test('deletes the schedule', () => {
         store.schedules.delete(connectionId)
         expect(store.schedules.get(connectionId)).toBeUndefined()
     })

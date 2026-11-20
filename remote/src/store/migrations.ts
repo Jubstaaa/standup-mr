@@ -2,7 +2,10 @@ import type { Database } from 'bun:sqlite'
 
 // Each entry runs once, in order, and leaves PRAGMA user_version at its
 // position in the list. Never edit an entry that has shipped: append one.
-export const MIGRATIONS: readonly string[] = [
+// A migration is SQL, or a function when it has something to report.
+export type Migration = string | ((db: Database) => void)
+
+export const MIGRATIONS: readonly Migration[] = [
     // The schema every release used before versioning existed. It keeps
     // IF NOT EXISTS so it is a no-op on those databases, still at version 0.
     `
@@ -97,7 +100,56 @@ CREATE INDEX IF NOT EXISTS tokens_connection ON tokens (connection_id);
 CREATE INDEX IF NOT EXISTS pending_upstream_state ON pending (upstream_state);
 CREATE INDEX IF NOT EXISTS schedules_next_run ON schedules (next_run_at);
 `,
+    // A self-hosted OAuth application belongs to the connection that
+    // registered it; one shared per host let anyone lock it or harvest the
+    // tokens of everyone signing in through it. Who registered a shared
+    // row was never stored, so each one is copied to every connection whose
+    // OAuth account it issued (they need it to refresh). The shared table
+    // stays untouched for the previous release, which a failed deploy rolls
+    // back to; this code never reads it, and a later release drops it.
+    db => {
+        db.exec(CONNECTION_INSTANCES)
+        const skipped = db
+            .query<{ n: number }, []>(
+                `SELECT COUNT(*) AS n FROM instances WHERE NOT EXISTS (
+                 SELECT 1 FROM accounts WHERE accounts.provider = instances.kind
+                 AND accounts.host = instances.host AND accounts.source = 'oauth')`
+            )
+            .get()!.n
+        if (skipped > 0) {
+            console.error(
+                `schema migration 2: ${skipped} self-hosted OAuth app(s) nobody had signed in with were not carried over; they are set up again on the connect page`
+            )
+        }
+    },
+    // A run that posted but could not read every account says so here,
+    // apart from last_error, which means the run did not post at all.
+    'ALTER TABLE schedules ADD COLUMN last_warning TEXT',
+    // A refresh token is single-use: the server about to spend it claims the
+    // account here first, so two servers sharing the database never both do.
+    'ALTER TABLE accounts ADD COLUMN refresh_claimed_until INTEGER',
 ]
+
+const CONNECTION_INSTANCES = `
+CREATE TABLE connection_instances (
+    connection_id TEXT NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    host TEXT NOT NULL,
+    client_id TEXT NOT NULL,
+    client_secret TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    verified_at INTEGER,
+    PRIMARY KEY (connection_id, kind, host)
+);
+
+INSERT INTO connection_instances
+SELECT DISTINCT accounts.connection_id, instances.kind, instances.host,
+    instances.client_id, instances.client_secret, instances.created_at,
+    instances.verified_at
+FROM instances
+JOIN accounts ON accounts.provider = instances.kind
+    AND accounts.host = instances.host AND accounts.source = 'oauth';
+`
 
 export function schemaVersion(db: Database): number {
     const row = db
@@ -109,17 +161,71 @@ export function schemaVersion(db: Database): number {
 // About fifteen lines of user_version bookkeeping; the bun:sqlite migration
 // packages are unmaintained (last release 2023) and umzug needs a custom
 // storage adapter for user_version plus five dependencies.
-export function migrate(db: Database, migrations: readonly string[]): void {
-    db.transaction(() => {
-        const current = schemaVersion(db)
-        migrations.slice(current).forEach((sql, offset) => {
-            const version = current + offset + 1
-            try {
-                db.exec(sql)
-            } catch (cause) {
-                throw new Error(`Schema migration ${version} failed`, { cause })
-            }
-            db.exec(`PRAGMA user_version = ${version}`)
+//
+// SQLite ignores PRAGMA foreign_keys inside a transaction, so it is switched
+// off around it: a migration that rebuilds a parent table (create, copy,
+// drop, rename) would otherwise cascade-delete every row that references
+// it. foreign_key_check then proves the rebuild left no dangling reference.
+// The transaction is IMMEDIATE because the old and the new container
+// overlap during a deploy and both open the database.
+export function migrate(db: Database, migrations: readonly Migration[]): void {
+    const enforced = foreignKeysEnabled(db)
+    db.exec('PRAGMA foreign_keys = OFF')
+    try {
+        db.transaction(() => {
+            const current = schemaVersion(db)
+            const pending = migrations.slice(current)
+            pending.forEach((migration, offset) => {
+                const version = current + offset + 1
+                try {
+                    if (typeof migration === 'string') db.exec(migration)
+                    else migration(db)
+                } catch (cause) {
+                    throw new MigrationError(
+                        `Schema migration ${version} failed`,
+                        { cause }
+                    )
+                }
+                db.exec(`PRAGMA user_version = ${version}`)
+            })
+            if (pending.length > 0) assertNoDanglingReferences(db)
+        }).immediate()
+    } catch (error) {
+        if (error instanceof MigrationError) throw error
+        // BEGIN IMMEDIATE itself failed: another process holds the lock.
+        throw new Error('Could not lock the database to migrate it', {
+            cause: error,
         })
-    })()
+    } finally {
+        if (enforced) db.exec('PRAGMA foreign_keys = ON')
+    }
+}
+
+class MigrationError extends Error {}
+
+interface ForeignKeyViolation {
+    parent: string
+    rowid: number
+    table: string
+}
+
+function assertNoDanglingReferences(db: Database): void {
+    const dangling = db
+        .query<ForeignKeyViolation, []>('PRAGMA foreign_key_check')
+        .all()
+    if (dangling.length === 0) return
+    const shown = dangling
+        .slice(0, 10)
+        .map(row => `${row.table} row ${row.rowid} -> ${row.parent}`)
+        .join(', ')
+    throw new MigrationError(
+        `Schema migration left ${dangling.length} rows with a broken foreign key: ${shown}`
+    )
+}
+
+function foreignKeysEnabled(db: Database): boolean {
+    const row = db
+        .query<{ foreign_keys: number }, []>('PRAGMA foreign_keys')
+        .get()
+    return row?.foreign_keys === 1
 }

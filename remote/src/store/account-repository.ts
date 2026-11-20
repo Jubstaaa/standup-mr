@@ -56,25 +56,36 @@ export class AccountRepository {
         )!
     }
 
+    get(accountId: string): Account | undefined {
+        const row = this.db
+            .query<AccountRow, [string]>('SELECT * FROM accounts WHERE id = ?')
+            .get(accountId)
+        return row ? this.toAccount(row) : undefined
+    }
+
     list(connectionId: string): Account[] {
         return this.db
             .query<AccountRow, [string]>(
                 'SELECT * FROM accounts WHERE connection_id = ? ORDER BY provider, host'
             )
             .all(connectionId)
-            .map(row => ({
-                id: row.id,
-                accessToken: open(this.key, row.access_token),
-                connectionId: row.connection_id,
-                expiresAt: row.expires_at,
-                host: row.host,
-                provider: row.provider,
-                refreshToken: row.refresh_token
-                    ? open(this.key, row.refresh_token)
-                    : null,
-                source: row.source,
-                username: row.username,
-            }))
+            .map(row => this.toAccount(row))
+    }
+
+    private toAccount(row: AccountRow): Account {
+        return {
+            id: row.id,
+            accessToken: open(this.key, row.access_token),
+            connectionId: row.connection_id,
+            expiresAt: row.expires_at,
+            host: row.host,
+            provider: row.provider,
+            refreshToken: row.refresh_token
+                ? open(this.key, row.refresh_token)
+                : null,
+            source: row.source,
+            username: row.username,
+        }
     }
 
     remove(connectionId: string, accountId: string): void {
@@ -83,11 +94,33 @@ export class AccountRepository {
             .run(connectionId, accountId)
     }
 
-    updateTokens(accountId: string, tokens: UpstreamTokens): void {
+    // True only for the caller that took the claim; one left by a server
+    // that died lapses at its expiry.
+    claimRefresh(accountId: string, now: number, until: number): boolean {
+        return (
+            this.db
+                .query(
+                    `UPDATE accounts SET refresh_claimed_until = ? WHERE id = ?
+                     AND (refresh_claimed_until IS NULL OR refresh_claimed_until <= ?)`
+                )
+                .run(until, accountId, now).changes === 1
+        )
+    }
+
+    releaseRefresh(accountId: string): void {
         this.db
             .query(
+                'UPDATE accounts SET refresh_claimed_until = NULL WHERE id = ?'
+            )
+            .run(accountId)
+    }
+
+    updateTokens(accountId: string, tokens: UpstreamTokens): void {
+        const result = this.db
+            .query(
                 `UPDATE accounts SET access_token = ?,
-                 refresh_token = COALESCE(?, refresh_token), expires_at = ? WHERE id = ?`
+                 refresh_token = COALESCE(?, refresh_token), expires_at = ?,
+                 refresh_claimed_until = NULL WHERE id = ?`
             )
             .run(
                 seal(this.key, tokens.accessToken),
@@ -97,5 +130,12 @@ export class AccountRepository {
                 tokens.expiresAt,
                 accountId
             )
+        // A refresh that lands after the account was removed must not look
+        // like it was saved.
+        if (result.changes !== 1) {
+            throw new Error(
+                `Account ${accountId} is missing; tokens not saved.`
+            )
+        }
     }
 }

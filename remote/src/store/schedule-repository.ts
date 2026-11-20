@@ -7,6 +7,7 @@ interface ScheduleRow {
     days: string
     last_error: string | null
     last_sent_at: number | null
+    last_warning: string | null
     next_run_at: number
     time: string
     timezone: string
@@ -18,6 +19,7 @@ function toSchedule(row: ScheduleRow): Schedule {
         days: row.days,
         lastError: row.last_error,
         lastSentAt: row.last_sent_at,
+        lastWarning: row.last_warning,
         nextRunAt: row.next_run_at,
         time: row.time,
         timezone: row.timezone,
@@ -74,21 +76,29 @@ export class ScheduleRepository {
             .map(toSchedule)
     }
 
-    setNextRun(connectionId: string, nextRunAt: number): void {
-        this.db
-            .query(
-                'UPDATE schedules SET next_run_at = ? WHERE connection_id = ?'
-            )
-            .run(nextRunAt, connectionId)
+    // True only for the caller that moved the run off `due`.
+    claim(connectionId: string, due: number, nextRunAt: number): boolean {
+        return (
+            this.db
+                .query(
+                    'UPDATE schedules SET next_run_at = ? WHERE connection_id = ? AND next_run_at = ?'
+                )
+                .run(nextRunAt, connectionId, due).changes === 1
+        )
     }
 
-    markSent(connectionId: string, sentAt: number, nextRunAt: number): void {
+    markSent(
+        connectionId: string,
+        sentAt: number,
+        nextRunAt: number,
+        warning: string | null
+    ): void {
         this.db
             .query(
-                `UPDATE schedules SET last_sent_at = ?, last_error = NULL, next_run_at = ?
-                 WHERE connection_id = ?`
+                `UPDATE schedules SET last_sent_at = ?, last_error = NULL,
+                 last_warning = ?, next_run_at = ? WHERE connection_id = ?`
             )
-            .run(sentAt, nextRunAt, connectionId)
+            .run(sentAt, warning, nextRunAt, connectionId)
     }
 
     markFailed(connectionId: string, error: string, nextRunAt: number): void {

@@ -19,7 +19,8 @@ export interface UpstreamApp {
     host: string
     // Registered from the connect page rather than this server's config.
     isInstance: boolean
-    // An instance becomes verified, and locked, on its first sign-in.
+    // An instance becomes verified, and locked for its connection, on its
+    // first sign-in.
     isVerified: boolean
     kind: ProviderKind
     scopes: string[]
@@ -145,12 +146,18 @@ export function createUpstream(deps: UpstreamDeps) {
     return {
         builtIn,
 
-        resolve(kind: ProviderKind, host: string): UpstreamApp | undefined {
+        // A self-hosted app is only ever found for the connection that
+        // registered it.
+        resolve(
+            kind: ProviderKind,
+            host: string,
+            connectionId: string
+        ): UpstreamApp | undefined {
             const configured = builtIn.find(
                 app => app.kind === kind && app.host === host
             )
             if (configured) return configured
-            const instance = deps.instances.get(kind, host)
+            const instance = deps.instances.get(connectionId, kind, host)
             return instance ? fromInstance(instance) : undefined
         },
 
