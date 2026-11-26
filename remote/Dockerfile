@@ -4,7 +4,7 @@
 #   docker build -f remote/Dockerfile .
 # Pinned by digest so a re-pushed tag cannot change what ships; Dependabot
 # (docker, /remote) bumps tag and digest together.
-FROM oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d
+FROM oven/bun:1.4.5@sha256:3aa040e5445efa09d75bb428a64ba50db13e2b3ac9b6b0c7f145615f62b2ee18
 
 # Debian security fixes land daily instead of waiting for upstream to rebuild
 # the pinned base: CI passes the date as APT_REFRESH, which changes this
