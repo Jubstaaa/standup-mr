@@ -4,9 +4,7 @@ All notable changes to standup-mr are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-The report gains a field, so the next release is a minor version.
+## [1.2.0] - 2026-11-27
 
 ### Added
 
